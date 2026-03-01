@@ -346,6 +346,58 @@ class Tensor:
                     Tensor._accumulate_grad(b, grad_b_data)
                 else:
                     Tensor._accumulate_grad_batch([(a, grad_a_data), (b, grad_b_data)])
+        elif op == "batch_matmul":
+            # Batched matrix multiplication backward
+            if len(parents) == 2 and tensor.grad is not None:
+                a, b = parents
+                ctx = tensor._ctx
+                a_shape = ctx.get("a_shape", a.shape) if ctx else a.shape
+                b_shape = ctx.get("b_shape", b.shape) if ctx else b.shape
+
+                # For batched matmul: grad_a = grad @ b.T, grad_b = a.T @ grad
+                # Need to handle broadcasting and batch dimensions correctly
+                grad_output = tensor.grad.data
+
+                # Compute gradient for a: grad_a = grad @ b^T
+                # Swap last two dimensions of b for transpose
+                if b.ndim == 1:
+                    # b is 1D, treat as column vector
+                    grad_a_data = grad_output * b.data
+                else:
+                    b_T = np.swapaxes(b.data, -1, -2)
+                    grad_a_data = np.matmul(grad_output, b_T)
+
+                # Compute gradient for b: grad_b = a^T @ grad
+                if a.ndim == 1:
+                    # a is 1D, treat as row vector
+                    grad_b_data = np.expand_dims(a.data, -1) * grad_output
+                else:
+                    a_T = np.swapaxes(a.data, -1, -2)
+                    grad_b_data = np.matmul(a_T, grad_output)
+
+                # Handle broadcasting: sum over extra batch dimensions
+                # If a_shape differs from grad_a_data shape, sum the broadcasted dims
+                if grad_a_data.shape != a_shape:
+                    # Find which dimensions were broadcasted
+                    ndim_diff = grad_a_data.ndim - len(a_shape)
+                    if ndim_diff > 0:
+                        # Sum over the extra leading dimensions
+                        grad_a_data = grad_a_data.sum(axis=tuple(range(ndim_diff)))
+                    # Sum over dimensions that were size 1 in input
+                    for i, (s1, s2) in enumerate(zip(a_shape, grad_a_data.shape)):
+                        if s1 == 1 and s2 != 1:
+                            grad_a_data = grad_a_data.sum(axis=i, keepdims=True)
+
+                if grad_b_data.shape != b_shape:
+                    ndim_diff = grad_b_data.ndim - len(b_shape)
+                    if ndim_diff > 0:
+                        grad_b_data = grad_b_data.sum(axis=tuple(range(ndim_diff)))
+                    for i, (s1, s2) in enumerate(zip(b_shape, grad_b_data.shape)):
+                        if s1 == 1 and s2 != 1:
+                            grad_b_data = grad_b_data.sum(axis=i, keepdims=True)
+
+                self._accumulate_grad(a, grad_a_data)
+                self._accumulate_grad(b, grad_b_data)
         elif op == "neg":
             # Gradient for negation: dL/da = -dL/dout
             if len(parents) == 1:
@@ -496,16 +548,22 @@ class Tensor:
         elif op == "div":
             if len(parents) == 2 and tensor.grad is not None:
                 a, b = parents
-                
+
                 ctx = tensor._ctx
                 if ctx is not None and "denom" in ctx:
                     denom = ctx["denom"]
                 else:
                     denom = b.data
-                
-                denom_sq = denom * denom
-                grad_a_data = tensor.grad.data / denom
+
+                # Add small epsilon for numerical stability
+                epsilon = 1e-8
+                denom_safe = np.where(np.abs(denom) < epsilon, np.sign(denom + 1e-12) * epsilon, denom)
+                denom_sq = denom_safe * denom_safe
+                grad_a_data = tensor.grad.data / denom_safe
                 grad_b_data = -tensor.grad.data * a.data / denom_sq
+                # Clip to avoid extreme values
+                grad_a_data = np.clip(grad_a_data, -1e8, 1e8)
+                grad_b_data = np.clip(grad_b_data, -1e8, 1e8)
                 if a.size <= 100 and b.size <= 100:
                     Tensor._accumulate_grad(a, grad_a_data)
                     Tensor._accumulate_grad(b, grad_b_data)
@@ -547,13 +605,21 @@ class Tensor:
             # Gradient for exp: dy/da = grad * exp(a)
             if len(parents) == 1 and tensor.grad is not None:
                 a = parents[0]
-                grad = tensor.grad.data * np.exp(a.data)
+                # Clip input to avoid overflow in exp
+                clipped_a = np.clip(a.data, -88, 88)  # exp(88) is near float32 max
+                grad = tensor.grad.data * np.exp(clipped_a)
+                # Clip output to avoid extreme values
+                grad = np.clip(grad, -1e8, 1e8)
                 self._accumulate_grad(a, grad)
         elif op == "log":
             # Gradient for log: dy/da = grad / a (matches PyTorch behavior)
             if len(parents) == 1 and tensor.grad is not None:
                 a = parents[0]
-                grad = tensor.grad.data / a.data
+                # Add small epsilon for numerical stability
+                epsilon = 1e-8
+                grad = tensor.grad.data / (a.data + np.sign(a.data) * epsilon)
+                # Clip to avoid extreme values
+                grad = np.clip(grad, -1e8, 1e8)
                 self._accumulate_grad(a, grad)
         elif op == "reshape":
             # Gradient for reshape: just reshape gradient to input shape
@@ -1763,13 +1829,26 @@ class Tensor:
         """
         chunks = []
         size = self.shape[dim]
+        split_sizes = []
+        split_index = 0
         for i in range(0, size, split_size):
             end = min(i + split_size, size)
+            chunk_size = end - i
+            split_sizes.append(chunk_size)
             # Build indices for slicing
             idx = [slice(None)] * self.ndim
             idx[dim] = slice(i, end)
             chunk_data = self.data[tuple(idx)]
-            chunks.append(Tensor(chunk_data, requires_grad=self.requires_grad))
+            # Create tensor with proper computation graph connection
+            chunk = Tensor(
+                chunk_data,
+                requires_grad=self.requires_grad,
+                _op="split",
+                _parents=(self,),
+                _ctx={"dim": dim, "split_index": split_index, "split_sizes": split_sizes},
+            )
+            chunks.append(chunk)
+            split_index += 1
         return chunks
 
     def chunk(self, chunks: int, dim: int = 0) -> List["Tensor"]:
