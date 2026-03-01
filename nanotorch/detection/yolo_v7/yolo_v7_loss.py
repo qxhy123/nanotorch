@@ -71,50 +71,83 @@ class YOLOv7Loss(Module):
     def _compute_scale_loss(self, pred: Tensor, targets: List[Dict], scale_name: str) -> Tuple[float, float, float, float]:
         pred_data = pred.data
         N, C, H, W = pred_data.shape
-        num_anchors = 1
-        num_values = 5 + self.num_classes
-        pred_data = pred_data.reshape(N, num_anchors, num_values, H, W)
-        pred_data = pred_data.transpose(0, 3, 4, 1, 2)
-        
+        # YOLOv7 format: (N, C, H, W) where C = 5 + num_classes
+
         box_loss = obj_loss = noobj_loss = class_loss = 0.0
         box_count = obj_count = noobj_count = class_count = 0
-        
+
         for n in range(N):
             target = targets[n] if n < len(targets) else {'boxes': np.array([]), 'labels': np.array([])}
             boxes = target.get('boxes', np.array([]))
             labels = target.get('labels', np.array([]))
-            
+
             if len(boxes) == 0:
                 for i in range(H):
                     for j in range(W):
-                        for a in range(num_anchors):
-                            noobj_loss += pred_data[n, i, j, a, 4] ** 2
-                            noobj_count += 1
+                        noobj_loss += pred_data[n, 4, i, j] ** 2
+                        noobj_count += 1
                 continue
-            
+
+            # Assign each GT to its corresponding grid cell
+            gt_assigned = set()
+
+            for t_idx, box in enumerate(boxes):
+                x1, y1, x2, y2 = box
+                gt_cx = (x1 + x2) / 2
+                gt_cy = (y1 + y2) / 2
+                gt_w = x2 - x1
+                gt_h = y2 - y1
+
+                # Find grid cell
+                gx = int(gt_cx / 640 * W)
+                gy = int(gt_cy / 640 * H)
+                gx = min(max(gx, 0), W - 1)
+                gy = min(max(gy, 0), H - 1)
+
+                gt_assigned.add((gy, gx))
+
+                # Get predictions
+                pred_tx = pred_data[n, 0, gy, gx]
+                pred_ty = pred_data[n, 1, gy, gx]
+                pred_tw = pred_data[n, 2, gy, gx]
+                pred_th = pred_data[n, 3, gy, gx]
+                pred_conf = pred_data[n, 4, gy, gx]
+                class_probs = pred_data[n, 5:, gy, gx]
+
+                # Target in grid coordinates
+                target_tx = gt_cx / 640 * W - gx
+                target_ty = gt_cy / 640 * H - gy
+                target_tw = gt_w / 640 * W
+                target_th = gt_h / 640 * H
+
+                # Box loss
+                box_loss += (pred_tx - target_tx) ** 2
+                box_loss += (pred_ty - target_ty) ** 2
+                box_loss += (pred_tw - target_tw) ** 2
+                box_loss += (pred_th - target_th) ** 2
+                box_count += 4
+
+                # Objectness loss
+                obj_loss += (pred_conf - 1) ** 2
+                obj_count += 1
+
+                # Classification loss
+                label = labels[t_idx]
+                target_class = np.zeros(self.num_classes, dtype=np.float32)
+                if label < self.num_classes:
+                    target_class[int(label)] = 1.0
+                for c in range(self.num_classes):
+                    class_loss += (class_probs[c] - target_class[c]) ** 2
+                class_count += self.num_classes
+
+            # All other cells are negative samples
             for i in range(H):
                 for j in range(W):
-                    for a in range(num_anchors):
-                        pred_conf = pred_data[n, i, j, a, 4]
-                        best_iou = 0.0
-                        
-                        for box in boxes:
-                            cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
-                            cell_cx, cell_cy = (j + 0.5) / W, (i + 0.5) / H
-                            iou = self._compute_iou(cell_cx, cell_cy, 0.1, 0.1, cx / 640, cy / 640, (box[2]-box[0])/640, (box[3]-box[1])/640)
-                            best_iou = max(best_iou, iou)
-                        
-                        if best_iou > self.ignore_threshold:
-                            obj_loss += (pred_conf - 1) ** 2
-                            obj_count += 1
-                            class_probs = pred_data[n, i, j, a, 5:]
-                            for c in range(self.num_classes):
-                                class_loss += class_probs[c] ** 2
-                            class_count += self.num_classes
-                        else:
-                            noobj_loss += pred_conf ** 2
-                            noobj_count += 1
-        
+                    if (i, j) not in gt_assigned:
+                        pred_conf = pred_data[n, 4, i, j]
+                        noobj_loss += pred_conf ** 2
+                        noobj_count += 1
+
         return (
             box_loss / max(box_count, 1),
             obj_loss / max(obj_count, 1),
