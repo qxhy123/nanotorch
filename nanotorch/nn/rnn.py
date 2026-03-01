@@ -5,6 +5,7 @@ from typing import Optional, Tuple, List
 import numpy as np
 from nanotorch.nn.module import Module
 from nanotorch.tensor import Tensor
+from nanotorch.nn.dropout import Dropout
 
 
 class RNNCell(Module):
@@ -132,12 +133,12 @@ class LSTMCell(Module):
         self.bias_hh: Optional[Tensor] = None
 
         if bias:
-            self.bias_ih = Tensor(
-                np.zeros(gate_size, dtype=np.float32), requires_grad=True
-            )
-            self.bias_hh = Tensor(
-                np.zeros(gate_size, dtype=np.float32), requires_grad=True
-            )
+            # Initialize forget gate bias to 1.0 for better memory retention
+            # Gates order: input, forget, cell, output
+            bias_init = np.zeros(gate_size, dtype=np.float32)
+            bias_init[hidden_size:2*hidden_size] = 1.0  # Forget gate bias
+            self.bias_ih = Tensor(bias_init.copy(), requires_grad=True)
+            self.bias_hh = Tensor(np.zeros(gate_size, dtype=np.float32), requires_grad=True)
 
         self.register_parameter("weight_ih", self.weight_ih)
         self.register_parameter("weight_hh", self.weight_hh)
@@ -312,6 +313,16 @@ class RNNBase(Module):
                 self._cells.append(cell)
                 self.register_module(f"cell_{layer}_{direction}", cell)
 
+        # Create dropout layers for inter-layer dropout (only if dropout > 0 and num_layers > 1)
+        self._dropouts: List[Optional[Dropout]] = []
+        if dropout > 0 and num_layers > 1:
+            for layer in range(num_layers - 1):
+                dropout_layer = Dropout(dropout)
+                self._dropouts.append(dropout_layer)
+                self.register_module(f"dropout_{layer}", dropout_layer)
+        else:
+            self._dropouts = [None] * (num_layers - 1) if num_layers > 1 else []
+
     def forward(
         self,
         x: Tensor,
@@ -350,46 +361,108 @@ class RNNBase(Module):
         else:
             hidden_state = h_0
 
-        outputs: List[Tensor] = []
+        # Process each layer
+        layer_input = x
+        for layer in range(self.num_layers):
+            # Process forward and backward directions separately for bidirectional RNN
+            if self.bidirectional:
+                # Forward direction (process sequence in order)
+                forward_outputs: List[Tensor] = []
+                cell_forward = self._cells[layer * 2]
 
-        for t in range(seq_len):
-            x_t = x[t]
-            layer_outputs: List[Tensor] = []
-
-            for layer in range(self.num_layers):
-                for direction in range(self.num_directions):
-                    cell_idx = layer * self.num_directions + direction
-                    cell = self._cells[cell_idx]
-
+                for t in range(seq_len):
+                    x_t = layer_input[t]
                     if self.mode == "LSTM":
                         h, c = hidden_state
-                        h_layer = h[cell_idx]
-                        c_layer = c[cell_idx]
-                        h_new, c_new = cell(x_t, (h_layer, c_layer))
-                        h.data[cell_idx] = h_new.data
-                        c.data[cell_idx] = c_new.data
-                        layer_outputs.append(h_new)
+                        h_layer = h[layer * 2]
+                        c_layer = c[layer * 2]
+                        h_new, c_new = cell_forward(x_t, (h_layer, c_layer))
+                        h.data[layer * 2] = h_new.data
+                        c.data[layer * 2] = c_new.data
                         hidden_state = (h, c)
+                        forward_outputs.append(h_new)
                     else:
                         h = hidden_state
-                        h_layer = h[cell_idx]
-                        h_new = cell(x_t, h_layer)
-                        h.data[cell_idx] = h_new.data
-                        layer_outputs.append(h_new)
+                        h_layer = h[layer * 2]
+                        h_new = cell_forward(x_t, h_layer)
+                        h.data[layer * 2] = h_new.data
                         hidden_state = h
+                        forward_outputs.append(h_new)
 
-                if self.num_directions == 2:
-                    x_t = Tensor(
-                        np.concatenate([layer_outputs[0].data, layer_outputs[1].data], axis=-1)
+                # Backward direction (process sequence in reverse order)
+                backward_outputs: List[Tensor] = []
+                cell_backward = self._cells[layer * 2 + 1]
+
+                for t in range(seq_len - 1, -1, -1):
+                    x_t = layer_input[t]
+                    if self.mode == "LSTM":
+                        h, c = hidden_state
+                        h_layer = h[layer * 2 + 1]
+                        c_layer = c[layer * 2 + 1]
+                        h_new, c_new = cell_backward(x_t, (h_layer, c_layer))
+                        h.data[layer * 2 + 1] = h_new.data
+                        c.data[layer * 2 + 1] = c_new.data
+                        hidden_state = (h, c)
+                        backward_outputs.insert(0, h_new)  # Insert at beginning to reverse order
+                    else:
+                        h = hidden_state
+                        h_layer = h[layer * 2 + 1]
+                        h_new = cell_backward(x_t, h_layer)
+                        h.data[layer * 2 + 1] = h_new.data
+                        hidden_state = h
+                        backward_outputs.insert(0, h_new)
+
+                # Concatenate forward and backward outputs
+                layer_output_list = []
+                for t in range(seq_len):
+                    concat = Tensor(
+                        np.concatenate([forward_outputs[t].data, backward_outputs[t].data], axis=-1),
+                        requires_grad=forward_outputs[t].requires_grad or backward_outputs[t].requires_grad
                     )
-                else:
-                    x_t = layer_outputs[0]
+                    layer_output_list.append(concat)
+            else:
+                # Unidirectional RNN
+                layer_outputs: List[Tensor] = []
+                cell = self._cells[layer]
 
-            outputs.append(x_t)
+                for t in range(seq_len):
+                    x_t = layer_input[t]
+                    if self.mode == "LSTM":
+                        h, c = hidden_state
+                        h_layer = h[layer]
+                        c_layer = c[layer]
+                        h_new, c_new = cell(x_t, (h_layer, c_layer))
+                        h.data[layer] = h_new.data
+                        c.data[layer] = c_new.data
+                        hidden_state = (h, c)
+                        layer_outputs.append(h_new)
+                    else:
+                        h = hidden_state
+                        h_layer = h[layer]
+                        h_new = cell(x_t, h_layer)
+                        h.data[layer] = h_new.data
+                        hidden_state = h
+                        layer_outputs.append(h_new)
 
-        output = Tensor(
-            np.stack([o.data for o in outputs], axis=0)
-        )
+                layer_output_list = layer_outputs
+
+            # Apply dropout between layers (not after the last layer)
+            if layer < self.num_layers - 1 and self._dropouts[layer] is not None:
+                dropout_layer = self._dropouts[layer]
+                dropped_outputs = []
+                for out in layer_output_list:
+                    dropped_outputs.append(dropout_layer(out))
+                layer_output_list = dropped_outputs
+
+            # Stack outputs for next layer
+            if len(layer_output_list) > 0:
+                layer_input = Tensor(
+                    np.stack([o.data for o in layer_output_list], axis=0),
+                    requires_grad=any(o.requires_grad for o in layer_output_list)
+                )
+
+        # Final output
+        output = layer_input
 
         if self.batch_first:
             output = output.transpose(0, 1)
