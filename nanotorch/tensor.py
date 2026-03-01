@@ -737,8 +737,56 @@ class Tensor:
                     # Gradient for src: gather gradient from output at indices
                     grad_src = np.take_along_axis(grad_output, index_tensor.data.astype(np.int64), axis=dim)
                     self._accumulate_grad(src_tensor, grad_src)
-                    
+
                     # Index tensor gradient not computed
+
+        elif op == "embedding":
+            # Gradient for embedding: scatter gradient back to weight matrix
+            if len(parents) == 2 and tensor.grad is not None:
+                weight = parents[0]
+                input_tensor = parents[1]
+                if weight.requires_grad:
+                    indices = input_tensor.data.astype(np.int64)
+                    grad_weight = np.zeros_like(weight.data)
+                    np.add.at(grad_weight, indices, tensor.grad.data)
+                    self._accumulate_grad(weight, grad_weight)
+
+        elif op == "embedding_bag":
+            # Gradient for embedding_bag: scatter gradient back based on mode
+            if len(parents) == 2 and tensor.grad is not None:
+                weight = parents[0]
+                input_tensor = parents[1]
+                if weight.requires_grad:
+                    indices = input_tensor.data.astype(np.int64)
+                    grad_weight = np.zeros_like(weight.data)
+                    ctx = tensor._ctx
+
+                    if input_tensor.data.ndim == 1:
+                        # Direct indexing case
+                        np.add.at(grad_weight, indices, tensor.grad.data)
+                    else:
+                        # Bag case - need to scatter gradient back
+                        mode = ctx.get("mode", "sum") if ctx else "sum"
+
+                        if mode == "sum":
+                            bag_size = indices.shape[1]
+                            expanded_grad = np.repeat(tensor.grad.data[:, np.newaxis, :], bag_size, axis=1)
+                            np.add.at(grad_weight, indices, expanded_grad)
+                        elif mode == "mean":
+                            bag_size = indices.shape[1]
+                            expanded_grad = np.repeat(tensor.grad.data[:, np.newaxis, :], bag_size, axis=1) / bag_size
+                            np.add.at(grad_weight, indices, expanded_grad)
+                        elif mode == "max":
+                            # Only the max element gets the gradient
+                            embedded = weight.data[indices]
+                            max_indices = np.argmax(embedded, axis=1)
+                            for n in range(indices.shape[0]):
+                                for d in range(weight.data.shape[1]):
+                                    max_pos = max_indices[n, d]
+                                    idx = indices[n, max_pos]
+                                    grad_weight[idx, d] += tensor.grad.data[n, d]
+
+                    self._accumulate_grad(weight, grad_weight)
 
     # Basic arithmetic operations
     def __add__(
