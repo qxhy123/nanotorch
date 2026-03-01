@@ -1,347 +1,385 @@
-# 教程 10：归一化层 (Normalization Layers)
+# 第十章：归一化层
 
-## 目录
+## 想象一个合唱团...
 
-1. [概述](#概述)
-2. [为什么需要归一化](#为什么需要归一化)
-3. [BatchNorm 实现](#batchnorm-实现)
-4. [LayerNorm 实现](#layernorm-实现)
-5. [GroupNorm 实现](#groupnorm-实现)
-6. [InstanceNorm 实现](#instancenorm-实现)
-7. [各归一化方法的比较](#各归一化方法的比较)
-8. [使用示例](#使用示例)
-9. [总结](#总结)
-
----
-
-## 概述
-
-归一化层是现代深度神经网络的核心组件，它们能够：
-- **加速训练**：允许使用更大的学习率
-- **稳定训练**：减少内部协变量偏移（Internal Covariate Shift）
-- **正则化效果**：BatchNorm 具有一定的正则化作用
-
-nanotorch 实现了以下归一化层：
-- **BatchNorm1d/2d/3d**：批归一化
-- **LayerNorm**：层归一化
-- **GroupNorm**：组归一化
-- **InstanceNorm1d/2d/3d**：实例归一化
-
----
-
-## 为什么需要归一化
-
-### 内部协变量偏移
-
-在深层网络中，每层的输入分布会随着前层参数更新而变化，这导致：
-1. 每层需要不断适应新的输入分布
-2. 学习率需要设得很小
-3. 训练不稳定，收敛慢
-
-### 归一化的作用
+合唱团唱歌时：
+- 有人声音太大，有人声音太小
+- 指挥要不断调整："你太大声了，小声点"
+- 如果每个人音量都差不多，整体效果更好
 
 ```
-归一化前:                   归一化后:
-    ┌─────┐                     ┌─────┐
-    │ 很大 │                     │ 均值0│
-    │ 方差 │                     │ 方差1│
-    └─────┘                     └─────┘
-   输入分布不稳定              输入分布稳定
+没有指挥：
+  👤大声  👤小声  👤大声  👤小声
+  ─────────────────────────────
+  结果：混乱，听不清
+
+有指挥调整：
+  👤适中  👤适中  👤适中  👤适中
+  ─────────────────────────────
+  结果：和谐，好听
 ```
 
-通过归一化，我们将每层的输入稳定在均值0、方差1附近，使训练更加稳定。
+**归一化层就是神经网络的"指挥"** —— 让每层的输出保持稳定，不要太大也不要太小。
 
 ---
 
-## BatchNorm 实现
+## 10.1 为什么需要归一化？
+
+### 问题：内部协变量偏移
+
+```
+深度网络的困境：
+
+第1层输出 → 第2层 → 第3层 → ... → 第N层
+    ↓           ↓         ↓
+  分布变化   分布变化   分布变化
+
+问题：
+  - 每层的"输入分布"不断变化
+  - 后面的层要不断适应
+  - 训练不稳定，收敛慢
+```
+
+### 生活类比
+
+```
+就像你在考试：
+
+场景1：每次考试难度不一样
+  第1次：很简单，平均90分
+  第2次：超难，平均50分
+  第3次：简单，平均85分
+  → 你很难调整学习策略
+
+场景2：每次考试标准化
+  第1次：标准化后平均70分
+  第2次：标准化后平均70分
+  第3次：标准化后平均70分
+  → 容易看出你的进步
+```
+
+### 解决：归一化
+
+```
+归一化的作用：
+
+输入 [很大的数, 很小的数, ...]
+        ↓
+   减去均值，除以标准差
+        ↓
+输出 [接近0的数, 接近0的数, ...]
+
+每层输入都稳定 → 训练更稳定
+```
+
+---
+
+## 10.2 BatchNorm：按批次归一化
 
 ### 原理
 
-BatchNorm 对**一个批次内**的样本在**每个通道**上分别计算均值和方差：
+```
+BatchNorm 对每个通道，在批次内统计：
+
+输入：(N, C, H, W) = (16, 64, 32, 32)
+      批次  通道  高   宽
+
+对每个通道 c：
+  - 计算这16张图在通道c上的均值和方差
+  - 用这个统计量归一化
+
+形象理解：
+  假设通道1代表"红色"
+  → 看这16张图的红色平均多亮
+  → 调整到标准亮度
+```
+
+### 图示
 
 ```
-输入: (N, C, H, W)
-对每个通道 c:
-    mean = mean(x[:, c, :, :])  # 在 N, H, W 上求平均
-    var = var(x[:, c, :, :])
-    x_norm[:, c, :, :] = (x[:, c, :, :] - mean) / sqrt(var + eps)
-    output[:, c, :, :] = gamma * x_norm[:, c, :, :] + beta
+输入数据 (N=4, C=3):
+
+通道0 (红):          通道1 (绿):         通道2 (蓝):
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ 255 200 180 │     │ 100 120 90  │     │ 50  60  40  │
+│ 220 190 210 │     │ 110 100 130 │     │ 55  45  70  │
+│ ...         │     │ ...         │     │ ...         │
+└─────────────┘     └─────────────┘     └─────────────┘
+      ↓                   ↓                   ↓
+  mean=200           mean=110            mean=50
+  std=30             std=15              std=10
+      ↓                   ↓                   ↓
+   归一化             归一化              归一化
 ```
 
-### 训练与推理的区别
+### 训练 vs 推理
 
-| 阶段 | 使用的统计量 |
-|------|--------------|
-| 训练 | 当前 batch 的均值和方差 |
-| 推理 | 训练时累积的 running mean/var |
+```
+训练时：
+  - 用当前 batch 的均值/方差
+  - 同时更新 running_mean/running_var
 
-### 基类实现
+推理时：
+  - 用训练时累积的 running_mean/running_var
+  - 因为推理可能只有1个样本，无法计算统计量
+```
+
+### 实现
 
 ```python
-# nanotorch/nn/normalization.py
+class BatchNorm2d(Module):
+    """
+    2D 批归一化
 
-class _BatchNorm(Module):
-    """BatchNorm 基类"""
-    
+    类比：
+      训练时 = 现场指挥，根据当前情况调整
+      推理时 = 用之前的经验调整
+    """
+
     def __init__(
         self,
-        num_features: int,
-        eps: float = 1e-5,
-        momentum: Optional[float] = 0.1,
-        affine: bool = True,
-        track_running_stats: bool = True,
-    ) -> None:
+        num_features: int,      # 通道数
+        eps: float = 1e-5,      # 防止除0
+        momentum: float = 0.1,  # running 统计量更新速度
+        affine: bool = True,    # 是否学习 gamma 和 beta
+    ):
         super().__init__()
         self.num_features = num_features
         self.eps = eps
         self.momentum = momentum
-        self.affine = affine
-        self.track_running_stats = track_running_stats
-        
-        # 可学习参数
-        self.gamma = None  # 缩放参数
-        self.beta = None   # 平移参数
-        if self.affine:
-            self.gamma = Tensor.ones((num_features,), requires_grad=True)
-            self.beta = Tensor.zeros((num_features,), requires_grad=True)
-        
-        # 运行时统计量
-        self.running_mean = None
-        self.running_var = None
-        if self.track_running_stats:
-            self.running_mean = Tensor.zeros((num_features,), requires_grad=False)
-            self.running_var = Tensor.ones((num_features,), requires_grad=False)
+
+        # 可学习参数：缩放和平移
+        if affine:
+            self.gamma = Tensor.ones((num_features,), requires_grad=True)  # 缩放
+            self.beta = Tensor.zeros((num_features,), requires_grad=True)  # 平移
+
+        # 运行时统计量（不是参数，不参与梯度）
+        self.running_mean = Tensor.zeros((num_features,))
+        self.running_var = Tensor.ones((num_features,))
 
     def forward(self, x: Tensor) -> Tensor:
-        N, C = x.shape[0], x.shape[1]
-        # 在批次和空间维度上求均值
-        axes = (0,) + tuple(range(2, x.ndim))
-        
-        if self.training and self.track_running_stats:
-            # 计算当前 batch 的统计量
-            mean = x.mean(axis=axes, keepdims=True)
-            var = ((x - mean) ** 2).mean(axis=axes, keepdims=True)
-            
+        # x: (N, C, H, W)
+        N, C, H, W = x.shape
+
+        if self.training:
+            # 训练模式：用当前 batch 统计量
+            # 在 N, H, W 维度上求均值和方差
+            mean = x.mean(axis=(0, 2, 3), keepdims=True)
+            var = ((x - mean) ** 2).mean(axis=(0, 2, 3), keepdims=True)
+
             # 更新 running 统计量
-            mean_squeezed = mean.squeeze(axis=axes)
-            var_squeezed = var.squeeze(axis=axes)
-            
-            if self.momentum is not None:
-                self.running_mean.data = (
-                    1 - self.momentum
-                ) * self.running_mean.data + self.momentum * mean_squeezed.data
-                self.running_var.data = (
-                    1 - self.momentum
-                ) * self.running_var.data + self.momentum * var_squeezed.data
-            
-            # 使用 batch 统计量归一化
-            x_normalized = (x - mean) / (var + self.eps) ** 0.5
+            self.running_mean.data = (1 - self.momentum) * self.running_mean.data + \
+                                     self.momentum * mean.squeeze().data
+            self.running_var.data = (1 - self.momentum) * self.running_var.data + \
+                                    self.momentum * var.squeeze().data
         else:
-            # 使用 running 统计量
-            broadcast_shape = (1, C) + (1,) * (x.ndim - 2)
-            mean = self.running_mean.reshape(broadcast_shape)
-            var = self.running_var.reshape(broadcast_shape)
-            x_normalized = (x - mean) / (var + self.eps) ** 0.5
-        
-        # 仿射变换
-        if self.affine:
-            broadcast_shape = (1, C) + (1,) * (x.ndim - 2)
-            gamma_reshaped = self.gamma.reshape(broadcast_shape)
-            beta_reshaped = self.beta.reshape(broadcast_shape)
-            x_normalized = gamma_reshaped * x_normalized + beta_reshaped
-        
-        return x_normalized
+            # 推理模式：用 running 统计量
+            mean = self.running_mean.reshape(1, C, 1, 1)
+            var = self.running_var.reshape(1, C, 1, 1)
+
+        # 归一化
+        x_norm = (x - mean) / (var + self.eps) ** 0.5
+
+        # 缩放和平移（让网络自己决定最佳分布）
+        if hasattr(self, 'gamma'):
+            x_norm = self.gamma.reshape(1, C, 1, 1) * x_norm + \
+                     self.beta.reshape(1, C, 1, 1)
+
+        return x_norm
 ```
 
-### BatchNorm2d 实现
+### 使用
 
 ```python
-class BatchNorm2d(_BatchNorm):
-    """2D Batch Normalization.
-    
-    Shape:
-        - Input: (N, C, H, W)
-        - Output: (N, C, H, W)
-    """
-    
-    def __init__(
-        self,
-        num_features: int,
-        eps: float = 1e-5,
-        momentum: Optional[float] = 0.1,
-        affine: bool = True,
-        track_running_stats: bool = True,
-    ) -> None:
-        super().__init__(
-            num_features=num_features,
-            eps=eps,
-            momentum=momentum,
-            affine=affine,
-            track_running_stats=track_running_stats,
-        )
-    
-    def _check_input_dim(self, x: Tensor) -> None:
-        if x.ndim != 4:
-            raise ValueError(f"BatchNorm2d expects 4D input, got {x.ndim}D")
-```
-
-### 使用示例
-
-```python
-from nanotorch import Tensor
 from nanotorch.nn import BatchNorm2d
 
-# 创建 BatchNorm 层
-bn = BatchNorm2d(num_features=64)
+# 创建 BatchNorm
+bn = BatchNorm2d(num_features=64)  # 64个通道
 
-# 训练模式
+# 训练
 bn.train()
-x = Tensor.randn((16, 64, 32, 32))
-output = bn(x)
+output = bn(x_train)
 
-# 推理模式
+# 推理
 bn.eval()
-x_test = Tensor.randn((1, 64, 32, 32))
-output_test = bn(x_test)  # 使用 running statistics
+output = bn(x_test)
 ```
 
 ---
 
-## LayerNorm 实现
+## 10.3 LayerNorm：按层归一化
 
 ### 原理
 
-LayerNorm 对**每个样本**在**特征维度**上归一化，不依赖 batch 统计量：
+```
+LayerNorm 对每个样本的所有特征归一化：
+
+输入：(N, C, H, W)
+对每个样本 n：
+  - 计算这个样本所有特征的均值和方差
+  - 不依赖 batch 大小
+
+形象理解：
+  每个人自己调整，不管别人
+  我看我自己各个科目的分数，调整到平均
+```
+
+### BatchNorm vs LayerNorm
 
 ```
-输入: (N, C, H, W)
-对每个样本 n:
-    mean = mean(x[n, :, :, :])  # 在 C, H, W 上求平均
-    var = var(x[n, :, :, :])
-    x_norm[n, :, :, :] = (x[n, :, :, :] - mean) / sqrt(var + eps)
+BatchNorm (跨样本):        LayerNorm (跨特征):
+
+┌─────────────────┐        ┌─────────────────┐
+│ 样本1 │ 样本2   │        │ 样本1           │
+│  ↓    │  ↓      │        │  所有特征一起   │
+│ 统计  │ 统计    │        │  ↓              │
+└─────────────────┘        │  统计           │
+                           └─────────────────┘
+每个通道单独统计             每个样本单独统计
+
+需要大 batch                不依赖 batch
 ```
 
 ### 实现
 
 ```python
 class LayerNorm(Module):
-    """Layer Normalization.
-    
-    在最后一个（或最后几个）维度上归一化。
-    常用于 Transformer 和 NLP 任务。
-    
-    Shape:
-        - Input: (*, normalized_shape)
-        - Output: (*, normalized_shape)
+    """
+    层归一化
+
+    常用于：Transformer、NLP 任务
+    优点：不依赖 batch 大小，适合变长序列
     """
 
     def __init__(
         self,
-        normalized_shape: Union[int, Tuple[int, ...]],
+        normalized_shape: int,   # 最后一维的大小
         eps: float = 1e-5,
-        elementwise_affine: bool = True,
-    ) -> None:
+    ):
         super().__init__()
-        if isinstance(normalized_shape, int):
-            normalized_shape = (normalized_shape,)
-        
         self.normalized_shape = normalized_shape
         self.eps = eps
-        self.elementwise_affine = elementwise_affine
-        
-        self.gamma = None
-        self.beta = None
-        if self.elementwise_affine:
-            self.gamma = Tensor.ones(normalized_shape, requires_grad=True)
-            self.beta = Tensor.zeros(normalized_shape, requires_grad=True)
+
+        # 可学习参数
+        self.gamma = Tensor.ones((normalized_shape,), requires_grad=True)
+        self.beta = Tensor.zeros((normalized_shape,), requires_grad=True)
 
     def forward(self, x: Tensor) -> Tensor:
-        # 使用 LayerNormFunction 进行前向传播
-        return LayerNormFunction.apply(
-            x, self.normalized_shape, self.gamma, self.beta, self.eps
-        )
+        # x: (batch, seq_len, hidden_dim)
+        # 在最后一个维度上归一化
+
+        mean = x.mean(axis=-1, keepdims=True)
+        var = ((x - mean) ** 2).mean(axis=-1, keepdims=True)
+
+        x_norm = (x - mean) / (var + self.eps) ** 0.5
+
+        return self.gamma * x_norm + self.beta
 ```
 
-### 使用示例
+### 使用
 
 ```python
 from nanotorch.nn import LayerNorm
 
-# 对最后一个维度归一化
-ln = LayerNorm(normalized_shape=512)
+# Transformer 中常用
+ln = LayerNorm(normalized_shape=512)  # hidden_dim = 512
 
-# Transformer 中的使用
 x = Tensor.randn((32, 100, 512))  # (batch, seq_len, hidden_dim)
 output = ln(x)
-
-# 对最后两个维度归一化
-ln_2d = LayerNorm(normalized_shape=(64, 64))
-x_2d = Tensor.randn((8, 3, 64, 64))
-output_2d = ln_2d(x_2d)
 ```
 
 ---
 
-## GroupNorm 实现
+## 10.4 GroupNorm：分组归一化
 
 ### 原理
 
-GroupNorm 将通道分成若干组，在每组的通道和空间维度上归一化：
+```
+GroupNorm 把通道分成几组，每组内归一化：
+
+输入：(N, C, H, W)，C=32，分成8组
+→ 每组 4 个通道
+→ 在每组的 4 个通道 + H + W 上统计
+
+介于 LayerNorm 和 InstanceNorm 之间
+```
+
+### 图解对比
 
 ```
-输入: (N, C, H, W), groups = G
-将 C 个通道分成 G 组，每组 C/G 个通道
-对每个样本 n 和每组 g:
-    mean = mean(x[n, g*C/G:(g+1)*C/G, :, :])
-    var = var(x[n, g*C/G:(g+1)*C/G, :, :])
+输入形状：(N, C, H, W)，假设 C=6
+
+BatchNorm:  对每个通道，跨 (N, H, W) 统计
+            通道1: [所有样本的通道1的所有像素]
+            通道2: [所有样本的通道2的所有像素]
+            ...
+
+LayerNorm:  对每个样本，跨 (C, H, W) 统计
+            样本1: [所有通道的所有像素]
+            样本2: [所有通道的所有像素]
+            ...
+
+GroupNorm:  对每个样本的每组，跨 (C/G, H, W) 统计
+            样本1-组1: [通道1,2的所有像素]
+            样本1-组2: [通道3,4的所有像素]
+            样本1-组3: [通道5,6的所有像素]
+            ...
+
+InstanceNorm: 对每个样本的每个通道，跨 (H, W) 统计
+            样本1-通道1: [通道1的所有像素]
+            样本1-通道2: [通道2的所有像素]
+            ...
 ```
 
 ### 实现
 
 ```python
 class GroupNorm(Module):
-    """Group Normalization.
-    
-    将通道分组后在组内归一化。
-    介于 LayerNorm 和 InstanceNorm 之间。
-    
-    Args:
-        num_groups: 组数
-        num_channels: 通道数（必须能被 num_groups 整除）
+    """
+    分组归一化
+
+    优点：不依赖 batch 大小
+    常用于：目标检测、分割（batch 通常较小）
     """
 
     def __init__(
         self,
-        num_groups: int,
-        num_channels: int,
+        num_groups: int,      # 组数
+        num_channels: int,    # 通道数（必须能被组数整除）
         eps: float = 1e-5,
-        affine: bool = True,
-    ) -> None:
+    ):
         super().__init__()
-        
-        if num_channels % num_groups != 0:
-            raise ValueError(
-                f"num_channels ({num_channels}) must be divisible by num_groups ({num_groups})"
-            )
-        
+        assert num_channels % num_groups == 0
+
         self.num_groups = num_groups
         self.num_channels = num_channels
         self.eps = eps
-        self.affine = affine
-        
-        self.gamma = None
-        self.beta = None
-        if self.affine:
-            self.gamma = Tensor.ones((num_channels,), requires_grad=True)
-            self.beta = Tensor.zeros((num_channels,), requires_grad=True)
+
+        self.gamma = Tensor.ones((num_channels,), requires_grad=True)
+        self.beta = Tensor.zeros((num_channels,), requires_grad=True)
 
     def forward(self, x: Tensor) -> Tensor:
-        return GroupNormFunction.apply(
-            x, self.num_groups, self.gamma, self.beta, self.eps
-        )
+        # x: (N, C, H, W)
+        N, C, H, W = x.shape
+        G = self.num_groups
+
+        # 重塑为 (N, G, C/G, H, W)
+        x = x.reshape(N, G, C // G, H, W)
+
+        # 在 (C/G, H, W) 维度上统计
+        mean = x.mean(axis=(2, 3, 4), keepdims=True)
+        var = ((x - mean) ** 2).mean(axis=(2, 3, 4), keepdims=True)
+
+        x_norm = (x - mean) / (var + self.eps) ** 0.5
+
+        # 恢复形状
+        x_norm = x_norm.reshape(N, C, H, W)
+
+        return self.gamma.reshape(1, C, 1, 1) * x_norm + \
+               self.beta.reshape(1, C, 1, 1)
 ```
 
-### 使用示例
+### 使用
 
 ```python
 from nanotorch.nn import GroupNorm
@@ -352,196 +390,128 @@ gn = GroupNorm(num_groups=8, num_channels=32)
 x = Tensor.randn((16, 32, 64, 64))
 output = gn(x)
 
-# 特例：GroupNorm(num_groups=1, ...) = LayerNorm (通道维度)
-# 特例：GroupNorm(num_groups=C, ...) = InstanceNorm
+# 特例：
+# GroupNorm(num_groups=1, ...) ≈ LayerNorm
+# GroupNorm(num_groups=C, ...) = InstanceNorm
 ```
 
 ---
 
-## InstanceNorm 实现
-
-### 原理
-
-InstanceNorm 对每个样本的每个通道独立归一化：
-
-```
-输入: (N, C, H, W)
-对每个样本 n 和每个通道 c:
-    mean = mean(x[n, c, :, :])
-    var = var(x[n, c, :, :])
-```
-
-### 实现
-
-```python
-class InstanceNorm2d(_InstanceNorm):
-    """Instance Normalization for 2D inputs.
-    
-    常用于风格迁移等任务。
-    等价于 GroupNorm(num_groups=num_features)。
-    
-    Shape:
-        - Input: (N, C, H, W) or (C, H, W)
-        - Output: same as input
-    """
-
-    def __init__(
-        self,
-        num_features: int,
-        eps: float = 1e-5,
-        momentum: float = 0.1,
-        affine: bool = False,  # InstanceNorm 默认不学习参数
-        track_running_stats: bool = False,
-    ) -> None:
-        super().__init__(
-            num_features=num_features,
-            eps=eps,
-            momentum=momentum,
-            affine=affine,
-            track_running_stats=track_running_stats,
-            num_spatial_dims=2,
-        )
-```
-
----
-
-## 各归一化方法的比较
-
-### 归一化维度对比
-
-假设输入形状为 `(N, C, H, W)`：
-
-```
-BatchNorm:    对 (N, H, W) 求统计量，每个通道独立
-LayerNorm:    对 (C, H, W) 求统计量，每个样本独立
-InstanceNorm: 对 (H, W) 求统计量，每个样本的每个通道独立
-GroupNorm:    对 (C/G, H, W) 求统计量，每组独立
-```
-
-### 可视化对比
-
-```
-输入张量 (N=2, C=4, H=2, W=2):
-
-BatchNorm (跨 N, H, W):  LayerNorm (跨 C, H, W):
-┌───┬───┐                ┌───┬───┐
-│ N │ N │                │C=1│C=2│
-│ 0 │ 1 │                │   │   │
-├───┼───┤                ├───┼───┤
-│ N │ N │                │C=3│C=4│
-│ 0 │ 1 │                │   │   │
-└───┴───┘                └───┴───┘
-
-GroupNorm (G=2):         InstanceNorm:
-┌─────┬─────┐            ┌───┬───┐
-│G=1  │G=2  │            │N=0│N=1│
-│C=1,2│C=3,4│            │每个│每个│
-└─────┴─────┘            │通道│通道│
-                         │独立│独立│
-                         └───┴───┘
-```
+## 10.5 归一化方法对比
 
 ### 选择指南
 
-| 场景 | 推荐归一化 | 原因 |
-|------|-----------|------|
-| CNN 图像分类 | BatchNorm | 批量大时效果好 |
-| 小批量/内存受限 | GroupNorm | 不依赖批量大小 |
-| RNN/NLP | LayerNorm | 处理变长序列 |
-| 风格迁移 | InstanceNorm | 保留内容，忽略风格 |
-| 目标检测/分割 | GroupNorm 或 SyncBN | 批量通常较小 |
-| Transformer | LayerNorm | 标准 Transformer 架构 |
-
----
-
-## 使用示例
-
-### CNN 中的 BatchNorm
-
-```python
-from nanotorch import Tensor
-from nanotorch.nn import Conv2D, BatchNorm2d, ReLU, Sequential
-
-# 标准 CNN 块
-def conv_block(in_ch, out_ch):
-    return Sequential(
-        Conv2D(in_ch, out_ch, kernel_size=3, padding=1),
-        BatchNorm2d(out_ch),
-        ReLU(),
-    )
-
-block = conv_block(64, 128)
-x = Tensor.randn((4, 64, 32, 32))
-output = block(x)
+```
+场景                          推荐
+──────────────────────────────────────
+CNN 图像分类，batch 大        BatchNorm
+CNN，batch 小（<8）           GroupNorm
+Transformer / NLP             LayerNorm
+风格迁移                      InstanceNorm
+目标检测/分割                 GroupNorm
 ```
 
-### Transformer 中的 LayerNorm
+### 对比表
 
-```python
-from nanotorch.nn import Linear, LayerNorm, Dropout, ReLU
+| 归一化 | 统计维度 | 依赖 batch | 适用场景 |
+|--------|---------|-----------|----------|
+| BatchNorm | (N, H, W) | 是 | CNN，大批量 |
+| LayerNorm | (C, H, W) | 否 | Transformer |
+| GroupNorm | (C/G, H, W) | 否 | 小批量 |
+| InstanceNorm | (H, W) | 否 | 风格迁移 |
 
-class TransformerBlock:
-    def __init__(self, d_model=512, d_ff=2048):
-        self.norm1 = LayerNorm(d_model)
-        self.norm2 = LayerNorm(d_model)
-        self.ff = Sequential(
-            Linear(d_model, d_ff),
-            ReLU(),
-            Linear(d_ff, d_model),
-        )
-    
-    def __call__(self, x):
-        # Pre-norm 架构
-        x = x + self.attention(self.norm1(x))
-        x = x + self.ff(self.norm2(x))
-        return x
+### 可视化
+
 ```
+假设输入是 (N=3, C=4, H=2, W=2) 的张量
 
-### ResNet 中的 GroupNorm
+不同颜色的区域表示一起归一化的元素：
 
-```python
-class ResBlock:
-    def __init__(self, channels, groups=32):
-        self.conv1 = Conv2D(channels, channels, 3, padding=1)
-        self.gn1 = GroupNorm(groups, channels)
-        self.conv2 = Conv2D(channels, channels, 3, padding=1)
-        self.gn2 = GroupNorm(groups, channels)
-    
-    def __call__(self, x):
-        identity = x
-        out = self.gn1(self.conv1(x)).relu()
-        out = self.gn2(self.conv2(out))
-        return (out + identity).relu()
+BatchNorm (每通道):
+  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐
+  │ C=0   │  │ C=1   │  │ C=2   │  │ C=3   │
+  │ 跨NHW │  │ 跨NHW │  │ 跨NHW │  │ 跨NHW │
+  └───────┘  └───────┘  └───────┘  └───────┘
+
+LayerNorm (每样本):
+  ┌─────────────────────────────────────┐
+  │ 样本 0: 跨 C, H, W                  │
+  └─────────────────────────────────────┘
+  ┌─────────────────────────────────────┐
+  │ 样本 1: 跨 C, H, W                  │
+  └─────────────────────────────────────┘
+
+GroupNorm (每样本每组，假设2组):
+  ┌─────────────┐  ┌─────────────┐
+  │ 样本0 组0   │  │ 样本0 组1   │
+  │ C=0,1       │  │ C=2,3       │
+  └─────────────┘  └─────────────┘
 ```
 
 ---
 
-## 总结
+## 10.6 常见陷阱
 
-本教程介绍了 nanotorch 中的四种归一化层：
+### 陷阱1：训练/推理模式混淆
 
-| 归一化 | 归一化维度 | 特点 | 适用场景 |
-|--------|-----------|------|----------|
-| **BatchNorm** | 批次+空间 | 依赖批次大小 | CNN，大批量训练 |
-| **LayerNorm** | 特征+空间 | 不依赖批次 | Transformer，NLP |
-| **GroupNorm** | 分组内 | 不依赖批次 | 小批量，检测分割 |
-| **InstanceNorm** | 单通道空间 | 不依赖批次 | 风格迁移 |
+```python
+# 错误：推理时没切换模式
+model.eval()
+output = bn(x)  # 如果 bn 还在 training 模式，会用当前 batch 统计
 
-### 关键要点
+# 正确
+bn.eval()  # 单独设置
+# 或
+model.eval()  # 整个模型设置
+```
 
-1. **BatchNorm** 训练和推理行为不同（running statistics）
-2. **LayerNorm** 适合处理变长序列
-3. **GroupNorm** 是 BatchNorm 在小批量下的良好替代
-4. **InstanceNorm** 常用于生成任务
+### 陷阱2：BatchNorm 用小 batch
 
-### 下一步
+```python
+# 问题：batch=1 或 2 时，统计量不稳定
+bn = BatchNorm2d(64)
+x = Tensor.randn((2, 64, 32, 32))  # batch=2 太小
 
-在 [教程 11：循环神经网络](11-rnn.md) 中，我们将学习如何实现 RNN、LSTM 和 GRU。
+# 解决：用 GroupNorm
+gn = GroupNorm(num_groups=32, num_channels=64)
+```
+
+### 陷阱3：BatchNorm 后再用 Dropout
+
+```python
+# 通常不需要，BatchNorm 本身有正则化效果
+model = Sequential(
+    Conv2D(64, 128),
+    BatchNorm2d(128),
+    # Dropout(0.5),  # 通常不需要
+    ReLU(),
+)
+```
 
 ---
 
-**参考资源**：
-- [Batch Normalization: Accelerating Deep Network Training](https://arxiv.org/abs/1502.03167)
-- [Layer Normalization](https://arxiv.org/abs/1607.06450)
-- [Group Normalization](https://arxiv.org/abs/1803.08494)
-- [Instance Normalization](https://arxiv.org/abs/1607.08022)
+## 10.7 一句话总结
+
+| 概念 | 一句话 |
+|------|--------|
+| 归一化 | 让每层输出稳定，加速训练 |
+| BatchNorm | 按批次统计，适合大 batch |
+| LayerNorm | 按样本统计，适合 Transformer |
+| GroupNorm | 按组统计，适合小 batch |
+| 训练/推理 | 训练用当前统计，推理用历史统计 |
+
+---
+
+## 下一章
+
+现在我们学会了归一化！
+
+下一章，我们将学习**循环神经网络** —— 处理序列数据的经典架构。
+
+→ [第十一章：循环神经网络](11-rnn.md)
+
+```python
+# 预告：下一章你将学到
+lstm = LSTM(input_size=64, hidden_size=128)
+# 记住历史信息，处理变长序列
+```

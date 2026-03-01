@@ -1,268 +1,288 @@
-# 教程 11：循环神经网络 (RNN/LSTM/GRU)
+# 第十一章：循环神经网络
 
-## 目录
+## 想象你在看电影...
 
-1. [概述](#概述)
-2. [RNN 基础](#rnn-基础)
-3. [LSTM 详解](#lstm-详解)
-4. [GRU 详解](#gru-详解)
-5. [Cell 版本 vs 完整版本](#cell-版本-vs-完整版本)
-6. [双向 RNN](#双向-rnn)
-7. [使用示例](#使用示例)
-8. [总结](#总结)
+你看电影时：
+- 不是每帧独立理解的
+- 记住了之前发生的事
+- 用之前的情节理解当前画面
+
+```
+第1分钟：主角出场 → 记住：他是好人
+第30分钟：遇到困难 → 记住：他被冤枉了
+第60分钟：战胜坏人 → 结合之前：真好！
+
+如果没有记忆：
+  第60分钟："这人谁啊？在干嘛？"
+```
+
+**RNN 就是给神经网络"记忆"** —— 记住之前的信息，用于理解当前的输入。
 
 ---
 
-## 概述
+## 11.1 为什么需要 RNN？
 
-循环神经网络（Recurrent Neural Network, RNN）是处理**序列数据**的核心架构。与传统的前馈网络不同，RNN 具有**记忆**能力，能够捕捉序列中的时序依赖关系。
+### 问题：普通网络没有记忆
 
-nanotorch 实现了三种主要的循环神经网络：
-- **RNN**：基础循环神经网络
-- **LSTM**：长短期记忆网络
-- **GRU**：门控循环单元
+```
+普通网络处理句子：
+
+"我 爱 北京 天安门"
+ ↓   ↓    ↓     ↓
+独立处理每个词
+
+问题：
+  - 不知道"爱"的主语是"我"
+  - 不知道"天安门"在北京
+  - 每个词都是孤立的
+```
+
+### 解决：引入隐藏状态
+
+```
+RNN 处理句子：
+
+时刻1:  "我" + 隐藏状态0 → 输出1 → 隐藏状态1
+时刻2: "爱" + 隐藏状态1 → 输出2 → 隐藏状态2
+时刻3: "北京" + 隐藏状态2 → 输出3 → 隐藏状态3
+...
+
+隐藏状态 = 记忆，传递之前的信息
+```
 
 ---
 
-## RNN 基础
+## 11.2 RNN 基础
 
-### 核心思想
-
-RNN 通过隐藏状态（hidden state）在时间步之间传递信息：
+### 核心公式
 
 ```
-时刻 t 的计算:
-h_t = tanh(W_ih @ x_t + b_ih + W_hh @ h_{t-1} + b_hh)
-y_t = h_t  (对于基础 RNN)
+h_t = tanh(W_xh @ x_t + W_hh @ h_{t-1} + b)
+y_t = W_hy @ h_t + b_y
+
+解释：
+  x_t = 当前输入
+  h_{t-1} = 上一个时刻的隐藏状态（记忆）
+  h_t = 当前隐藏状态（更新后的记忆）
+  y_t = 当前输出
+
+tanh：把值压缩到 (-1, 1)，防止数值爆炸
 ```
 
-### 信息流
+### 图解 RNN
 
 ```
-输入序列:  x_1, x_2, x_3, ..., x_T
-            ↓    ↓    ↓         ↓
-隐藏状态:  h_1→ h_2→ h_3→ ...→ h_T
-            ↓    ↓    ↓         ↓
-输出:      y_1, y_2, y_3, ..., y_T
+时间展开：
+
+       x_1      x_2      x_3
+        ↓        ↓        ↓
+     ┌─────┐  ┌─────┐  ┌─────┐
+h_0→│ RNN │→│ RNN │→│ RNN │→ h_3
+     └─────┘  └─────┘  └─────┘
+        ↓        ↓        ↓
+       y_1      y_2      y_3
+
+每个 RNN 单元共享同一组权重！
 ```
 
 ### RNNCell 实现
 
 ```python
-# nanotorch/nn/rnn.py
-
 class RNNCell(Module):
-    """单步 RNN 单元。
-    
-    h' = tanh(W_{ih} @ x + b_{ih} + W_{hh} @ h + b_{hh})
-    
-    Args:
-        input_size: 输入特征数
-        hidden_size: 隐藏状态大小
-        bias: 是否使用偏置
-        nonlinearity: 激活函数 ('tanh' 或 'relu')
+    """
+    单步 RNN 单元
+
+    类比：
+      - 输入：当前看到的画面
+      - 隐藏状态：之前的记忆
+      - 输出：更新后的记忆
     """
 
     def __init__(
         self,
-        input_size: int,
-        hidden_size: int,
+        input_size: int,    # 输入维度
+        hidden_size: int,   # 隐藏状态维度
         bias: bool = True,
-        nonlinearity: str = "tanh",
-    ) -> None:
+    ):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.nonlinearity = nonlinearity
-        
+
         # 输入到隐藏层的权重
         self.weight_ih = Tensor(
-            np.random.randn(input_size, hidden_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
+            np.random.randn(input_size, hidden_size).astype(np.float32) * 0.1,
             requires_grad=True,
         )
-        
-        # 隐藏层到隐藏层的权重
+
+        # 隐藏层到隐藏层的权重（记忆传递）
         self.weight_hh = Tensor(
-            np.random.randn(hidden_size, hidden_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
+            np.random.randn(hidden_size, hidden_size).astype(np.float32) * 0.1,
             requires_grad=True,
         )
-        
-        # 偏置
-        self.bias_ih = None
-        self.bias_hh = None
+
         if bias:
             self.bias_ih = Tensor(np.zeros(hidden_size), requires_grad=True)
             self.bias_hh = Tensor(np.zeros(hidden_size), requires_grad=True)
 
-    def forward(self, x: Tensor, h: Optional[Tensor] = None) -> Tensor:
-        """单步前向传播。
-        
+    def forward(self, x: Tensor, h: Tensor = None) -> Tensor:
+        """
+        单步前向传播
+
         Args:
-            x: 当前时刻输入 (batch, input_size)
-            h: 上一时刻隐藏状态 (batch, hidden_size)
-        
+            x: 当前输入 (batch, input_size)
+            h: 上一个隐藏状态 (batch, hidden_size)
+
         Returns:
-            新的隐藏状态 (batch, hidden_size)
+            新的隐藏状态
         """
         if h is None:
             h = Tensor(np.zeros((x.shape[0], self.hidden_size)))
-        
-        # 计算输入部分
+
+        # 计算新隐藏状态
         ih = x.matmul(self.weight_ih)
-        if self.bias_ih is not None:
-            ih = ih + self.bias_ih
-        
-        # 计算隐藏部分
         hh = h.matmul(self.weight_hh)
-        if self.bias_hh is not None:
+
+        if hasattr(self, 'bias_ih'):
+            ih = ih + self.bias_ih
             hh = hh + self.bias_hh
-        
-        # 合并并应用激活函数
-        out = ih + hh
-        if self.nonlinearity == "tanh":
-            out = out.tanh()
-        elif self.nonlinearity == "relu":
-            out = out.relu()
-        
-        return out
+
+        # tanh 激活
+        h_new = (ih + hh).tanh()
+
+        return h_new
 ```
 
-### 完整 RNN 实现
+### 使用
 
 ```python
-class RNN(RNNBase):
-    """多层 RNN 网络。
-    
-    Args:
-        input_size: 输入特征数
-        hidden_size: 隐藏状态大小
-        num_layers: 层数
-        nonlinearity: 'tanh' 或 'relu'
-        bias: 是否使用偏置
-        batch_first: 输入是否为 (batch, seq, feature) 格式
-        dropout: 层间 dropout 概率
-        bidirectional: 是否双向
-    """
+# 创建 RNN 单元
+cell = RNNCell(input_size=64, hidden_size=128)
 
-    def __init__(
-        self,
-        input_size: int,
-        hidden_size: int,
-        num_layers: int = 1,
-        nonlinearity: str = "tanh",
-        bias: bool = True,
-        batch_first: bool = False,
-        dropout: float = 0.0,
-        bidirectional: bool = False,
-    ) -> None:
-        super().__init__(
-            mode="RNN",
-            input_size=input_size,
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            bias=bias,
-            batch_first=batch_first,
-            dropout=dropout,
-            bidirectional=bidirectional,
-            nonlinearity=nonlinearity,
-        )
-```
+# 手动循环处理序列
+h = None
+outputs = []
 
-### RNN 的问题：梯度消失
+for t in range(seq_len):
+    x_t = x[:, t, :]  # 当前时刻输入
+    h = cell(x_t, h)   # 更新隐藏状态
+    outputs.append(h)
 
-基础 RNN 在长序列上存在**梯度消失**问题：
-
-```
-梯度通过时间步传播:
-∂L/∂h_t = ∂L/∂h_T × ∏(∂h_i/∂h_{i-1})
-
-当序列很长时，连乘的梯度会指数级衰减或爆炸。
+# outputs 是所有时刻的隐藏状态
 ```
 
 ---
 
-## LSTM 详解
+## 11.3 RNN 的问题：梯度消失
 
-### 核心创新
+### 问题
 
-LSTM（Long Short-Term Memory）通过**门控机制**解决梯度消失问题：
-- **遗忘门（Forget Gate）**：决定丢弃哪些信息
-- **输入门（Input Gate）**：决定更新哪些信息
-- **输出门（Output Gate）**：决定输出哪些信息
-- **细胞状态（Cell State）**：长期记忆
+```
+RNN 的梯度传播：
+
+∂L/∂h_1 = ∂L/∂h_T × ∂h_T/∂h_{T-1} × ... × ∂h_2/∂h_1
+
+问题：连续乘很多次！
+
+如果每个梯度 < 1：
+  0.9 × 0.9 × 0.9 × ... × 0.9 (100次) ≈ 0.00003
+
+梯度消失 → 早期的信息学不到
+```
+
+### 生活类比
+
+```
+传话游戏：
+
+原话： "明天下午三点在老地方见面"
+第1人： "明天三点老地方见"
+第2人： "明天三点见面"
+第3人： "明天见面"
+...
+第10人："？？？"（忘了）
+
+信息在传递中逐渐丢失
+```
+
+---
+
+## 11.4 LSTM：长期记忆
+
+### 核心思想
+
+```
+LSTM = Long Short-Term Memory
+
+引入"细胞状态" c_t 作为长期记忆
+用"门"控制信息的流动
+
+三个门：
+  - 遗忘门：决定忘记哪些旧信息
+  - 输入门：决定记住哪些新信息
+  - 输出门：决定输出哪些信息
+```
+
+### 图解 LSTM
+
+```
+                c_{t-1} ─────────────────────→ c_t
+                   │                    ↑
+                   │    ┌─────────────┐ │
+                   └──→ │   遗忘门    │─┘
+                        │   输入门    │──→ h_t
+            h_{t-1} ──→ │   输出门    │──→ 输出
+                ↑       └─────────────┘
+                │             ↑
+            x_t ─────────────┘
+```
 
 ### LSTM 公式
 
 ```
-f_t = σ(W_f @ [h_{t-1}, x_t] + b_f)     遗忘门
-i_t = σ(W_i @ [h_{t-1}, x_t] + b_i)     输入门
-o_t = σ(W_o @ [h_{t-1}, x_t] + b_o)     输出门
-g_t = tanh(W_g @ [h_{t-1}, x_t] + b_g)  候选值
+遗忘门：f_t = sigmoid(W_f @ [h_{t-1}, x_t])     "要忘记多少"
+输入门：i_t = sigmoid(W_i @ [h_{t-1}, x_t])     "要记住多少"
+候选值：g_t = tanh(W_g @ [h_{t-1}, x_t])        "新信息"
+输出门：o_t = sigmoid(W_o @ [h_{t-1}, x_t])     "要输出多少"
 
-c_t = f_t * c_{t-1} + i_t * g_t         更新细胞状态
-h_t = o_t * tanh(c_t)                   更新隐藏状态
+细胞状态：c_t = f_t * c_{t-1} + i_t * g_t      "更新长期记忆"
+隐藏状态：h_t = o_t * tanh(c_t)                "更新短期记忆"
 ```
 
 ### LSTMCell 实现
 
 ```python
 class LSTMCell(Module):
-    """LSTM 单元。
-    
-    Args:
-        input_size: 输入特征数
-        hidden_size: 隐藏状态大小
-        bias: 是否使用偏置
-    
-    Shape:
-        - Input: (batch, input_size)
-        - Hidden: ((batch, hidden_size), (batch, hidden_size))  # (h, c)
-        - Output: ((batch, hidden_size), (batch, hidden_size))  # (h', c')
+    """
+    LSTM 单元
+
+    类比：
+      - c (细胞状态) = 长期记忆（记很久以前的事）
+      - h (隐藏状态) = 短期记忆（记最近的事）
+      - 门 = 大脑的控制机制
     """
 
-    def __init__(
-        self,
-        input_size: int,
-        hidden_size: int,
-        bias: bool = True,
-    ) -> None:
+    def __init__(self, input_size: int, hidden_size: int):
         super().__init__()
-        self.input_size = input_size
         self.hidden_size = hidden_size
-        
-        # 四个门的参数合并在一起 (4 * hidden_size)
+
+        # 四个门合并在一起计算（效率更高）
         gate_size = 4 * hidden_size
-        
+
         self.weight_ih = Tensor(
-            np.random.randn(input_size, gate_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
+            np.random.randn(input_size, gate_size).astype(np.float32) * 0.1,
             requires_grad=True,
         )
         self.weight_hh = Tensor(
-            np.random.randn(hidden_size, gate_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
+            np.random.randn(hidden_size, gate_size).astype(np.float32) * 0.1,
             requires_grad=True,
         )
-        
-        self.bias_ih = None
-        self.bias_hh = None
-        if bias:
-            self.bias_ih = Tensor(np.zeros(gate_size), requires_grad=True)
-            self.bias_hh = Tensor(np.zeros(gate_size), requires_grad=True)
+        self.bias = Tensor(np.zeros(gate_size), requires_grad=True)
 
-    def forward(
-        self,
-        x: Tensor,
-        state: Optional[Tuple[Tensor, Tensor]] = None,
-    ) -> Tuple[Tensor, Tensor]:
-        """单步前向传播。
-        
+    def forward(self, x: Tensor, state: tuple = None):
+        """
         Args:
-            x: 当前输入 (batch, input_size)
+            x: 输入 (batch, input_size)
             state: (h, c) 元组
-        
         Returns:
             (h_new, c_new) 元组
         """
@@ -271,196 +291,256 @@ class LSTMCell(Module):
             c = Tensor(np.zeros((x.shape[0], self.hidden_size)))
         else:
             h, c = state
-        
+
         # 计算所有门
-        gates = x.matmul(self.weight_ih) + h.matmul(self.weight_hh)
-        if self.bias_ih is not None:
-            gates = gates + self.bias_ih
-        if self.bias_hh is not None:
-            gates = gates + self.bias_hh
-        
+        gates = x.matmul(self.weight_ih) + h.matmul(self.weight_hh) + self.bias
+
         # 分割四个门
-        i = gates[:, :self.hidden_size].sigmoid()           # 输入门
+        i = gates[:, :self.hidden_size].sigmoid()                    # 输入门
         f = gates[:, self.hidden_size:2*self.hidden_size].sigmoid()  # 遗忘门
-        g = gates[:, 2*self.hidden_size:3*self.hidden_size].tanh()    # 候选值
-        o = gates[:, 3*self.hidden_size:].sigmoid()         # 输出门
-        
+        g = gates[:, 2*self.hidden_size:3*self.hidden_size].tanh()   # 候选值
+        o = gates[:, 3*self.hidden_size:].sigmoid()                  # 输出门
+
         # 更新状态
-        c_new = f * c + i * g
-        h_new = o * c_new.tanh()
-        
+        c_new = f * c + i * g        # 长期记忆：选择性遗忘 + 选择性记住
+        h_new = o * c_new.tanh()     # 短期记忆：选择性输出
+
         return h_new, c_new
 ```
 
-### 完整 LSTM
+### 为什么 LSTM 不容易梯度消失？
 
-```python
-from nanotorch.nn import LSTM
+```
+细胞状态的更新：
+  c_t = f_t * c_{t-1} + i_t * g_t
 
-lstm = LSTM(
-    input_size=64,
-    hidden_size=128,
-    num_layers=2,
-    batch_first=True,
-    bidirectional=True
-)
+梯度传播：
+  ∂c_t/∂c_{t-1} = f_t
 
-x = Tensor.randn((32, 10, 64))  # (batch, seq_len, input_size)
-output, (h_n, c_n) = lstm(x)
-
-print(output.shape)  # (32, 10, 256)  # 256 = 128 * 2 (bidirectional)
-print(h_n.shape)     # (4, 32, 128)   # 4 = 2 layers * 2 directions
+如果 f_t ≈ 1，梯度可以直接传递！
+遗忘门学会了什么时候该保留信息。
 ```
 
 ---
 
-## GRU 详解
+## 11.5 GRU：简化版 LSTM
 
 ### 核心思想
 
-GRU（Gated Recurrent Unit）是 LSTM 的简化版本，只有两个门：
-- **重置门（Reset Gate）**：控制如何组合新输入和之前的记忆
-- **更新门（Update Gate）**：控制保留多少之前的隐藏状态
+```
+GRU = Gated Recurrent Unit
+
+LSTM 的简化版本：
+  - 只有 2 个门（LSTM 有 3 个）
+  - 只有 1 个状态（LSTM 有 h 和 c）
+  - 参数更少，训练更快
+```
 
 ### GRU 公式
 
 ```
-r_t = σ(W_r @ [h_{t-1}, x_t])      重置门
-z_t = σ(W_z @ [h_{t-1}, x_t])      更新门
-n_t = tanh(W_n @ [r_t * h_{t-1}, x_t])  候选隐藏状态
+重置门：r_t = sigmoid(W_r @ [h_{t-1}, x_t])    "要重置多少"
+更新门：z_t = sigmoid(W_z @ [h_{t-1}, x_t])    "要更新多少"
+候选值：n_t = tanh(W_n @ [r_t * h_{t-1}, x_t]) "新信息"
 
-h_t = (1 - z_t) * n_t + z_t * h_{t-1}   新隐藏状态
+新状态：h_t = (1-z_t) * n_t + z_t * h_{t-1}
 ```
 
 ### GRUCell 实现
 
 ```python
 class GRUCell(Module):
-    """GRU 单元。
-    
-    Shape:
-        - Input: (batch, input_size)
-        - Hidden: (batch, hidden_size)
-        - Output: (batch, hidden_size)
+    """
+    GRU 单元
+
+    比 LSTM 简单，但效果差不多
+    """
+
+    def __init__(self, input_size: int, hidden_size: int):
+        super().__init__()
+        self.hidden_size = hidden_size
+
+        # 3 个门
+        gate_size = 3 * hidden_size
+
+        self.weight_ih = Tensor(
+            np.random.randn(input_size, gate_size).astype(np.float32) * 0.1,
+            requires_grad=True,
+        )
+        self.weight_hh = Tensor(
+            np.random.randn(hidden_size, gate_size).astype(np.float32) * 0.1,
+            requires_grad=True,
+        )
+
+    def forward(self, x: Tensor, h: Tensor = None) -> Tensor:
+        if h is None:
+            h = Tensor(np.zeros((x.shape[0], self.hidden_size)))
+
+        gates = x.matmul(self.weight_ih) + h.matmul(self.weight_hh)
+
+        # 分割
+        r = gates[:, :self.hidden_size].sigmoid()                     # 重置门
+        z = gates[:, self.hidden_size:2*self.hidden_size].sigmoid()   # 更新门
+        n = gates[:, 2*self.hidden_size:].tanh()                       # 候选值
+
+        # 更新
+        h_new = (1 - z) * n + z * h
+
+        return h_new
+```
+
+---
+
+## 11.6 LSTM vs GRU
+
+| 特性 | LSTM | GRU |
+|------|------|-----|
+| 门数量 | 3个 | 2个 |
+| 状态数量 | 2个 (h, c) | 1个 (h) |
+| 参数量 | 多 | 少 30% |
+| 计算速度 | 较慢 | 较快 |
+| 表达能力 | 略强 | 相近 |
+| 训练难度 | 较难 | 较易 |
+
+```
+选择建议：
+  - 追求效果：LSTM
+  - 追求速度：GRU
+  - 不确定：先试 GRU
+```
+
+---
+
+## 11.7 完整 RNN 层
+
+### 封装循环
+
+```python
+class LSTM(Module):
+    """
+    完整的 LSTM 层
+
+    自动处理整个序列，不用手动循环
     """
 
     def __init__(
         self,
         input_size: int,
         hidden_size: int,
-        bias: bool = True,
-    ) -> None:
+        num_layers: int = 1,
+        batch_first: bool = False,
+        bidirectional: bool = False,
+    ):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        
-        # 三个门的参数 (3 * hidden_size)
-        self.weight_ih = Tensor(
-            np.random.randn(input_size, 3 * hidden_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
-            requires_grad=True,
-        )
-        self.weight_hh = Tensor(
-            np.random.randn(hidden_size, 3 * hidden_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
-            requires_grad=True,
-        )
-        
-        # bias 初始化...
+        self.num_layers = num_layers
+        self.batch_first = batch_first
+        self.bidirectional = bidirectional
 
-    def forward(self, x: Tensor, h: Optional[Tensor] = None) -> Tensor:
-        if h is None:
-            h = Tensor(np.zeros((x.shape[0], self.hidden_size)))
-        
-        # 计算门
-        gi = x.matmul(self.weight_ih)
-        gh = h.matmul(self.weight_hh)
-        # ... 加 bias
-        
-        # 分割三个部分
-        i_r, i_z, i_n = gi.chunk(3, dim=-1)
-        h_r, h_z, h_n = gh.chunk(3, dim=-1)
-        
-        # 计算门
-        r = (i_r + h_r).sigmoid()  # 重置门
-        z = (i_z + h_z).sigmoid()  # 更新门
-        n = (i_n + r * h_n).tanh() # 候选隐藏状态
-        
-        # 更新隐藏状态
-        h_new = (1 - z) * n + z * h
-        
-        return h_new
-```
+        # 创建多层 LSTM
+        self.cells = []
+        for i in range(num_layers):
+            in_size = input_size if i == 0 else hidden_size
+            self.cells.append(LSTMCell(in_size, hidden_size))
 
-### LSTM vs GRU
+    def forward(self, x: Tensor, state: tuple = None):
+        """
+        Args:
+            x: 输入序列
+               batch_first=False: (seq_len, batch, input_size)
+               batch_first=True:  (batch, seq_len, input_size)
+            state: 初始状态 (h_0, c_0)
 
-| 特性 | LSTM | GRU |
-|------|------|-----|
-| 门数量 | 3 | 2 |
-| 状态数量 | 2 (h, c) | 1 (h) |
-| 参数量 | 更多 | 更少 |
-| 计算速度 | 较慢 | 较快 |
-| 表达能力 | 较强 | 相似 |
-| 训练难度 | 较难 | 较易 |
+        Returns:
+            output: 所有时刻的输出
+            (h_n, c_n): 最后时刻的状态
+        """
+        if self.batch_first:
+            # 转换为 (seq_len, batch, input_size)
+            x = x.transpose(0, 1)
 
----
+        seq_len, batch, _ = x.shape
 
-## Cell 版本 vs 完整版本
+        # 初始化状态
+        if state is None:
+            h = [Tensor(np.zeros((batch, self.hidden_size))) for _ in range(self.num_layers)]
+            c = [Tensor(np.zeros((batch, self.hidden_size))) for _ in range(self.num_layers)]
+        else:
+            h, c = state
 
-### Cell 版本
+        outputs = []
 
-用于**手动控制**每个时间步：
+        # 逐时刻处理
+        for t in range(seq_len):
+            x_t = x[t]
 
-```python
-from nanotorch.nn import LSTMCell
+            # 逐层处理
+            for layer, cell in enumerate(self.cells):
+                h[layer], c[layer] = cell(x_t, (h[layer], c[layer]))
+                x_t = h[layer]
 
-cell = LSTMCell(input_size=64, hidden_size=128)
+            outputs.append(h[-1])
 
-h = None
-c = None
-outputs = []
+        output = Tensor(np.stack([o.data for o in outputs], axis=0))
 
-for t in range(seq_len):
-    x_t = x[:, t, :]  # 当前时刻输入
-    h, c = cell(x_t, (h, c))
-    outputs.append(h)
-
-output = Tensor(np.stack([o.data for o in outputs], axis=1))
-```
-
-### 完整版本
-
-自动处理整个序列：
-
-```python
-from nanotorch.nn import LSTM
-
-lstm = LSTM(input_size=64, hidden_size=128, batch_first=True)
-
-# 一次性处理整个序列
-output, (h_n, c_n) = lstm(x)
-```
-
----
-
-## 双向 RNN
-
-### 原理
-
-双向 RNN 同时从前向后和从后向前处理序列：
-
-```
-前向:  h_1 → h_2 → h_3 → ... → h_T
-后向:  h'_1 ← h'_2 ← h'_3 ← ... ← h'_T
-
-输出: [h_1, h'_1], [h_2, h'_2], ..., [h_T, h'_T]
+        return output, (h, c)
 ```
 
 ### 使用
 
 ```python
-from nanotorch.nn import LSTM
+# 创建 LSTM
+lstm = LSTM(
+    input_size=64,
+    hidden_size=128,
+    num_layers=2,
+    batch_first=True,
+    bidirectional=False
+)
 
+# 输入
+x = Tensor.randn((32, 10, 64))  # (batch, seq_len, input_size)
+
+# 前向传播
+output, (h_n, c_n) = lstm(x)
+
+print(output.shape)  # (32, 10, 128)
+```
+
+---
+
+## 11.8 双向 RNN
+
+### 原理
+
+```
+普通 RNN：只看过去
+  我 → 爱 → 你 → ！
+
+双向 RNN：同时看过去和未来
+  前向：我 → 爱 → 你 → ！
+  后向：我 ← 爱 ← 你 ← ！
+
+合并：[前向h_t, 后向h_t]
+```
+
+### 使用场景
+
+```
+适合：需要完整上下文的任务
+  - 机器翻译
+  - 命名实体识别
+  - 情感分析
+
+不适合：实时生成任务
+  - 实时语音识别（不能看未来）
+  - 文本生成
+```
+
+### 使用
+
+```python
 # 双向 LSTM
 bi_lstm = LSTM(
     input_size=64,
@@ -472,95 +552,65 @@ bi_lstm = LSTM(
 x = Tensor.randn((32, 10, 64))
 output, (h_n, c_n) = bi_lstm(x)
 
-print(output.shape)  # (32, 10, 256)  # 256 = 128 * 2 directions
+print(output.shape)  # (32, 10, 256)  # 256 = 128 * 2 方向
 ```
 
 ---
 
-## 使用示例
+## 11.9 应用示例
 
 ### 文本分类
 
 ```python
-from nanotorch import Tensor
-from nanotorch.nn import Embedding, LSTM, Linear
-
 class TextClassifier:
+    """
+    用 LSTM 做文本分类
+
+    结构：Embedding → LSTM → 取最后隐藏状态 → 分类
+    """
+
     def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes):
         self.embedding = Embedding(vocab_size, embed_dim)
-        self.lstm = LSTM(
-            input_size=embed_dim,
-            hidden_size=hidden_dim,
-            num_layers=2,
-            batch_first=True,
-            bidirectional=True
-        )
-        self.fc = Linear(hidden_dim * 2, num_classes)  # *2 for bidirectional
-    
+        self.lstm = LSTM(embed_dim, hidden_dim, batch_first=True)
+        self.fc = Linear(hidden_dim, num_classes)
+
     def __call__(self, x):
-        # x: (batch, seq_len) 整数索引
-        x = self.embedding(x)  # (batch, seq_len, embed_dim)
+        # x: (batch, seq_len) 词索引
+        x = self.embedding(x)        # (batch, seq_len, embed_dim)
         output, (h_n, c_n) = self.lstm(x)
-        
-        # 使用最后一个时间步的输出
-        # h_n shape: (num_layers * 2, batch, hidden_dim)
-        # 取最后一层的双向输出
-        h_forward = h_n[-2]  # 前向最后层
-        h_backward = h_n[-1]  # 后向最后层
-        h_concat = Tensor(np.concatenate([h_forward.data, h_backward.data], axis=-1))
-        
-        return self.fc(h_concat)
-    
+        h_last = h_n[-1]              # 最后一层的隐藏状态
+        return self.fc(h_last)
+
     def parameters(self):
         return self.embedding.parameters() + self.lstm.parameters() + self.fc.parameters()
-
-# 使用
-model = TextClassifier(vocab_size=10000, embed_dim=128, hidden_dim=256, num_classes=5)
-x = Tensor(np.random.randint(0, 10000, (32, 50)))  # (batch, seq_len)
-logits = model(x)
-```
-
-### 序列标注（NER）
-
-```python
-class SequenceTagger:
-    def __init__(self, vocab_size, embed_dim, hidden_dim, num_tags):
-        self.embedding = Embedding(vocab_size, embed_dim)
-        self.lstm = LSTM(embed_dim, hidden_dim, batch_first=True, bidirectional=True)
-        self.fc = Linear(hidden_dim * 2, num_tags)
-    
-    def __call__(self, x):
-        x = self.embedding(x)
-        output, _ = self.lstm(x)  # output: (batch, seq_len, hidden_dim * 2)
-        
-        # 对每个时间步进行分类
-        batch, seq_len, _ = output.shape
-        output = output.reshape(batch * seq_len, -1)
-        logits = self.fc(output)
-        return logits.reshape(batch, seq_len, -1)
 ```
 
 ### 语言模型
 
 ```python
 class LanguageModel:
-    def __init__(self, vocab_size, embed_dim, hidden_dim, num_layers=2):
+    """
+    用 LSTM 做语言模型
+
+    预测下一个词
+    """
+
+    def __init__(self, vocab_size, embed_dim, hidden_dim):
         self.embedding = Embedding(vocab_size, embed_dim)
-        self.lstm = LSTM(embed_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = LSTM(embed_dim, hidden_dim, batch_first=True)
         self.fc = Linear(hidden_dim, vocab_size)
-    
+
     def __call__(self, x):
         x = self.embedding(x)
         output, _ = self.lstm(x)
-        logits = self.fc(output)
+        logits = self.fc(output)  # 每个位置都预测下一个词
         return logits
-    
-    def generate(self, start_token, max_len=100):
-        """自回归生成文本"""
+
+    def generate(self, start_token, max_len=50):
+        """生成文本"""
         tokens = [start_token]
-        h = None
-        c = None
-        
+        h, c = None, None
+
         for _ in range(max_len):
             x = Tensor([[tokens[-1]]])
             x = self.embedding(x)
@@ -568,36 +618,74 @@ class LanguageModel:
             logits = self.fc(output[:, -1, :])
             next_token = np.argmax(logits.data, axis=-1)[0]
             tokens.append(next_token)
-        
+
         return tokens
 ```
 
 ---
 
-## 总结
+## 11.10 常见陷阱
 
-本教程介绍了 nanotorch 中的循环神经网络实现：
+### 陷阱1：忘记传递隐藏状态
 
-| 模型 | 特点 | 适用场景 |
-|------|------|----------|
-| **RNN** | 简单，但梯度消失 | 短序列 |
-| **LSTM** | 三个门，长期记忆 | 长序列，复杂任务 |
-| **GRU** | 两个门，更简单 | 长序列，效率优先 |
+```python
+# 错误：每个时刻都重置
+for t in range(seq_len):
+    h = cell(x[t], None)  # 每次都重新初始化！
 
-### 关键要点
+# 正确：传递隐藏状态
+h = None
+for t in range(seq_len):
+    h = cell(x[t], h)
+```
 
-1. **Cell 版本** 适合需要精细控制的场景
-2. **完整版本** 适合直接处理整个序列
-3. **双向 RNN** 可以同时利用前后文信息
-4. **LSTM/GRU** 通过门控机制解决梯度消失
+### 陷阱2：batch_first 混淆
 
-### 下一步
+```python
+# LSTM 默认 batch_first=False
+lstm = LSTM(64, 128)
+x = Tensor.randn((32, 10, 64))  # (batch, seq, feature)
 
-在 [教程 12：Transformer](12-transformer.md) 中，我们将学习如何实现 Transformer 架构，这是现代 NLP 的基础。
+# 会出错！应该先转置或设置 batch_first=True
+lstm = LSTM(64, 128, batch_first=True)
+```
+
+### 陷阱3：梯度裁剪
+
+```python
+# RNN 容易梯度爆炸，需要裁剪
+from nanotorch.utils import clip_grad_norm_
+
+loss.backward()
+clip_grad_norm_(model.parameters(), max_norm=1.0)  # 重要！
+optimizer.step()
+```
 
 ---
 
-**参考资源**：
-- [Understanding LSTM Networks](https://colah.github.io/posts/2015-08-Understanding-LSTMs/)
-- [The Unreasonable Effectiveness of Recurrent Neural Networks](http://karpathy.github.io/2015/05/21/rnn-effectiveness/)
-- [Learning Phrase Representations using RNN Encoder-Decoder (GRU)](https://arxiv.org/abs/1406.1078)
+## 11.11 一句话总结
+
+| 概念 | 一句话 |
+|------|--------|
+| RNN | 有记忆的神经网络，记住历史信息 |
+| 隐藏状态 | 传递信息的载体 |
+| LSTM | 用门控解决长期记忆 |
+| GRU | LSTM 的简化版，更快 |
+| 双向 | 同时看过去和未来 |
+
+---
+
+## 下一章
+
+现在我们学会了处理序列的 RNN！
+
+下一章，我们将学习**Transformer** —— 现代NLP的基石，ChatGPT的核心。
+
+→ [第十二章：Transformer](12-transformer.md)
+
+```python
+# 预告：下一章你将学到
+attention = MultiheadAttention(embed_dim=512, num_heads=8)
+# 用注意力机制替代循环
+# 并行处理整个序列
+```

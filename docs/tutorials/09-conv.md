@@ -1,185 +1,205 @@
-# 教程 09：卷积层 (Convolution Layers)
+# 第九章：卷积层
 
-## 目录
+## 想象你是一个侦探...
 
-1. [概述](#概述)
-2. [卷积的基本概念](#卷积的基本概念)
-3. [Conv1D 实现](#conv1d-实现)
-4. [Conv2D 实现](#conv2d-实现)
-5. [Conv3D 实现](#conv3d-实现)
-6. [转置卷积](#转置卷积)
-7. [梯度计算](#梯度计算)
-8. [使用示例](#使用示例)
-9. [总结](#总结)
-
----
-
-## 概述
-
-卷积神经网络（CNN）是深度学习中处理图像、音频和序列数据的核心架构。卷积层通过**局部连接**和**权重共享**两个关键特性，大大减少了参数数量，同时保持了强大的特征提取能力。
-
-本教程将详细介绍如何在 nanotorch 中实现卷积层，包括：
-- Conv1D：一维卷积，用于序列数据
-- Conv2D：二维卷积，用于图像处理
-- Conv3D：三维卷积，用于视频或体积数据
-- ConvTranspose2D/3D：转置卷积（反卷积）
-
----
-
-## 卷积的基本概念
-
-### 什么是卷积？
-
-在深度学习中，卷积操作是将一个小的**卷积核（kernel/filter）**在输入数据上滑动，在每个位置计算点积并求和。
+你在案发现场找线索：
+- 不会一次看整个房间
+- 而是拿着放大镜，**一点一点地看**
+- 每个位置都要检查有没有指纹
 
 ```
-输入图像 (5x5):          卷积核 (3x3):
-[1  2  3  4  5]         [1  0  1]
-[6  7  8  9  10]        [0  1  0]
-[11 12 13 14 15]        [1  0  1]
-[16 17 18 19 20]
+┌─────────────────────────┐
+│  🔍                    │
+│    放大镜 ← 移动 →      │
+│                        │
+│  每个位置都检查         │
+└─────────────────────────┘
+```
+
+**卷积就是拿着"放大镜"扫描图像**：
+- 放大镜 = 卷积核（kernel）
+- 扫描过程 = 滑动窗口
+- 找到的特征 = 输出
+
+---
+
+## 9.1 为什么需要卷积？
+
+### 问题：全连接层处理图像太笨
+
+```
+一张 224x224 的彩色图片：
+  - 像素数：224 × 224 × 3 = 150,528
+  - 连接到 1000 个神经元：150,528 × 1000 = 1.5 亿参数！
+
+问题：
+  1. 参数太多，训练慢
+  2. 没利用图像的空间结构
+  3. 位置变了就不认识
+```
+
+### 解决：卷积的两大神器
+
+```
+1. 局部连接：
+   每个神经元只看一小块区域（比如 3×3）
+
+2. 权重共享：
+   同一个放大镜扫描整张图
+
+效果：
+  - 参数量：3 × 3 × 3 × 64 = 1,728（少了上万倍！）
+  - 位置不变：猫在左上角或右下角都能识别
+```
+
+---
+
+## 9.2 卷积是怎么工作的？
+
+### 单步计算
+
+```
+输入图像 (5×5)：         卷积核 (3×3)：
+                         ┌─────────┐
+[1  2  3  4  5]          │ 1  0  1 │
+[6  7  8  9  10]         │ 0  1  0 │
+[11 12 13 14 15]         │ 1  0  1 │
+[16 17 18 19 20]         └─────────┘
 [21 22 23 24 25]
 
-在位置 (0,0) 的计算:
-1*1 + 2*0 + 3*1 +
-6*0 + 7*1 + 8*0 +
-11*1 + 12*0 + 13*1 = 1 + 3 + 7 + 11 + 13 = 35
+第1步：卷积核覆盖左上角 3×3 区域
+
+[1  2  3]       [1  0  1]
+[6  7  8]   ⊙   [0  1  0]   = 1×1 + 2×0 + 3×1 + 6×0 + 7×1 + 8×0 + 11×1 + 12×0 + 13×1
+[11 12 13]      [1  0  1]
+
+              = 1 + 0 + 3 + 0 + 7 + 0 + 11 + 0 + 13 = 35
+
+⊙ = 对应位置相乘再相加
 ```
 
-### 关键参数
+### 滑动过程
 
-| 参数 | 描述 | 默认值 |
-|------|------|--------|
-| `kernel_size` | 卷积核大小 | - |
-| `stride` | 步长，滑动距离 | 1 |
-| `padding` | 边缘填充 | 0 |
-| `dilation` | 膨胀率，增大感受野 | 1 |
-| `groups` | 分组卷积 | 1 |
-| `bias` | 是否添加偏置 | True |
+```
+卷积核在图像上滑动：
+
+位置1: 位置2: ... 位置n:
+┌─────┐    ┌─────┐       ┌─────┐
+│1 2 3│    │  2 3│       │  3 4│
+│6 7  │ →  │6 7  │ → ... →│7 8  │
+│11 12│    │11 12│       │12 13│
+└─────┘    └─────┘       └─────┘
+  ↓          ↓             ↓
+  35         40            45
+
+输出：[35, 40, 45, ...]
+```
+
+### 图解卷积
+
+```
+输入 (H×W)          卷积核 (K×K)         输出 (H'×W')
+
+┌─────────────┐     ┌───────┐           ┌─────────┐
+│             │     │ w w w │           │         │
+│   ┌─────┐   │  ⊙  │ w w w │  =        │ o o o   │
+│   │扫描 │   │     │ w w w │           │ o o o   │
+│   └─────┘   │     └───────┘           │         │
+│             │                         └─────────┘
+└─────────────┘
+
+扫描完 → 输出是一个更小的图（特征图）
+```
+
+---
+
+## 9.3 关键参数
+
+### 步长（Stride）
+
+```
+Stride = 1：每次移动1格
+Stride = 2：每次移动2格
+
+Stride=1:           Stride=2:
+[1 2 3 4]           [1 2 3 4]
+[● ● ○ ○]           [●   ○   ]
+[○ ○ ● ●]           [    ●   ]
+ 移1格               移2格
+
+步长越大，输出越小
+```
+
+### 填充（Padding）
+
+```
+问题：卷积后图像变小了
+  输入 5×5 → 卷积 3×3 → 输出 3×3
+
+解决：边缘补0
+
+原始：      补0后：
+[1 2 3]     [0 0 0 0 0]
+[4 5 6] →  [0 1 2 3 0]
+[7 8 9]     [0 4 5 6 0]
+            [0 7 8 9 0]
+            [0 0 0 0 0]
+
+补0后：输入 5×5 → 输出还是 5×5
+```
 
 ### 输出尺寸计算
 
-对于输入尺寸 $H_{in} \times W_{in}$，输出尺寸为：
-
-$$H_{out} = \left\lfloor \frac{H_{in} + 2 \times padding - dilation \times (kernel\_size - 1) - 1}{stride} \right\rfloor + 1$$
-
----
-
-## Conv1D 实现
-
-### 数据布局
-
-Conv1D 处理的输入形状为 `(N, C_in, L)`：
-- N：批次大小
-- C_in：输入通道数
-- L：序列长度
-
-### 实现代码
-
-```python
-# nanotorch/nn/conv.py
-
-class Conv1D(Module):
-    """1D convolution layer.
-    
-    Applies a 1D convolution over an input signal composed of several input planes.
-    
-    Args:
-        in_channels: Number of channels in the input signal.
-        out_channels: Number of channels produced by the convolution.
-        kernel_size: Size of the convolving kernel.
-        stride: Stride of the convolution. Default: 1.
-        padding: Zero-padding added to both sides. Default: 0.
-        dilation: Spacing between kernel elements. Default: 1.
-        bias: If True, adds a learnable bias. Default: True.
-    """
-
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int = 3,
-        stride: int = 1,
-        padding: int = 0,
-        dilation: int = 1,
-        bias: bool = True,
-    ) -> None:
-        super().__init__()
-        
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-        self.dilation = dilation
-        
-        # 权重形状: (out_channels, in_channels, kernel_size)
-        weight_shape = (out_channels, in_channels, kernel_size)
-        self.weight = Tensor(
-            np.random.randn(*weight_shape).astype(np.float32) * 0.1,
-            requires_grad=True
-        )
-        
-        self.bias = None
-        if bias:
-            self.bias = Tensor(
-                np.zeros((out_channels, 1), dtype=np.float32),
-                requires_grad=True
-            )
-        
-        self.register_parameter("weight", self.weight)
-        if self.bias is not None:
-            self.register_parameter("bias", self.bias)
-
-    def forward(self, x: Tensor) -> Tensor:
-        if x.ndim != 3:
-            raise ValueError(f"Conv1D expects 3D input (N, C, L), got {x.ndim}D")
-        
-        return Conv1DFunction.apply(
-            x, self.weight, self.bias, self.stride, self.padding, self.dilation
-        )
 ```
+输出大小 = (输入大小 + 2×padding - 卷积核大小) / stride + 1
 
-### 使用示例
+例子：
+  输入：224×224
+  卷积核：3×3
+  padding：1
+  stride：1
 
-```python
-from nanotorch import Tensor
-from nanotorch.nn import Conv1D
+  输出 = (224 + 2×1 - 3) / 1 + 1 = 224
 
-# 创建 Conv1D 层
-conv = Conv1D(in_channels=16, out_channels=32, kernel_size=3, padding=1)
-
-# 输入: (batch_size, in_channels, length)
-x = Tensor.randn((8, 16, 100))
-
-# 前向传播
-output = conv(x)
-print(output.shape)  # (8, 32, 100)
+  → 尺寸不变！这是常用的配置
 ```
 
 ---
 
-## Conv2D 实现
+## 9.4 Conv2D 实现
 
 ### 数据布局
 
-Conv2D 处理的输入形状为 `(N, C_in, H, W)`：
-- N：批次大小
-- C_in：输入通道数
-- H：高度
-- W：宽度
+```
+Conv2D 输入形状：(N, C, H, W)
+  N = batch size（一次处理几张图）
+  C = channels（通道数，RGB=3）
+  H = height（高度）
+  W = width（宽度）
+
+例子：
+  16 张 RGB 图片，每张 224×224
+  形状：(16, 3, 224, 224)
+```
 
 ### 实现代码
 
 ```python
 class Conv2D(Module):
-    """2D convolution layer.
-    
-    Applies a 2D convolution over an input signal composed of several input planes.
-    
-    Shape:
-        - Input: (N, C_in, H_in, W_in)
-        - Output: (N, C_out, H_out, W_out)
+    """
+    2D 卷积层
+
+    类比：
+      - 输入：一张或多张图片
+      - 卷积核：多个"放大镜"
+      - 输出：多张特征图（每个放大镜产生一张）
+
+    权重形状：(out_channels, in_channels, kernel_h, kernel_w)
+
+    例子：
+      in_channels=3 (RGB)
+      out_channels=64 (64个不同的放大镜)
+      kernel_size=3 (3×3的放大镜)
     """
 
     def __init__(
@@ -193,32 +213,32 @@ class Conv2D(Module):
         bias: bool = True,
     ) -> None:
         super().__init__()
-        
+
         # 统一转换为元组
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size)
-        
+
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
         self.dilation = dilation
-        
-        # 权重形状: (out_channels, in_channels, kernel_height, kernel_width)
+
+        # 权重：64个 3×3×3 的滤波器 = 64×3×3×3 个参数
         weight_shape = (out_channels, in_channels, kernel_size[0], kernel_size[1])
         self.weight = Tensor(
             np.random.randn(*weight_shape).astype(np.float32) * 0.1,
             requires_grad=True
         )
-        
+
         self.bias = None
         if bias:
             self.bias = Tensor(
                 np.zeros((out_channels, 1, 1), dtype=np.float32),
                 requires_grad=True
             )
-        
+
         self.register_parameter("weight", self.weight)
         if self.bias is not None:
             self.register_parameter("bias", self.bias)
@@ -226,7 +246,7 @@ class Conv2D(Module):
     def forward(self, x: Tensor) -> Tensor:
         if x.ndim != 4:
             raise ValueError(f"Conv2D expects 4D input (N, C, H, W), got {x.ndim}D")
-        
+
         return Conv2DFunction.apply(
             x, self.weight, self.bias, self.stride, self.padding, self.dilation
         )
@@ -238,11 +258,11 @@ class Conv2D(Module):
 from nanotorch import Tensor
 from nanotorch.nn import Conv2D
 
-# 创建 Conv2D 层
+# 创建卷积层
 conv = Conv2D(
     in_channels=3,      # RGB 图像
-    out_channels=64,    # 输出特征图数
-    kernel_size=3,      # 3x3 卷积核
+    out_channels=64,    # 64 个特征图
+    kernel_size=3,      # 3×3 卷积核
     stride=1,
     padding=1           # 保持尺寸不变
 )
@@ -255,72 +275,142 @@ output = conv(x)
 print(output.shape)  # (16, 64, 224, 224)
 ```
 
-### 简单实现（教学用途）
+---
 
-为了更好地理解卷积操作，我们提供一个简化的实现：
+## 9.5 朴素实现（教学用）
 
 ```python
-def _conv2d_forward(self, x: Tensor, H_out: int, W_out: int) -> Tensor:
-    """朴素的卷积实现（用于教学）"""
+def conv2d_simple(x, weight, stride=1, padding=0):
+    """
+    朴素的卷积实现（帮助理解）
+
+    四重循环：
+      - n: 第几张图
+      - c_out: 第几个输出通道
+      - h: 高度方向滑动
+      - w: 宽度方向滑动
+    """
     N, C_in, H_in, W_in = x.shape
-    C_out = self.out_channels
-    K_H, K_W = self.kernel_size
-    
-    output = Tensor.zeros((N, C_out, H_out, W_out), requires_grad=x.requires_grad)
-    
-    # 滑动窗口卷积
-    for n in range(N):           # 批次维度
-        for c_out in range(C_out):  # 输出通道
-            for h_out in range(H_out):  # 高度
-                for w_out in range(W_out):  # 宽度
-                    # 计算输入窗口位置
-                    h_start = h_out * self.stride
-                    w_start = w_out * self.stride
-                    h_end = h_start + K_H
-                    w_end = w_start + K_W
-                    
-                    # 提取输入窗口
-                    window = x.data[n, :, h_start:h_end, w_start:w_end]
-                    
-                    # 获取对应的权重
-                    weight_slice = self.weight.data[c_out]
-                    
-                    # 计算卷积和
-                    conv_sum = np.sum(window * weight_slice)
-                    
-                    output.data[n, c_out, h_out, w_out] = conv_sum
-    
+    C_out, _, K_H, K_W = weight.shape
+
+    # 计算输出尺寸
+    H_out = (H_in + 2*padding - K_H) // stride + 1
+    W_out = (W_in + 2*padding - K_W) // stride + 1
+
+    # 填充
+    if padding > 0:
+        x_padded = np.pad(x, ((0,0), (0,0), (padding,padding), (padding,padding)))
+    else:
+        x_padded = x
+
+    output = np.zeros((N, C_out, H_out, W_out))
+
+    # 滑动窗口
+    for n in range(N):              # 每张图
+        for c_out in range(C_out):  # 每个输出通道
+            for h in range(H_out):  # 高度滑动
+                for w in range(W_out):  # 宽度滑动
+                    # 计算窗口位置
+                    h_start = h * stride
+                    w_start = w * stride
+
+                    # 提取窗口
+                    window = x_padded[n, :, h_start:h_start+K_H, w_start:w_start+K_W]
+
+                    # 卷积计算
+                    output[n, c_out, h, w] = np.sum(window * weight[c_out])
+
     return output
 ```
 
 ---
 
-## Conv3D 实现
+## 9.6 Conv1D：处理序列
 
-### 数据布局
+```
+Conv1D 用于序列数据（文本、音频）
 
-Conv3D 处理的输入形状为 `(N, C_in, D, H, W)`：
-- N：批次大小
-- C_in：输入通道数
-- D：深度（时间帧或体数据深度）
-- H：高度
-- W：宽度
+输入形状：(N, C, L)
+  N = batch size
+  C = channels（词向量维度）
+  L = length（序列长度）
 
-### 使用场景
+滑动方向：只有一维（从左到右）
 
-- **视频处理**：D 为时间维度
-- **医学影像**：CT/MRI 体数据
-- **3D 物体识别**：点云或体素数据
+文本例子：
+  输入："我爱学习"（4个词）
+  卷积核：3个词的窗口
+  滑动：[我爱学] → [爱学习]
+```
 
-### 实现代码
+```python
+class Conv1D(Module):
+    """
+    1D 卷积层
+
+    用于：文本分类、时间序列、音频处理
+
+    输入：(N, C_in, L)
+    输出：(N, C_out, L')
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 3,
+        stride: int = 1,
+        padding: int = 0,
+        bias: bool = True,
+    ) -> None:
+        super().__init__()
+
+        # 权重形状: (out_channels, in_channels, kernel_size)
+        weight_shape = (out_channels, in_channels, kernel_size)
+        self.weight = Tensor(
+            np.random.randn(*weight_shape).astype(np.float32) * 0.1,
+            requires_grad=True
+        )
+
+        self.bias = None
+        if bias:
+            self.bias = Tensor(
+                np.zeros((out_channels, 1), dtype=np.float32),
+                requires_grad=True
+            )
+```
+
+---
+
+## 9.7 Conv3D：处理视频
+
+```
+Conv3D 用于体积数据（视频、CT扫描）
+
+输入形状：(N, C, D, H, W)
+  N = batch size
+  C = channels
+  D = depth（时间/深度）
+  H = height
+  W = width
+
+视频例子：
+  D = 16帧
+  每帧 224×224
+  输入：(N, 3, 16, 224, 224)
+
+滑动方向：三维（时间+空间）
+```
 
 ```python
 class Conv3D(Module):
-    """3D convolution layer.
-    
-    Shape:
-        - Input: (N, C_in, D_in, H_in, W_in)
-        - Output: (N, C_out, D_out, H_out, W_out)
+    """
+    3D 卷积层
+
+    用于：视频分析、医学影像、3D物体识别
+
+    输入：(N, C_in, D_in, H_in, W_in)
+    输出：(N, C_out, D_out, H_out, W_out)
     """
 
     def __init__(
@@ -328,75 +418,67 @@ class Conv3D(Module):
         in_channels: int,
         out_channels: int,
         kernel_size: Union[int, Tuple[int, int, int]] = (3, 3, 3),
-        stride: Union[int, Tuple[int, int, int]] = 1,
-        padding: Union[int, Tuple[int, int, int]] = 0,
-        dilation: Union[int, Tuple[int, int, int]] = 1,
-        bias: bool = True,
+        stride: int = 1,
+        padding: int = 0,
     ) -> None:
         super().__init__()
-        
-        # 统一转换为三元组
+
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size, kernel_size)
-        if isinstance(stride, int):
-            stride = (stride, stride, stride)
-        if isinstance(padding, int):
-            padding = (padding, padding, padding)
-        if isinstance(dilation, int):
-            dilation = (dilation, dilation, dilation)
-        
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-        self.dilation = dilation
-        
+
         # 权重形状: (out_channels, in_channels, kD, kH, kW)
         weight_shape = (out_channels, in_channels, *kernel_size)
         self.weight = Tensor(
             np.random.randn(*weight_shape).astype(np.float32) * 0.1,
             requires_grad=True
         )
-        
-        # ... bias 初始化
 ```
 
 ---
 
-## 转置卷积
+## 9.8 转置卷积：上采样
 
-### 概念
-
-转置卷积（Transposed Convolution），也称为**反卷积（Deconvolution）**或**分数步长卷积**，用于**上采样**操作。
-
-与普通卷积不同，转置卷积将低分辨率特征图转换为高分辨率输出。
+### 什么是转置卷积？
 
 ```
-普通卷积 (下采样):    转置卷积 (上采样):
-[H, W] -> [H/2, W/2]  [H, W] -> [2H, 2W]
+普通卷积：下采样（变小）
+  224×224 → 112×112
+
+转置卷积：上采样（变大）
+  112×112 → 224×224
+
+用途：
+  - 图像分割：恢复分辨率
+  - GAN：生成大图
+  - 超分辨率：图像放大
 ```
 
-### 输出尺寸计算
+### 图示
 
-对于转置卷积：
+```
+普通卷积：                 转置卷积：
 
-$$H_{out} = (H_{in} - 1) \times stride - 2 \times padding + dilation \times (kernel\_size - 1) + output\_padding + 1$$
+┌─────────┐               ┌───┐
+│  大图   │  → 卷积 →     │小图│
+└─────────┘               └───┘
 
-### ConvTranspose2D 实现
+┌───┐                     ┌─────────┐
+│小图│  → 转置卷积 →      │  大图   │
+└───┘                     └─────────┘
+```
+
+### 实现
 
 ```python
 class ConvTranspose2D(Module):
-    """2D transposed convolution layer.
-    
-    Also known as deconvolution or fractionally-strided convolution.
-    Used for upsampling in segmentation networks, GANs, etc.
-    
-    Shape:
-        - Input: (N, C_in, H_in, W_in)
-        - Output: (N, C_out, H_out, W_out)
-    
-    Note:
-        Weight shape is (in_channels, out_channels, K_H, K_W) for ConvTranspose2D,
-        different from Conv2D's (out_channels, in_channels, K_H, K_W).
+    """
+    2D 转置卷积（反卷积）
+
+    用于上采样：将低分辨率特征图变大
+
+    注意：权重形状与 Conv2D 相反！
+      Conv2D: (out_channels, in_channels, K_H, K_W)
+      ConvTranspose2D: (in_channels, out_channels, K_H, K_W)
     """
 
     def __init__(
@@ -404,30 +486,24 @@ class ConvTranspose2D(Module):
         in_channels: int,
         out_channels: int,
         kernel_size: Union[int, Tuple[int, int]] = (3, 3),
-        stride: int = 1,
-        padding: int = 0,
+        stride: int = 2,      # 通常 stride=2（放大2倍）
+        padding: int = 1,
         output_padding: int = 0,
-        dilation: int = 1,
-        bias: bool = True,
     ) -> None:
         super().__init__()
-        
-        # 注意：权重形状与 Conv2D 相反！
-        # ConvTranspose2D: (in_channels, out_channels, K_H, K_W)
+
+        # 注意：权重形状与 Conv2D 相反
         weight_shape = (in_channels, out_channels, kernel_size[0], kernel_size[1])
         self.weight = Tensor(
             np.random.randn(*weight_shape).astype(np.float32) * 0.1,
             requires_grad=True
         )
-        # ...
 ```
 
-### 使用示例
+### 使用
 
 ```python
-from nanotorch.nn import ConvTranspose2D
-
-# 上采样层
+# 上采样层：32×32 → 64×64
 upsample = ConvTranspose2D(
     in_channels=256,
     out_channels=128,
@@ -436,7 +512,6 @@ upsample = ConvTranspose2D(
     padding=1
 )
 
-# 输入: (N, C, H, W) -> 输出: (N, C, 2H, 2W)
 x = Tensor.randn((8, 256, 32, 32))
 output = upsample(x)
 print(output.shape)  # (8, 128, 64, 64)
@@ -444,141 +519,233 @@ print(output.shape)  # (8, 128, 64, 64)
 
 ---
 
-## 梯度计算
+## 9.9 特殊卷积
 
-卷积层的梯度计算是自动微分的关键部分。
+### 1×1 卷积
 
-### 输入梯度
+```
+1×1 卷积：只改变通道数，不改空间尺寸
 
-对于输出梯度 $\frac{\partial L}{\partial Y}$，输入梯度为：
+用途：
+  - 降维/升维
+  - 增加非线性
+  - 通道混合
 
-$$\frac{\partial L}{\partial X} = \text{conv}(\frac{\partial L}{\partial Y}, W^{flipped})$$
-
-其中 $W^{flipped}$ 是旋转180度的权重。
-
-### 权重梯度
-
-$$\frac{\partial L}{\partial W} = \text{conv}(X, \frac{\partial L}{\partial Y})$$
-
-### autograd.py 中的实现
+例子：
+  输入：(N, 512, 28, 28)
+  1×1 卷积：(N, 64, 28, 28)
+  参数：512×64 = 32,768（很少！）
+```
 
 ```python
-# nanotorch/autograd.py
+conv_1x1 = Conv2D(512, 64, kernel_size=1)  # 降维
+```
 
-class Conv2DFunction(Function):
-    @staticmethod
-    def forward(ctx, x, weight, bias, stride, padding, dilation):
-        # 保存用于反向传播
-        ctx.save_for_backward(x, weight)
-        ctx.stride = stride
-        ctx.padding = padding
-        ctx.dilation = dilation
-        
-        # 执行前向卷积
-        output = conv2d_forward(x.data, weight.data, bias, stride, padding, dilation)
-        return Tensor(output, requires_grad=x.requires_grad or weight.requires_grad)
-    
-    @staticmethod
-    def backward(ctx, grad_output):
-        x, weight = ctx.saved_tensors
-        
-        # 计算输入梯度
-        grad_input = conv2d_backward_input(grad_output, weight.data, ctx.stride, ctx.padding)
-        
-        # 计算权重梯度
-        grad_weight = conv2d_backward_weight(grad_output, x.data, ctx.stride, ctx.padding)
-        
-        return grad_input, grad_weight, None, None, None, None
+### 空洞卷积（Dilated Convolution）
+
+```
+空洞卷积：卷积核中间"跳过"一些位置
+
+普通 3×3：          空洞 3×3（dilation=2）：
+┌─────────┐         ┌───────────────┐
+│ w w w │           │ w   w   w     │
+│ w w w │           │   \   /       │
+│ w w w │           │ w   w   w     │
+└─────────┘         │   /   \       │
+                    │ w   w   w     │
+感受野：3×3          └───────────────┘
+                    感受野：5×5
+
+好处：不增加参数，增大感受野
+```
+
+```python
+conv_dilated = Conv2D(64, 64, kernel_size=3, dilation=2, padding=2)
+```
+
+### 深度可分离卷积
+
+```
+普通卷积：每个滤波器看所有通道
+深度可分离：每个通道单独看
+
+普通卷积参数：3×3×3×64 = 1,728
+深度可分离参数：3×3×3 + 1×1×3×64 = 27 + 192 = 219
+
+少了8倍！
 ```
 
 ---
 
-## 使用示例
+## 9.10 梯度计算
 
-### 构建简单的 CNN
+### 输入梯度
+
+```
+反向传播：已知 ∂L/∂output，求 ∂L/∂input
+
+∂L/∂input = conv(∂L/∂output, W_flipped)
+
+W_flipped = 权重旋转180度
+```
+
+### 权重梯度
+
+```
+∂L/∂W = conv(input, ∂L/∂output)
+
+用输入和输出梯度做卷积，得到权重梯度
+```
+
+---
+
+## 9.11 构建 CNN
 
 ```python
 from nanotorch import Tensor
 from nanotorch.nn import Conv2D, BatchNorm2d, ReLU, MaxPool2d, Linear, Sequential
 
-# 简单的 CNN 模型
 class SimpleCNN:
+    """
+    简单的 CNN 分类器
+
+    结构：
+      Conv → BN → ReLU → Pool（重复3次）
+      Flatten → FC → ReLU → FC
+    """
+
     def __init__(self, num_classes=10):
         self.features = Sequential(
-            Conv2D(3, 32, kernel_size=3, padding=1),   # 224 -> 224
+            # Block 1: 224 → 112
+            Conv2D(3, 32, kernel_size=3, padding=1),
             BatchNorm2d(32),
             ReLU(),
-            MaxPool2d(2, 2),                            # 224 -> 112
-            
-            Conv2D(32, 64, kernel_size=3, padding=1),  # 112 -> 112
+            MaxPool2d(2, 2),
+
+            # Block 2: 112 → 56
+            Conv2D(32, 64, kernel_size=3, padding=1),
             BatchNorm2d(64),
             ReLU(),
-            MaxPool2d(2, 2),                            # 112 -> 56
-            
-            Conv2D(64, 128, kernel_size=3, padding=1), # 56 -> 56
+            MaxPool2d(2, 2),
+
+            # Block 3: 56 → 28
+            Conv2D(64, 128, kernel_size=3, padding=1),
             BatchNorm2d(128),
             ReLU(),
-            MaxPool2d(2, 2),                            # 56 -> 28
+            MaxPool2d(2, 2),
         )
-        
+
         self.classifier = Sequential(
             Linear(128 * 28 * 28, 512),
             ReLU(),
             Linear(512, num_classes)
         )
-    
+
     def __call__(self, x):
         x = self.features(x)
-        x = x.flatten(start_dim=1)
+        x = x.flatten(start_dim=1)  # 展平
         x = self.classifier(x)
         return x
-    
+
     def parameters(self):
         return self.features.parameters() + self.classifier.parameters()
 
-# 使用模型
+# 使用
 model = SimpleCNN()
 x = Tensor.randn((4, 3, 224, 224))
 output = model(x)
 print(output.shape)  # (4, 10)
 ```
 
-### 使用不同参数
+---
+
+## 9.12 常见陷阱
+
+### 陷阱1：padding 不对导致尺寸不整
 
 ```python
-# 空洞卷积 (Dilated Convolution) - 增大感受野
-conv_dilated = Conv2D(64, 64, kernel_size=3, dilation=2, padding=2)
+# 问题：224 / 2 = 112，但 225 / 2 = 112.5
+# 解决：确保输入尺寸能被 stride 整除
 
-# 大步长卷积 - 快速下采样
-conv_stride = Conv2D(64, 128, kernel_size=3, stride=2, padding=1)
+# 正确配置
+Conv2D(64, 128, kernel_size=3, stride=2, padding=1)
+# 224 → 112（刚好整除）
+```
 
-# 1x1 卷积 - 通道变换
-conv_1x1 = Conv2D(256, 64, kernel_size=1)
+### 陷阱2：通道数配置错误
+
+```python
+# 错误：前后通道数不匹配
+Conv2D(3, 64, ...)   # 输出 64 通道
+Conv2D(32, 128, ...) # 期望输入 32 通道 ← 错！
+
+# 正确
+Conv2D(3, 64, ...)    # 输出 64 通道
+Conv2D(64, 128, ...)  # 输入 64 通道 ← 对！
+```
+
+### 陷阱3：忘记 bias
+
+```python
+# 有些情况下不需要 bias
+Conv2D(..., bias=False)  # 后面跟 BatchNorm 时可以不要 bias
 ```
 
 ---
 
-## 总结
+## 9.13 卷积层对比
 
-本教程详细介绍了 nanotorch 中卷积层的实现：
-
-1. **Conv1D**：处理序列数据，形状 `(N, C, L)`
-2. **Conv2D**：处理图像数据，形状 `(N, C, H, W)`
-3. **Conv3D**：处理视频/体积数据，形状 `(N, C, D, H, W)`
-4. **ConvTranspose2D/3D**：用于上采样的转置卷积
-
-关键参数：
-- `kernel_size`：卷积核大小
-- `stride`：步长
-- `padding`：填充
-- `dilation`：膨胀率
-
-### 下一步
-
-在 [教程 10：归一化层](10-normalization.md) 中，我们将学习如何实现 BatchNorm、LayerNorm、GroupNorm 等归一化层，这些层对稳定训练至关重要。
+| 层 | 输入维度 | 用途 | 例子 |
+|----|---------|------|------|
+| Conv1D | (N,C,L) | 序列 | 文本、音频 |
+| Conv2D | (N,C,H,W) | 图像 | 图片分类 |
+| Conv3D | (N,C,D,H,W) | 体积 | 视频、CT |
+| ConvTranspose2D | (N,C,H,W) | 上采样 | 分割、GAN |
 
 ---
 
-**参考资源**：
-- [CS231n: Convolutional Neural Networks](http://cs231n.github.io/convolutional-networks/)
-- [A guide to convolution arithmetic for deep learning](https://arxiv.org/abs/1603.07285)
+## 9.14 练习
+
+### 基础练习
+
+1. 手动计算一个 3×3 卷积的输出
+
+2. 实现 `kernel_size=5, stride=2, padding=2` 的卷积，计算输出尺寸
+
+3. 实现 `AvgPool2d`（平均池化）
+
+### 进阶练习
+
+4. 实现深度可分离卷积
+
+5. 实现分组卷积（groups>1）
+
+---
+
+## 一句话总结
+
+| 概念 | 一句话 |
+|------|--------|
+| 卷积 | 拿着放大镜扫描图像 |
+| 卷积核 | 那个放大镜（找特征的模板） |
+| stride | 每次移动几格 |
+| padding | 边缘补0保持尺寸 |
+| Conv2D | 处理图像的卷积 |
+| 转置卷积 | 反向卷积，用于放大 |
+
+---
+
+## 下一章
+
+现在我们学会了卷积！
+
+下一章，我们将学习**归一化层** —— 让训练更稳定的秘诀。
+
+→ [第十章：归一化层](10-normalization.md)
+
+```python
+# 预告：下一章你将学到
+BatchNorm2d(64)   # 批归一化
+LayerNorm(768)    # 层归一化（Transformer 用）
+GroupNorm(32, 64) # 分组归一化
+```
