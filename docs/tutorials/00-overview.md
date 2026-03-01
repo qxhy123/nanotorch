@@ -1,189 +1,272 @@
 # nanotorch 系列教程：从零开始打造深度学习框架
 
-## 教程简介
+## 想象一下...
 
-本系列教程将带你从零开始实现一个完整的深度学习框架——nanotorch。通过这个系列，你将深入理解：
+你正在用 PyTorch 训练一个神经网络：
 
-- **张量（Tensor）** 的底层实现与数学运算
-- **自动微分（Autograd）** 的工作原理
-- **神经网络层** 的设计与实现
-- **优化器** 如何更新模型参数
-- **卷积、循环、注意力** 等核心机制
+```python
+import torch
+x = torch.tensor([1.0, 2.0], requires_grad=True)
+y = x * 2 + 1
+y.sum().backward()
+print(x.grad)  # tensor([2., 2.])
+```
 
-## 为什么学习这个？
+有没有想过：**这是怎么做到的？**
 
-1. **深入理解 PyTorch**：了解 PyTorch 内部是如何工作的
-2. **巩固深度学习基础**：从数学到代码的完整实现
-3. **提升编程能力**：学习设计 API 和组织代码结构
-4. **面试加分项**：展示你对底层原理的理解
+- `tensor` 是什么？为什么能自动计算梯度？
+- `backward()` 做了什么？梯度从哪来？
+- 神经网络层（Linear、Conv2d）是怎么实现的？
 
-## 前置知识
+这个系列教程会带你**从零实现**一个深度学习框架，让你真正理解 PyTorch 的内部原理。
 
-- Python 编程基础
-- NumPy 数组操作
-- 基础线性代数（矩阵运算）
-- 基础微积分（导数、链式法则）
-- 深度学习基础概念（神经网络、反向传播）
+---
 
-> 💡 **提示**：如果你需要复习数学基础，可以先阅读 [数学基础：深度学习必备知识](math-fundamentals.md)，涵盖线性代数、微积分、概率论、最优化等内容。
+## 费曼学习法：教是最好的学
 
-## 教程目录
+这个教程遵循费曼学习法的核心理念：
 
-### 数学基础（选修）
+1. **用简单的语言** - 像12岁孩子也能理解的方式解释
+2. **使用生活类比** - 用日常生活中的例子类比复杂概念
+3. **解释"为什么"** - 不只告诉你"是什么"，还要解释"为什么需要"
+4. **可视化理解** - 用图示和动画帮助建立直觉
 
-| 教程 | 主题 | 内容 |
-|------|------|------|
-| [math-fundamentals.md](math-fundamentals.md) | 数学基础 | 线性代数、微积分、概率论、最优化 |
+---
 
-### 第一部分：核心基础
+## 用盖房子来类比
 
-| 教程 | 主题 | 内容 |
-|------|------|------|
-| [01-tensor.md](01-tensor.md) | Tensor 基础 | 张量数据结构、运算、形状操作 |
-| [02-autograd.md](02-autograd.md) | 自动微分 | 计算图、反向传播、梯度计算 |
+把深度学习框架想象成**盖一栋房子**：
 
-### 第二部分：神经网络模块
+```
+┌─────────────────────────────────────────────────────┐
+│                    你的模型                          │
+│  ┌─────────────────────────────────────────────┐   │
+│  │              神经网络层 (nn)                  │   │
+│  │    Linear · Conv2d · LSTM · Transformer     │   │
+│  └─────────────────────────────────────────────┘   │
+│                      ↓↑                            │
+│  ┌─────────────────────────────────────────────┐   │
+│  │              自动微分 (Autograd)              │   │
+│  │         计算梯度，让模型能够学习              │   │
+│  └─────────────────────────────────────────────┘   │
+│                      ↓↑                            │
+│  ┌─────────────────────────────────────────────┐   │
+│  │               张量 (Tensor)                   │   │
+│  │      存储数据，就像房子的地基                  │   │
+│  └─────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+```
 
-| 教程 | 主题 | 内容 |
-|------|------|------|
-| [03-nn-module.md](03-nn-module.md) | Module 基类 | 参数管理、模块组合、Sequential |
-| [04-activation.md](04-activation.md) | 激活函数 | ReLU、Sigmoid、Softmax 等 |
-| [05-loss.md](05-loss.md) | 损失函数 | MSE、CrossEntropy、BCE |
-| [06-optimizer.md](06-optimizer.md) | 优化器 | SGD、Adam、学习率调度 |
+| 建筑概念 | 深度学习概念 | 作用 |
+|---------|-------------|------|
+| 地基 | **Tensor** | 存储所有数据（数字、图像、文字） |
+| 水电系统 | **Autograd** | 自动计算梯度，让信息流动 |
+| 房间和楼层 | **神经网络层** | 处理数据，提取特征 |
+| 装修 | **激活函数** | 增加非线性，让模型更灵活 |
+| 物业管理 | **优化器** | 更新参数，让模型越来越好 |
 
-### 第三部分：训练与数据
+---
 
-| 教程 | 主题 | 内容 |
-|------|------|------|
-| [07-training.md](07-training.md) | 训练循环 | 完整训练流程、验证、保存模型 |
-| [08-transforms.md](08-transforms.md) | 数据增强 | 图像变换、归一化、数据增强 |
+## 学习路线图
 
-### 第四部分：高级层
+```
+                    ┌─────────────┐
+                    │  目标：理解  │
+                    │  PyTorch原理 │
+                    └──────┬──────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         ↓                 ↓                 ↓
+    ┌─────────┐      ┌─────────┐      ┌─────────┐
+    │ 第一阶段 │      │ 第二阶段 │      │ 第三阶段 │
+    │  核心基础 │      │  神经网络 │      │  高级应用 │
+    └────┬────┘      └────┬────┘      └────┬────┘
+         │                │                │
+    ┌────┴────┐      ┌────┴────┐      ┌────┴────┐
+    │ Tensor  │      │ Module  │      │ Conv    │
+    │ Autograd│      │ Loss    │      │ RNN     │
+    └─────────┘      │ Optim   │      │ Transf. │
+                     └─────────┘      │ YOLO    │
+                                      └─────────┘
+```
 
-| 教程 | 主题 | 内容 |
-|------|------|------|
-| [09-conv.md](09-conv.md) | 卷积层 | Conv1D/2D/3D、转置卷积 |
-| [10-normalization.md](10-normalization.md) | 归一化 | BatchNorm、LayerNorm、GroupNorm |
-| [11-rnn.md](11-rnn.md) | 循环网络 | RNN、LSTM、GRU |
-| [12-transformer.md](12-transformer.md) | Transformer | 注意力机制、位置编码、多头注意力 |
+### 第一阶段：核心基础（必学）
 
-### 第五部分：进阶主题
+| 教程 | 主题 | 一句话理解 | 生活类比 |
+|------|------|-----------|---------|
+| [01-tensor](01-tensor.md) | Tensor | 多维数组，存储一切数据 | 超级强大的Excel表格 |
+| [02-autograd](02-autograd.md) | 自动微分 | 自动计算"怎么调整参数" | 导航软件重新规划路线 |
 
-| 教程 | 主题 | 内容 |
-|------|------|------|
-| [13-dataloader.md](13-dataloader.md) | 数据加载 | Dataset、DataLoader、采样器 |
-| [14-init.md](14-init.md) | 参数初始化 | Xavier、Kaiming、正交初始化 |
-| [15-advanced.md](15-advanced.md) | 高级主题 | 梯度裁剪、学习率预热、调试技巧 |
+### 第二阶段：神经网络（核心）
+
+| 教程 | 主题 | 一句话理解 | 生活类比 |
+|------|------|-----------|---------|
+| [03-nn-module](03-nn-module.md) | Module | 所有层的父类 | 乐高积木的通用接口 |
+| [04-activation](04-activation.md) | 激活函数 | 决定神经元是否"激活" | 开关/调光器 |
+| [05-loss](05-loss.md) | 损失函数 | 衡量预测和真实值差距 | 考试评分标准 |
+| [06-optimizer](06-optimizer.md) | 优化器 | 决定怎么更新参数 | 登山时选择最佳路径 |
+
+### 第三阶段：训练流程
+
+| 教程 | 主题 | 一句话理解 |
+|------|------|-----------|
+| [07-training](07-training.md) | 训练循环 | 完整的训练、验证、测试流程 |
+| [08-transforms](08-transforms.md) | 数据增强 | 让数据更多样化 |
+
+### 第四阶段：高级层
+
+| 教程 | 主题 | 一句话理解 | 生活类比 |
+|------|------|-----------|---------|
+| [09-conv](09-conv.md) | 卷积层 | 用小窗口扫描图像 | 手电筒照房间 |
+| [10-normalization](10-normalization.md) | 归一化 | 让数据分布更稳定 | 统一评分标准 |
+| [11-rnn](11-rnn.md) | 循环网络 | 处理序列数据 | 阅读时记住前文 |
+| [12-transformer](12-transformer.md) | Transformer | 注意力机制 | 开会时关注重点 |
+
+### 第五阶段：进阶
+
+| 教程 | 主题 | 一句话理解 |
+|------|------|-----------|
+| [13-dataloader](13-dataloader.md) | 数据加载 | 批量、打乱、并行加载 |
+| [14-init](14-init.md) | 参数初始化 | 好的开始是成功的一半 |
+| [15-advanced](15-advanced.md) | 高级技巧 | 梯度裁剪、学习率预热 |
+
+### 第六阶段：目标检测（YOLO）
+
+| 教程 | 主题 | 核心创新 |
+|------|------|---------|
+| [17-yolo](17-yolo.md) | YOLO 概述 | 目标检测基础 |
+| [18-yolov1](18-yolov1.md) | YOLO v1 | 开山之作：端到端检测 |
+| [18.5-yolov2](18.5-yolov2.md) | YOLO v2 | BatchNorm + Anchor |
+| [19-yolov3](19-yolov3.md) | YOLO v3 | 多尺度检测 |
+| [20-yolov4](20-yolov4.md) | YOLO v4 | Bag of Freebies |
+| [21-yolov5](21-yolov5.md) | YOLO v5 | 工程化改进 |
+| [22-yolov6](22-yolov6.md) | YOLO v6 | RepVGG + 解耦头 |
+| [23-yolov7](23-yolov7.md) | YOLO v7 | E-ELAN |
+| [24-yolov8](24-yolov8.md) | YOLO v8 | Anchor-free |
+| [25-yolov9](25-yolov9.md) | YOLO v9 | GELAN |
+| [26-yolov10](26-yolov10.md) | YOLO v10 | NMS-free |
+| [27-yolov11](27-yolov11.md) | YOLO v11 | C3k2 + C2PSA |
+
+---
+
+## 前置知识检查
+
+在开始之前，确保你了解：
+
+```
+✓ Python 基础（类、函数、列表推导式）
+✓ NumPy 基础（数组操作、形状）
+? 线性代数（矩阵乘法）
+? 微积分（导数、链式法则）
+? 深度学习概念（神经网络、反向传播）
+```
+
+**不熟悉？** 没关系！每个需要数学的地方，我都会用直观的方式解释。
+
+**数学基础选修**：[数学基础教程](math-fundamentals.md) 涵盖线性代数、微积分、概率论。
+
+---
+
+## 学习方法：四步法
+
+### 1. 理解概念（What & Why）
+先理解这个概念是什么，为什么需要它。
+
+### 2. 看代码（How）
+看代码实现，理解每一行在做什么。
+
+### 3. 动手写（Do）
+**不要复制粘贴**，亲手敲出来，你的手指有记忆。
+
+### 4. 测试验证（Verify）
+写测试用例，与 PyTorch 对比结果。
+
+```python
+# 验证你的实现
+import torch
+import nanotorch as nt
+
+# 同样的输入
+x_torch = torch.tensor([1.0, 2.0])
+x_nt = nt.Tensor([1.0, 2.0])
+
+# 对比输出
+print(torch_out := x_torch * 2 + 1)
+print(nt_out := x_nt * 2 + 1)
+print(f"差异: {torch_out - nt_out.data}")  # 应该接近0
+```
+
+---
+
+## 调试是你的朋友
+
+当你遇到问题时：
+
+```python
+# 1. 打印形状 - 最常见的错误是形状不匹配
+print(f"x.shape = {x.shape}")
+print(f"y.shape = {y.shape}")
+
+# 2. 打印数据类型
+print(f"x.dtype = {x.data.dtype}")
+
+# 3. 检查梯度流动
+if x.requires_grad and x.grad is None:
+    print("警告：梯度没有传到这里！")
+
+# 4. 与预期对比
+expected = np_function(x.data)
+actual = y.data
+diff = np.abs(expected - actual).max()
+print(f"最大差异: {diff}")  # 应该 < 1e-5
+```
+
+---
 
 ## 项目结构
 
 ```
 nanotorch/
-├── nanotorch/                 # 核心库
-│   ├── __init__.py
-│   ├── tensor.py             # 张量实现
-│   ├── autograd.py           # 自动微分
-│   ├── utils.py              # 工具函数（梯度裁剪、初始化等）
-│   ├── nn/                   # 神经网络模块
-│   │   ├── __init__.py
-│   │   ├── module.py         # 模块基类
-│   │   ├── linear.py         # 全连接层
-│   │   ├── conv.py           # 卷积层
-│   │   ├── activation.py     # 激活函数
-│   │   ├── loss.py           # 损失函数
-│   │   ├── dropout.py        # Dropout
-│   │   ├── pooling.py        # 池化层
-│   │   ├── normalization.py  # 归一化层
-│   │   ├── rnn.py            # RNN/LSTM/GRU
-│   │   ├── attention.py      # 注意力机制
-│   │   ├── transformer.py    # Transformer
-│   │   └── embedding.py      # 嵌入层
-│   ├── optim/                # 优化器
-│   │   ├── __init__.py
-│   │   ├── optimizer.py      # 优化器基类
-│   │   ├── sgd.py            # SGD
-│   │   ├── adam.py           # Adam
-│   │   ├── adamw.py          # AdamW
-│   │   ├── rmsprop.py        # RMSprop
-│   │   ├── adagrad.py        # Adagrad
-│   │   └── lr_scheduler.py   # 学习率调度器
-│   ├── data/                 # 数据加载
-│   │   └── __init__.py       # Dataset, DataLoader
-│   └── transforms/           # 数据增强
-│       └── __init__.py       # 图像变换
-├── tests/                    # 测试（边学边写）
-│   ├── test_tensor.py
-│   ├── test_autograd.py
-│   ├── test_nn.py
-│   ├── test_optim.py
-│   └── ...
-├── examples/                 # 示例代码
-│   ├── simple_neural_net.py
-│   ├── mnist_classifier.py
-│   ├── mini_gpt.py
-│   └── ...
-├── benchmarks/               # 性能基准测试
-├── docs/                     # 文档
-│   ├── tutorials/            # 本教程
-│   ├── api.md
-│   └── design.md
-├── README.md                 # 英文文档
-├── README_CN.md              # 中文文档
-└── pyproject.toml            # 项目配置
+├── nanotorch/           # 你要实现的核心库
+│   ├── tensor.py        # 第1章：张量
+│   ├── autograd.py      # 第2章：自动微分
+│   ├── nn/              # 神经网络模块
+│   │   ├── module.py    # 第3章：基类
+│   │   ├── linear.py    # 全连接层
+│   │   ├── conv.py      # 第9章：卷积
+│   │   └── ...
+│   └── optim/           # 优化器
+│       └── ...
+├── tests/               # 测试文件
+└── docs/tutorials/      # 本教程
 ```
 
-## 学习建议
-
-### 边学边写
-
-每学完一章，建议：
-
-1. **自己实现一遍**：不要只看代码，亲手敲出来
-2. **写测试用例**：验证你的实现是否正确
-3. **调试和实验**：打印中间结果，理解数据流动
-4. **与 PyTorch 对比**：用同样的数据验证输出是否一致
-
-### 调试技巧
-
-```python
-# 打印张量形状，理解维度变化
-print(f"输入形状: {x.shape}")
-print(f"输出形状: {y.shape}")
-
-# 打印梯度，理解反向传播
-print(f"权重梯度: {w.grad}")
-
-# 与 NumPy 对比，验证计算
-expected = np_function(x.data)
-actual = y.data
-print(f"差异: {np.abs(expected - actual).max()}")
-```
+---
 
 ## 资源推荐
 
 ### 必读
-
-- [PyTorch 官方文档](https://pytorch.org/docs/)：API 参考
-- [深度学习](https://www.deeplearningbook.org/)：Goodfellow 等著
-- [自动微分](https://en.wikipedia.org/wiki/Automatic_differentiation)：维基百科
+- [PyTorch 官方文档](https://pytorch.org/docs/) - API 参考
+- [深度学习](https://www.deeplearningbook.org/) - Goodfellow 著
 
 ### 开源参考
+- [micrograd](https://github.com/karpathy/micrograd) - Karpathy 的微型 autograd
+- [tinygrad](https://github.com/tinygrad/tinygrad) - 小型框架
 
-- [micrograd](https://github.com/karpathy/micrograd)：Karpathy 的微型 autograd
-- [tinygrad](https://github.com/tinygrad/tinygrad)：小型深度学习框架
-- [PyTorch 源码](https://github.com/pytorch/pytorch)：官方实现
+---
 
-## 开始学习
+## 准备好了吗？
 
-准备好了吗？让我们从 [第一章：Tensor 基础](01-tensor.md) 开始！
+> "如果你不能简单地解释它，说明你还没有真正理解它。" —— 费曼
+
+让我们从 [第一章：Tensor 基础](01-tensor.md) 开始，用最简单的方式理解深度学习的基石！
 
 ```python
-# 你的第一个 nanotorch 代码
+# 你的第一行 nanotorch 代码
 from nanotorch import Tensor
 
 x = Tensor([1, 2, 3, 4, 5])
-print(x)  # Tensor(shape=(5,), requires_grad=False)
+print(f"这是我的第一个张量: {x.shape}")
 
-y = x * 2 + 1
-print(y)  # Tensor(shape=(5,), ...)
+# 等你学完这个系列，你就能理解这行代码背后发生的一切
 ```
