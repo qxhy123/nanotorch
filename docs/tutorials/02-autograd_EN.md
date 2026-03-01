@@ -1,6 +1,34 @@
 # Chapter 2: Automatic Differentiation
 
-Automatic Differentiation (Autograd) is the core of deep learning frameworks. In this chapter, we implement the backpropagation algorithm.
+## The Magic Behind Learning...
+
+Picture a child learning to ride a bicycle.
+
+They pedal, they wobble, they fall. And then—crucially—they ask themselves: "What did I do wrong? What should I change?"
+
+This question, this process of working backwards from outcome to cause, is the essence of learning. In deep learning, we call it **backpropagation**.
+
+```
+The Flow of Learning:
+
+  Forward:  Data → Model → Prediction
+                          ↓
+  Compare:  Prediction vs Truth → Loss (How wrong were we?)
+                          ↓
+  Backward: Loss → Gradients → "How should each parameter change?"
+
+Like a detective tracing footsteps back to the source,
+backpropagation finds who's responsible for the error,
+and how much each weight contributed to the mistake.
+```
+
+**Without gradients, there is no learning.** A neural network without backpropagation is like a student who takes tests but never sees the corrections—doomed to repeat the same mistakes forever.
+
+The beauty of automatic differentiation is that we don't need to manually derive gradients for every possible function. The framework does it for us, automatically, using the elegant mathematics of the chain rule.
+
+In this chapter, we'll implement autograd from scratch. We'll see how the computational graph is built, how gradients flow backwards through it, and how this enables neural networks to learn from their mistakes.
+
+---
 
 ## 2.1 Why Automatic Differentiation?
 

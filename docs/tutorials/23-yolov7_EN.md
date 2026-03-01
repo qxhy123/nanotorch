@@ -1,6 +1,41 @@
 # YOLO v7 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing YOLO v7 (Trainable Bag-of-Freebies, 2022) object detection model from scratch using nanotorch.
+## The Return of the Creator...
+
+After YOLO v3, Joseph Redmon left the field. The torch passed to others—Ultralytics, Meituan, research teams around the world.
+
+Then in 2022, WongKinYiu—a researcher who had been quietly improving YOLO for years—released v7. It wasn't from Redmon, but it carried the same spirit: push the boundaries of what's possible.
+
+**YOLO v7 asked: can we have accuracy without inference cost?**
+
+```
+The Trainable Bag-of-Freebies:
+
+  The dilemma:
+    Better accuracy → More computation
+    Faster inference → Lower accuracy
+    Can we escape this tradeoff?
+
+  YOLO v7's insight:
+    "What if we add complexity during training,
+     but remove it during inference?"
+
+  The techniques:
+    - Auxiliary training heads → Extra supervision during training
+    - E-ELAN architecture → Efficient feature aggregation
+    - Conv reparameterization → Multi-branch training, single-branch inference
+
+  The result:
+    Training is more expensive
+    But inference is fast
+    And accuracy is state-of-the-art
+```
+
+**YOLO v7 is the art of having your cake and eating it too.** The auxiliary heads guide training but disappear at inference. The multi-branch architecture enables better gradients but fuses into simple convolutions. Every training technique that adds cost has a corresponding escape hatch for deployment.
+
+In this tutorial, we'll implement YOLO v7 from scratch. We'll see how E-ELAN aggregates features efficiently, how auxiliary heads improve learning, and how the trainable bag-of-freebies philosophy maximizes accuracy at zero inference cost.
+
+---
 
 ## Table of Contents
 

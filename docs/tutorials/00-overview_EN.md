@@ -1,16 +1,30 @@
 # nanotorch Tutorial Series: Building a Deep Learning Framework from Scratch
 
+## Have You Ever Wondered...
+
+When you type these lines of code, what's happening beneath the surface?
+
+```python
+import torch
+x = torch.tensor([1.0, 2.0], requires_grad=True)
+y = x * 2 + 1
+y.sum().backward()
+print(x.grad)  # tensor([2., 2.])
+```
+
+Numbers flowing, gradients computing, parameters updating—all like magic. But behind every magic trick lies精密的机械原理.
+
+This tutorial series will guide you through **building a deep learning framework from scratch**. When you write the final line of code, PyTorch will no longer be a black box to you—it will be a精密机器 you've taken apart and understood completely.
+
+```
+Learning to use tools → You are a craftsman
+Understanding how tools work → You are an engineer
+Building tools yourself → You are a creator
+```
+
+---
+
 ## Tutorial Introduction
-
-This tutorial series will guide you through implementing a complete deep learning framework—nanotorch—from scratch. Through this series, you will deeply understand:
-
-- **Tensor** underlying implementation and mathematical operations
-- **Autograd** working principles
-- **Neural Network Layers** design and implementation
-- **Optimizers** how to update model parameters
-- **Core mechanisms** like convolution, recurrence, and attention
-
-## Why Learn This?
 
 1. **Deep Understanding of PyTorch**: Learn how PyTorch works internally
 2. **Reinforce Deep Learning Fundamentals**: Complete implementation from math to code

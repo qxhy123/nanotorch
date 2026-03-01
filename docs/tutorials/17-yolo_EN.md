@@ -1,6 +1,41 @@
 # YOLO v12 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing the YOLO v12 object detection model from scratch using nanotorch.
+## Twelve Generations of Seeing...
+
+Imagine you're teaching a computer to see—not just to recognize, but to understand where things are.
+
+Not "this image contains a cat" but "here's the cat, here's its bounding box, and by the way, there's also a dog in the corner."
+
+**This is object detection, and YOLO is its most famous family.**
+
+```
+The YOLO Revolution:
+
+  Before YOLO (2015):
+    "Let me scan this region... no cat."
+    "Let me scan this region... no cat."
+    "Let me scan this region... found one!"
+    → Slow. Sequential. Too late for real-time.
+
+  YOLO: You Only Look Once
+    "Let me look at the whole image once."
+    "Here are all the objects, all at once."
+    → Fast. Parallel. Real-time magic.
+
+  From v1 to v12:
+    Each version asks: "How can we see better, faster?"
+    v1: The original breakthrough
+    v3: Multi-scale detection
+    v5: Engineering excellence
+    v8: Anchor-free simplicity
+    v12: Attention-centered architecture
+```
+
+**YOLO changed everything.** Before it, object detection was slow, a two-stage process of proposing regions and then classifying them. YOLO said: why not do it all in one pass? Frame detection as regression. Look once, predict everything.
+
+This tutorial implements YOLO v12—the latest evolution—in nanotorch. We'll see how area attention replaces pure convolution, how the R-ELAN backbone extracts features, and how anchor-free heads predict boxes directly. Twelve versions of innovation, distilled into code you can understand.
+
+---
 
 ## Table of Contents
 

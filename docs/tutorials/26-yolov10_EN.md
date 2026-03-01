@@ -1,6 +1,44 @@
 # YOLO v10 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing YOLO v10 (NMS-Free, 2024) object detection model from scratch using nanotorch.
+## The End of NMS...
+
+For a decade, object detection had a dirty secret.
+
+The model would output hundreds of predictions. Many would overlap—multiple boxes around the same object. We needed to clean them up. So we added Non-Maximum Suppression (NMS): a post-processing step that wasn't part of the model, wasn't learned, but was absolutely necessary.
+
+**YOLO v10 asked: what if we didn't need NMS at all?**
+
+```
+The NMS Problem:
+
+  Traditional detection:
+    Model outputs predictions → Many overlapping boxes
+    NMS post-processing → Keep best, discard rest
+    → Not end-to-end
+    → Not differentiable
+    → Extra hyperparameters (IoU threshold)
+    → Can fail with crowded objects
+
+  YOLO v10's insight:
+    "NMS exists because training allows duplicate predictions.
+     Change the training, and we don't need NMS at inference."
+
+  The solution:
+    Consistent Dual Assignments
+    → One-to-many during training (like before)
+    → One-to-one during inference (no duplicates needed)
+    → Same predictions, no post-processing
+
+  The result:
+    True end-to-end detection.
+    No NMS. No thresholds. No post-processing.
+```
+
+**YOLO v10 is YOLO finally becoming truly end-to-end.** It's not just about removing a step—it's about recognizing that post-processing is a crutch, a sign that the model wasn't trained to do exactly what we want it to do. Fix the training, and inference becomes cleaner.
+
+In this tutorial, we'll implement YOLO v10 from scratch. We'll see how consistent dual assignments work, how to train without NMS dependency, and what it means for object detection to be truly end-to-end.
+
+---
 
 ## Table of Contents
 

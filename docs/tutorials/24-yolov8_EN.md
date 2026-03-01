@@ -1,6 +1,43 @@
 # YOLO v8 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing YOLO v8 (Ultralytics, 2023) object detection model from scratch using nanotorch.
+## Simplicity Wins...
+
+Anchor boxes were a good idea in 2016. But eight years later, do we still need them?
+
+YOLO v8 answered: no. We can do better.
+
+**Sometimes progress means removing complexity, not adding it.**
+
+```
+The Anchor-Free Revolution:
+
+  With anchors (YOLO v2-v7):
+    "Here are 9 predefined box shapes"
+    "Predict how to adjust them"
+    "Match predictions to ground truth"
+    "Hope the anchors fit your objects"
+    → Extra hyperparameters
+    → Extra complexity
+    → Performance depends on anchor quality
+
+  Without anchors (YOLO v8):
+    "Just predict the box directly"
+    "Center point + width + height"
+    "Done"
+    → Fewer hyperparameters
+    → Simpler pipeline
+    → Works for any object shape
+
+  The lesson:
+    Complexity that outlives its usefulness
+    becomes baggage.
+```
+
+**YOLO v8 is YOLO cleaned up.** It removes anchors, decouples classification from regression, adds DFL (Distribution Focal Loss) for better box prediction, and wraps everything in Ultralytics' famously smooth user experience. It's not revolutionary—it's evolutionary, and that's its strength.
+
+In this tutorial, we'll implement YOLO v8 from scratch. We'll see how the C2f module improves on C3, how anchor-free detection works, and why decoupled heads outperform coupled ones. The result is simpler, faster, and more accurate.
+
+---
 
 ## Table of Contents
 

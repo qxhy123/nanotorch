@@ -1,6 +1,35 @@
 # Chapter 3: Module Base Class and Parameter Management
 
-Module is the base class for all neural network layers. In this chapter, we implement parameter management and module composition.
+## Building Complexity from Simplicity...
+
+Imagine building with LEGO bricks.
+
+Each brick is simple—a rectangular piece of plastic. But combine them thoughtfully, and you can create anything: castles, spaceships, entire cities.
+
+The magic lies not in individual bricks, but in how they connect. A standard interface. A predictable way to combine. Build, stack, compose.
+
+**Neural networks follow the same principle.**
+
+```
+The Architecture of Complexity:
+
+  A single neuron     → Like a single brick
+  A layer             → Like a wall, many bricks together
+  A network           → Like a building, many layers stacked
+  A complex model     → Like a city, many networks combined
+
+Each level builds on the previous.
+Each component knows how to work with others.
+Composition creates complexity from simplicity.
+```
+
+**The Module is our LEGO brick.** It's the base class that every neural network component inherits from. It knows how to hold parameters, how to connect with other modules, how to save and load its state.
+
+With Module, we don't build neural networks from raw tensors anymore. We build with layers, with blocks, with architectures. Linear layers, convolutions, activations—all are modules that snap together elegantly.
+
+In this chapter, we'll implement the Module system. We'll see how parameter management works, how modules compose, and how this design pattern enables us to build arbitrarily complex networks from simple, reusable pieces.
+
+---
 
 ## 3.1 Why Do We Need Module?
 

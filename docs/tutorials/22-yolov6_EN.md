@@ -1,6 +1,38 @@
 # YOLO v6 Object Detection Model Implementation Tutorial
 
-This tutorial introduces how to implement YOLO v6 (MT-YOLOv6, 2022) object detection model using nanotorch.
+## Industrial Strength...
+
+Not all YOLOs come from academia.
+
+YOLO v6 emerged from Meituan—one of China's largest tech companies. They weren't trying to publish papers. They were trying to deploy object detection at scale, in production, under real-world constraints.
+
+**When industry builds deep learning tools, different priorities emerge.**
+
+```
+The Industrial Perspective:
+
+  Academic priorities:
+    "Is this novel?"
+    "Does it beat state-of-the-art?"
+    "Is the math elegant?"
+
+  Industrial priorities:
+    "Does it run fast enough?"
+    "Can we deploy it on edge devices?"
+    "Is it stable under real-world conditions?"
+
+  YOLO v6's answers:
+    - RepVGG backbone → Fast inference through reparameterization
+    - Decoupled head → Better accuracy, no speed penalty
+    - Quantization-friendly → Runs on mobile chips
+    - Training efficiency → Faster convergence, lower cost
+```
+
+**YOLO v6 is YOLO for the real world.** Its signature innovation is structural reparameterization—a technique that lets you have your cake and eat it too. During training, the network has multiple branches for better gradients. During inference, those branches fuse into a single convolution. Training complexity becomes inference simplicity.
+
+In this tutorial, we'll implement YOLO v6 from scratch. We'll see how RepVGG blocks reparameterize, how decoupled heads improve accuracy, and how this architecture was built for deployment from day one.
+
+---
 
 ## Overview
 

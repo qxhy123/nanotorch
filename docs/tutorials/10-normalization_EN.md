@@ -1,5 +1,38 @@
 # Tutorial 10: Normalization Layers
 
+## Calming the Storm Within...
+
+Imagine a conversation where everyone speaks at different volumes.
+
+One person whispers, another shouts. Some are barely audible, others deafening. The listener—trying to understand all of them—becomes confused, overwhelmed, unable to focus on what matters.
+
+**Deep neural networks face the same problem.**
+
+```
+The Problem of Shifting Distributions:
+
+  Layer 1 outputs values around 0.5
+       ↓
+  Layer 2 receives them, outputs values around 10
+       ↓
+  Layer 3 receives them, outputs values around 0.001
+       ↓
+  Each layer must constantly adapt:
+  "What range am I working with today?"
+
+Training becomes a game of chasing moving targets.
+Learning slows. Gradients vanish or explode.
+The network struggles to find its footing.
+```
+
+**Normalization layers bring calm to the chaos.** They take whatever values come in—large or small, clustered or scattered—and reshape them to a consistent distribution. Mean zero. Variance one. Every layer receives data in a format it can work with.
+
+BatchNorm does this across the batch. LayerNorm does it across features. GroupNorm finds a middle ground. Each has its philosophy, its strengths, its loyal applications.
+
+In this tutorial, we'll implement these normalization layers and understand when to use which. We'll see why BatchNorm needs running statistics, why LayerNorm powers Transformers, and why GroupNorm saves the day for small batches.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)

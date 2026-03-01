@@ -1,6 +1,44 @@
 # YOLO v11 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing YOLO v11 (Ultralytics Latest, 2024) object detection model from scratch using nanotorch.
+## The Latest Evolution...
+
+YOLO doesn't stand still.
+
+Every year, sometimes twice a year, a new version arrives. Each brings improvements—some revolutionary, some evolutionary. Together, they tell a story of continuous progress.
+
+**YOLO v11 is the latest chapter in this ongoing story.**
+
+```
+The YOLO v11 Philosophy:
+
+  YOLO v8 was about:
+    "Let's make anchor-free work beautifully."
+
+  YOLO v9 was about:
+    "Let's understand information bottlenecks."
+
+  YOLO v10 was about:
+    "Let's eliminate NMS."
+
+  YOLO v11 is about:
+    "Let's make everything a little bit better."
+
+  The improvements:
+    - C3k2 module → Faster feature extraction
+    - Enhanced PANet → Better multi-scale fusion
+    - Improved detection head → Cleaner predictions
+    - Optimized training → Faster convergence
+
+  Not revolutionary.
+  But evolution compounds.
+  And v11 is the state of the art.
+```
+
+**YOLO v11 is maturity in action.** It doesn't need to reinvent the wheel—it just needs to make the wheel rounder, faster, more reliable. The architecture builds on v8's anchor-free foundation, adds insights from v9 and v10, and refines everything for the best accuracy-speed tradeoff yet.
+
+In this tutorial, we'll implement YOLO v11 from scratch. We'll see how C3k2 improves on C2f, how the enhanced feature pyramid captures multi-scale information, and how the latest YOLO continues the tradition of making object detection faster and more accurate.
+
+---
 
 ## Table of Contents
 

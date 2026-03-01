@@ -1,6 +1,39 @@
 # YOLO v4 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing YOLO v4 (You Only Look Once, 2020) object detection model from scratch using nanotorch.
+## The Bag of Tricks...
+
+By 2020, object detection had accumulated a mountain of techniques.
+
+There were architectural innovations (residual connections, CSP, attention). There were training tricks (data augmentation, loss functions, label smoothing). There were inference optimizations (quantization, pruning, knowledge distillation).
+
+**YOLO v4 asked: what if we combined the best of everything?**
+
+```
+The "Bag of Freebies" and "Bag of Specials":
+
+  Bag of Freebies (training only, free at inference):
+    - MixUp, CutMix, Mosaic → Data augmentation
+    - Class label smoothing → Regularization
+    - CIoU loss → Better bounding box regression
+    - Self-adversarial training → Robustness
+
+  Bag of Specials (small inference cost, big accuracy gain):
+    - Mish activation → Smoother gradients
+    - SPP module → Larger receptive field
+    - PANet → Better feature fusion
+    - CSP connections → Efficient gradient flow
+
+  The YOLO v4 philosophy:
+    "We'll try everything that works.
+     We'll keep what helps.
+     We'll optimize for speed-accuracy tradeoff."
+```
+
+**YOLO v4 is YOLO as engineering art.** It's not a single brilliant idea—it's dozens of ideas, carefully selected and tuned, working together. The CSPDarknet53 backbone, the SPP module for context, the PANet for feature fusion, the CIoU loss for precise boxes—all chosen through systematic experimentation.
+
+In this tutorial, we'll implement YOLO v4 from scratch. We'll see how CSP (Cross Stage Partial) connections work, how SPP expands receptive fields without extra computation, and how CIoU loss improves bounding box accuracy over simple IoU.
+
+---
 
 ## Table of Contents
 

@@ -1,5 +1,45 @@
 # Tutorial 14: Parameter Initialization
 
+## Every Journey Needs a Good Beginning...
+
+Imagine setting off on a hike.
+
+Start at the right trailhead, and the path unfolds naturally. Start in the wrong direction, and you might wander for hours, never finding your destination.
+
+**Neural networks face the same challenge.**
+
+```
+The Peril of Poor Beginnings:
+
+  All zeros:
+    Every neuron computes the same output
+    Every gradient is identical
+    Every update is the same
+    → A hundred neurons collapse into one
+    → The network cannot learn
+
+  Too large:
+    Signals explode through layers
+    Activations saturate (all 0s or all 1s)
+    Gradients vanish to nothing
+    → Training dies before it begins
+
+  Too small:
+    Signals fade with each layer
+    Gradients shrink to insignificance
+    Learning becomes imperceptibly slow
+    → Training crawls toward failure
+
+The right initialization is like the right trailhead:
+It doesn't guarantee success, but it makes success possible.
+```
+
+**Initialization is the art of giving your network a fighting chance.** Not all random starts are equal. Xavier initialization keeps variance stable for smooth activations. Kaiming initialization compensates for ReLU's tendency to zero out half its inputs. Orthogonal initialization preserves gradient flow through deep architectures.
+
+In this tutorial, we'll implement these initialization strategies and understand the mathematics behind them. We'll see why modern networks almost always use Kaiming, why Transformers prefer truncated normal, and why the right initialization can mean the difference between a model that learns and one that never converges.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)

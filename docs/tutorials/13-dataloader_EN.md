@@ -1,5 +1,42 @@
 # Tutorial 13: Data Loading (DataLoader)
 
+## A Million Images, One Model to Feed...
+
+Imagine you're a chef cooking for a banquet of ten thousand guests.
+
+You can't prepare all ten thousand plates at once—your kitchen isn't big enough. You can't cook one plate at a time—the guests would wait forever.
+
+**You batch.** You prepare plates in groups of fifty, cooking and serving in waves. Efficient, organized, sustainable.
+
+Deep learning faces the same challenge.
+
+```
+The Art of Feeding the Model:
+
+  One million training images
+       ↓
+  Cannot load all at once (150+ GB of memory!)
+       ↓
+  Split into batches of 32
+  = 31,250 batches
+       ↓
+  Each batch:
+    - Shuffle the order (prevent memorization)
+    - Resize to uniform shape (batch processing needs consistency)
+    - Convert to tensors (the model's native language)
+       ↓
+  Flow through the model like dishes from a kitchen
+
+One batch at a time.
+Steady. Efficient. Scalable.
+```
+
+**DataLoader is the kitchen staff of deep learning.** It takes raw, messy data and serves it to the model in neat, digestible portions. It handles the logistics—shuffling, batching, prefetching—so the model can focus on learning.
+
+In this tutorial, we'll implement Dataset and DataLoader from scratch. We'll see how abstraction makes code elegant, how iteration makes training simple, and how good data loading can make or break a training pipeline.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)

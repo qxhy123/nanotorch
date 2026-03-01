@@ -1,6 +1,42 @@
 # Chapter 6: Optimizers
 
-Optimizers use gradients to update model parameters and are key to minimizing loss functions.
+## The Art of Descending...
+
+Picture yourself on a mountainside at night.
+
+Your goal: reach the lowest point in the valley. You can't see far ahead—only the slope beneath your feet. Which direction should you step?
+
+The obvious answer: step downhill. Follow the gradient. Go where the ground slopes downward.
+
+But the obvious answer isn't always the best answer.
+
+```
+The Challenge of Descent:
+
+  Naive approach:
+    "Always step in the steepest direction"
+    Problem: You might zigzag forever, oscillating in narrow valleys
+
+  With momentum:
+    "Remember where you were going, don't change direction too fast"
+    Like a rolling ball, you carry inertia past small bumps
+
+  Adaptive learning:
+    "Some parameters need big steps, some need small"
+    Like a hiker who takes big steps on flat ground, tiny steps on cliffs
+
+The optimizer is the brain of the descent.
+It decides not just WHICH direction, but HOW to step,
+HOW FAST to move, HOW to adapt to the terrain.
+```
+
+**The optimizer is where the art meets the science.** A neural network with perfect gradients but a poor optimizer will learn slowly, or not at all. The right optimizer can make the difference between training for days and training for hours.
+
+SGD is the simple approach—just step downhill. Momentum adds physics, carrying you past local dips. Adam adds intelligence, adapting each step to the terrain. Each optimizer is a different philosophy of learning, a different strategy for the journey downhill.
+
+In this chapter, we'll implement these optimizers and understand not just the math, but the intuition behind them.
+
+---
 
 ## 6.1 Gradient Descent Basics
 

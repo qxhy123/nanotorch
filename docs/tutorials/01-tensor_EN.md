@@ -1,6 +1,34 @@
 # Chapter 1: Tensor Basics
 
-Tensor is the core data structure of deep learning frameworks. In this chapter, we will implement a Tensor class from scratch.
+## Data, in the Eyes of Deep Learning...
+
+Imagine you're looking at a photograph.
+
+To your eyes, it's a sunset over the ocean—waves, clouds, golden light.
+
+But to a computer, it's just numbers. Millions of them. A grid of pixel values, each one a tiny piece of the bigger picture.
+
+**This is the fundamental truth of deep learning: everything becomes numbers.**
+
+Images become matrices. Sentences become vectors. Sounds become sequences. The magic of neural networks isn't in understanding the world as we do—it's in transforming these numbers, layer by layer, until they represent something meaningful.
+
+```
+The Language of Neural Networks:
+
+  A photograph    → 3D Tensor [Height × Width × Channels]
+  A sentence      → 2D Tensor [Words × Embeddings]
+  A video         → 4D Tensor [Frames × Height × Width × Channels]
+  A batch of data → Just add another dimension
+
+Numbers flow through the network like water through pipes,
+transformed at every junction, until they emerge as predictions.
+```
+
+**The Tensor is the vessel that carries these numbers.** It's the foundational data structure upon which all of deep learning is built. Understanding tensors is like learning the alphabet before writing poetry—essential, fundamental, and surprisingly elegant.
+
+In this chapter, we'll build a Tensor class from scratch. Not just to use it, but to understand it—deeply, intuitively, completely.
+
+---
 
 ## 1.1 What is a Tensor?
 

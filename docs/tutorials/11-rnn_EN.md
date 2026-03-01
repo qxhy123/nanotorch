@@ -1,5 +1,45 @@
 # Tutorial 11: Recurrent Neural Networks (RNN/LSTM/GRU)
 
+## Memory in the Stream of Time...
+
+Imagine reading a sentence, word by word.
+
+"The key was in the..." — you wait, anticipating.
+
+"...drawer" — ah, now it makes sense.
+
+But how did you know to expect a location? Because you remembered "key" and "in the" from before. You held those words in your mind, carrying context forward, letting earlier meaning shape later understanding.
+
+**This is what recurrent neural networks do.**
+
+```
+The Flow of Memory:
+
+  Time step 1: See "The"     → Remember: {article detected}
+       ↓
+  Time step 2: See "key"     → Remember: {subject is "key"}
+       ↓
+  Time step 3: See "was"     → Remember: {past tense, "key" is subject}
+       ↓
+  Time step 4: See "in"      → Remember: {location coming}
+       ↓
+  Time step 5: See "the"     → Remember: {specific location}
+       ↓
+  Time step 6: See "drawer"  → Understanding complete!
+
+Each step carries forward a memory,
+updated by what it sees,
+shaping what comes next.
+```
+
+**RNNs give neural networks the gift of memory.** Unlike feedforward networks that process each input independently, RNNs maintain a hidden state—a memory—that flows through time. What the network saw at step 1 influences what it predicts at step 100.
+
+But basic RNNs have a problem: they forget. On long sequences, gradients vanish like echoes in a canyon. LSTM and GRU solve this with gates—mechanisms that learn what to remember, what to forget, what to pass on. They are the memory masters of deep learning.
+
+In this tutorial, we'll implement RNN, LSTM, and GRU from scratch. We'll see how gates work, how bidirectional processing captures both past and future, and how these architectures power everything from machine translation to speech recognition.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)

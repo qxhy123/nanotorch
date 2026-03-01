@@ -1,6 +1,46 @@
 # YOLO v9 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing YOLO v9 (Programmable Gradient Information, 2024) object detection model from scratch using nanotorch.
+## The Information Problem...
+
+Deep networks have a hidden weakness.
+
+As data flows through layer after layer, information gets lost. Not destroyed exactly—just diluted, compressed, forgotten. The network learns, but it doesn't remember everything it saw.
+
+**YOLO v9 gave this problem a name: the information bottleneck.**
+
+```
+The Information Bottleneck:
+
+  The problem:
+    Input image (millions of pixels)
+         ↓
+    Layer 1: Extract features, lose some details
+    Layer 2: Extract more features, lose more details
+    ...
+    Layer N: Final features—but what was lost along the way?
+
+  The insight:
+    "Gradients carry information backward.
+     If gradients degrade, learning degrades.
+     We need to preserve gradient information."
+
+  YOLO v9's solution:
+    PGI (Programmable Gradient Information)
+    → Auxiliary branches that preserve information
+    → Main branch learns the task
+    → Auxiliary branches ensure complete gradients
+
+  The architecture:
+    GELAN (Generalized Efficient Layer Aggregation)
+    → Better feature aggregation
+    → Reduced information loss
+```
+
+**YOLO v9 is YOLO getting theoretical.** It doesn't just throw techniques at the problem—it identifies a fundamental limitation of deep networks and addresses it systematically. The result isn't just better accuracy; it's a deeper understanding of why networks fail.
+
+In this tutorial, we'll implement YOLO v9 from scratch. We'll see how GELAN aggregates features more efficiently, how PGI preserves gradient information, and how understanding information flow leads to better architectures.
+
+---
 
 ## Table of Contents
 

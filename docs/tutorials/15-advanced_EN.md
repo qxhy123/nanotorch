@@ -1,5 +1,40 @@
 # Tutorial 15: Advanced Topics
 
+## Training a Network is Like Parenting...
+
+You need patience, you need intuition, you need to read the signs.
+
+Sometimes the network learns too fast, too eagerly. Gradients explode, parameters swing wildly. You gently say: "Slow down, don't rush." This is **gradient clipping**.
+
+Sometimes the network is just starting, knowing nothing, overwhelmed by large updates. You begin gently, with small learning rates, letting it find its footing before running. This is **learning rate warmup**.
+
+Sometimes the network memorizes instead of learning, fitting training data perfectly but failing on new examples. You watch for the signs and know when to stop. This is **early stopping**.
+
+```
+The Wisdom of Training:
+
+  Gradient clipping:
+    When gradients grow too large → cap them
+    Like a speed limiter on a car
+    Prevents the model from making destructive leaps
+
+  Learning rate warmup:
+    When training just begins → start small
+    Like warming up before exercise
+    Lets the model adapt before full-speed training
+
+  Early stopping:
+    When validation loss stops improving → stop
+    Like knowing when to leave the casino
+    Prevents overfitting, preserves generalization
+```
+
+**Training techniques are where engineering meets art.** They're not just algorithms—they're heuristics born from experience, rules of thumb that make the difference between a model that converges and one that flounders.
+
+In this tutorial, we'll implement these essential techniques. We'll see how gradient clipping saves RNNs from explosion, how warmup stabilizes Transformers, and how early stopping protects against the eternal enemy: overfitting.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)

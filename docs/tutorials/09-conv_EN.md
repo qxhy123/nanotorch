@@ -1,5 +1,38 @@
 # Tutorial 09: Convolution Layers
 
+## The Sliding Window of Insight...
+
+Imagine looking at a painting through a small cardboard frame.
+
+You slide the frame across the canvas, one position at a time. At each stop, you see only a small patch—but your brain stitches these glimpses into a complete understanding of the whole.
+
+**This is the essence of convolution.**
+
+```
+The Magic of the Sliding Window:
+
+  Input image (a vast canvas of pixels)
+       ↓
+  A small kernel slides across (the frame)
+       ↓
+  At each position: multiply, sum, capture
+       ↓
+  A new image emerges (edges, textures, patterns)
+
+What was once millions of raw pixels
+becomes thousands of meaningful features.
+The kernel learns to see—
+edges here, corners there, textures everywhere.
+```
+
+**Convolution is how neural networks learn to see.** Unlike fully connected layers that connect everything to everything (impossibly expensive for images), convolution uses a small, shared kernel that slides across the input. Local connectivity. Weight sharing. The same edge detector that works on the top-left corner works on the bottom-right.
+
+One kernel can detect edges. Stack dozens, and you detect shapes. Stack hundreds, and you detect objects. This hierarchical feature extraction is why convolutional networks revolutionized computer vision.
+
+In this tutorial, we'll implement convolution from scratch—not just 2D for images, but 1D for sequences and 3D for videos. We'll see how the sliding window works, how gradients flow backward through it, and how transposed convolution lets us go from small to large again.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)

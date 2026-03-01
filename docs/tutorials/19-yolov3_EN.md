@@ -1,6 +1,39 @@
 # YOLO v3 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing YOLO v3 (You Only Look Once, 2018) object detection model from scratch using nanotorch.
+## Seeing at Every Scale...
+
+Small objects. Medium objects. Large objects.
+
+A detection system that only looks at one scale is like a photographer who only uses one lens. Sure, you can capture medium-sized subjects well, but the tiny bird in the distance? Blurred. The towering building up close? Cropped.
+
+**YOLO v3 solved this with a beautiful idea: detect at three scales simultaneously.**
+
+```
+The Power of Multi-Scale Detection:
+
+  Single scale (YOLO v1/v2):
+    Process at 416×416, detect at 13×13 grid
+    Each cell sees a 32×32 pixel region
+    Small objects? Lost in the noise.
+    Large objects? Coarse boundaries.
+
+  Three scales (YOLO v3):
+    Scale 1: 13×13 grid → Large objects
+    Scale 2: 26×26 grid → Medium objects
+    Scale 3: 52×52 grid → Small objects
+
+  The Feature Pyramid Network:
+    Deep features (semantic) flow down
+    Shallow features (spatial) flow up
+    They merge at each scale
+    → Every object, regardless of size, has its moment
+```
+
+**YOLO v3 is where YOLO became complete.** The Darknet-53 backbone was deeper and stronger than ever, with residual connections borrowed from ResNet. The feature pyramid network meant small objects finally got detected. The independent logistic classifiers meant multi-label detection was possible.
+
+In this tutorial, we'll implement YOLO v3 from scratch. We'll see how the FPN fuses features across scales, how the three detection heads work together, and how this architecture became the foundation for virtually every YOLO that followed.
+
+---
 
 ## Table of Contents
 

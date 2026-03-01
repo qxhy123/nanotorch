@@ -1,6 +1,39 @@
 # YOLO v5 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing YOLO v5 (Ultralytics YOLO, 2020) object detection model from scratch using nanotorch.
+## Engineering Excellence...
+
+YOLO v5 is different.
+
+It wasn't a research paper. It wasn't an academic contribution. It was built by a company—Ultralytics—with a different goal: make YOLO easy to use, easy to deploy, and production-ready.
+
+**Sometimes the best research isn't about new ideas—it's about making existing ideas work beautifully.**
+
+```
+The YOLO v5 Philosophy:
+
+  Research-focused (YOLO v1-v4):
+    "Here's our novel contribution"
+    "Here's our experimental results"
+    "Here's the code (good luck running it)"
+
+  Production-focused (YOLO v5):
+    "Here's a pip-installable package"
+    "Here's auto-anchor computation"
+    "Here's model export to ONNX, TensorRT, CoreML"
+    "Here's five sizes: nano, small, medium, large, xlarge"
+
+  The same architecture, but engineered for impact:
+    C3 modules instead of CSP blocks
+    SPPF for faster spatial pooling
+    SiLU activation throughout
+    Mosaic augmentation by default
+```
+
+**YOLO v5 is YOLO for everyone.** You don't need to be a researcher to use it. You don't need to understand every architectural choice. You pip install, you train, you deploy. That simplicity—and the engineering behind it—is its own kind of innovation.
+
+In this tutorial, we'll implement YOLO v5 from scratch. We'll see how the C3 module improves on CSP, how SPPF speeds up spatial pooling, and how the different model sizes (n, s, m, l, x) trade off accuracy and speed for different applications.
+
+---
 
 ## Table of Contents
 

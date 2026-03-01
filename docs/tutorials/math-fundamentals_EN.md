@@ -1,6 +1,30 @@
 # Mathematical Foundations: Essential Knowledge for Deep Learning
 
-This tutorial systematically introduces the mathematical foundations used in deep learning. For ease of learning, we've divided the content into seven independent chapters, each containing detailed theoretical explanations, Python code examples, and deep learning applications.
+## The Language of Neural Networks...
+
+Many ask: "How much math do I need for deep learning?"
+
+The answer: You don't need to be a mathematician, but you need to understand the language.
+
+Neural networks are mathematical machines—matrix multiplications, derivatives, probability distributions, optimization algorithms. If you don't understand them, deep learning is a black box. If you do, everything becomes transparent, comprehensible, controllable.
+
+```
+Mathematics Meets Deep Learning:
+
+  Linear Algebra → Understanding tensors and matrix operations
+  Calculus       → Understanding gradient descent and backpropagation
+  Probability    → Understanding uncertainty and generative models
+  Statistics     → Understanding inference and evaluation
+  Optimization   → Understanding training dynamics
+  Functions      → Understanding activations and losses
+  Sequences      → Understanding learning rate schedules and RNNs
+
+Mathematics is not an obstacle—it's a bridge to understanding.
+```
+
+**This tutorial systematically covers the math you need.** Each concept is explained in the context of deep learning—not just "what is it," but "why do we need it." Every formula connects to code, every abstraction to application.
+
+From the matrices that power forward passes to the gradients that fuel learning, from the probability distributions that model uncertainty to the optimization methods that find optima—this is the mathematical foundation upon which all of deep learning rests.
 
 ---
 

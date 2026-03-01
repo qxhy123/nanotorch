@@ -1,6 +1,45 @@
 # Chapter 4: Activation Functions
 
-Activation functions introduce non-linearity into neural networks, enabling them to learn complex patterns.
+## The Spark of Non-Linearity...
+
+Imagine a world where everything is a straight line.
+
+Where doubling the input always doubles the output. Where relationships are predictable, linear, boring.
+
+That world cannot describe the richness of reality—the S-curve of population growth, the spike of a neural impulse, the saturation of a market.
+
+**Neural networks face the same problem.**
+
+```
+The Trap of Linearity:
+
+  Linear transformation:  y = Wx + b
+  Stack two together:     y = W2(W1x + b1) + b2
+  Simplify:               y = (W2W1)x + (W2b1 + b2)
+                         = W'x + b'
+
+  No matter how many layers you stack,
+  it collapses into a single linear transformation!
+  Like stacking transparent sheets—still see right through.
+```
+
+**Activation functions are the curve in a world of straight lines.** They introduce non-linearity, the essential ingredient that lets neural networks approximate any function, capture any pattern, learn any relationship.
+
+ReLU, Sigmoid, Tanh, Softmax—these aren't just mathematical functions. They're the difference between a network that can only learn linear relationships and one that can learn... anything.
+
+```
+The Non-Linear Revolution:
+
+  Without activation: 100 layers = 1 layer (trapped in linearity)
+  With activation:    1 layer can approximate any continuous function
+
+  The Universal Approximation Theorem proves:
+  A network with non-linear activations can learn ANY function.
+```
+
+In this chapter, we'll implement these activation functions and understand why each exists, when to use which, and what happens to gradients as they flow through.
+
+---
 
 ## 4.1 Why Do We Need Activation Functions?
 

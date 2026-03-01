@@ -1,6 +1,39 @@
 # YOLO v1 Object Detection Model Implementation Tutorial
 
-This tutorial provides a comprehensive guide to implementing the YOLO v1 (You Only Look Once, 2015) object detection model from scratch using nanotorch.
+## The Beginning of a Revolution...
+
+In 2015, a paper titled "You Only Look Once" changed object detection forever.
+
+Before YOLO, detection was slow. Models would propose hundreds of candidate regions, then classify each one separately. It worked, but it was like reading a book by examining one word at a time.
+
+**YOLO asked: why not read the whole page at once?**
+
+```
+The YOLO v1 Breakthrough:
+
+  Traditional detection:
+    1. Generate region proposals (slow)
+    2. Classify each region (slow)
+    3. Refine bounding boxes (slow)
+    → 0.05 frames per second
+
+  YOLO v1:
+    1. Look at the whole image once
+    2. Predict all boxes simultaneously
+    3. Done
+    → 45 frames per second
+
+  The insight:
+    Detection is just regression.
+    Each grid cell predicts what it contains.
+    No proposals needed. No slow pipelines.
+```
+
+**YOLO v1 wasn't perfect, but it was a paradigm shift.** It showed that object detection could be unified, elegant, and fast. The accuracy wasn't state-of-the-art, but the speed made real-time detection possible for the first time.
+
+In this tutorial, we'll implement YOLO v1 from scratch. We'll see how grid-based prediction works, how the loss function balances localization and classification, and how a single forward pass can predict all objects in an image. This is where the YOLO story begins.
+
+---
 
 ## Table of Contents
 

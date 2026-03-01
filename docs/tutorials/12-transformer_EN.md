@@ -1,5 +1,40 @@
 # Tutorial 12: Transformer Architecture
 
+## Attention: The Power to Focus...
+
+Imagine walking into a crowded room.
+
+Voices everywhere. Conversations overlap. Yet somehow, you can focus on the one conversation that matters to you. Your attention filters the noise, amplifying what's relevant, ignoring what's not.
+
+**This selective focus is the heart of the Transformer.**
+
+```
+The Revolution of Attention:
+
+  Traditional approach:
+    Process word by word, in order
+    "The cat sat on the mat"
+    Must finish "The" before "cat", "cat" before "sat"...
+    Slow. Sequential. Distant words barely connected.
+
+  Transformer approach:
+    Every word attends to every other word simultaneously
+    "mat" can directly see "cat" without going through "sat" and "on"
+    "The" can connect to "mat" in a single glance
+
+Distance doesn't matter anymore.
+Position 1 and Position 1000 are equally close.
+Parallel processing replaces sequential waiting.
+```
+
+**Transformer changed everything.** Before 2017, natural language processing was dominated by RNNs—sequential, slow, struggling with long-range dependencies. Then came "Attention Is All You Need." The paper's title said it all: you don't need recurrence. You don't need convolution. You only need attention.
+
+Multi-head attention lets the model look at the input in many ways simultaneously—one head might track subject-verb relationships, another might track adjectives to nouns. Positional encoding injects order into this parallel paradise. Residual connections and layer normalization keep the deep architecture trainable.
+
+In this tutorial, we'll build the complete Transformer architecture: the encoder that processes input, the decoder that generates output, the attention mechanisms that connect them. We'll see why this architecture powers GPT, BERT, and virtually every modern language model.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)
