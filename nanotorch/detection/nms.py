@@ -157,10 +157,10 @@ def soft_nms(boxes: Union[Tensor, np.ndarray],
         
         # Update scores based on IoU
         if method == "linear":
-            # Linear decay
-            mask = ious > iou_threshold
-            scores = scores * (1 - ious)
-            scores[mask] = scores[mask] * (ious[mask] > iou_threshold)
+            # Linear decay: if IoU > threshold, decay score by (1 - IoU)
+            # Otherwise, keep original score
+            suppress_mask = ious > iou_threshold
+            scores = np.where(suppress_mask, scores * (1 - ious), scores)
         elif method == "gaussian":
             # Gaussian decay
             scores = scores * np.exp(-(ious ** 2) / sigma)
