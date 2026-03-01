@@ -13,14 +13,11 @@ Key concepts:
 """
 
 import numpy as np
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 from nanotorch.tensor import Tensor
-from nanotorch.nn.module import Module, Sequential
+from nanotorch.nn.module import Module
 from nanotorch.nn.conv import Conv2D
-from nanotorch.nn.batchnorm import BatchNorm2d
-from nanotorch.nn.activation import SiLU, Sigmoid
-from nanotorch.detection.layers import Conv, C2f, make_divisible
-from nanotorch.detection.bbox import xywh_to_xyxy
+from nanotorch.detection.layers import Conv
 
 
 class DFLHead(Module):

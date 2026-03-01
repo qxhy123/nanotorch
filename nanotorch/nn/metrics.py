@@ -56,8 +56,7 @@ def auc_score(
     # Compute AUC using trapezoidal rule
     # Count how many negatives are ranked below each positive
     tp_cumsum = np.cumsum(sorted_targets == 1)
-    fp_cumsum = np.cumsum(sorted_targets == 0)
-    
+
     # AUC = (1 / (P * N)) * Σ TP(t) for each negative at threshold t
     auc = np.sum(tp_cumsum[sorted_targets == 0]) / (n_pos * n_neg)
     

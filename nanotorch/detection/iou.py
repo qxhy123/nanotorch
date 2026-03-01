@@ -73,11 +73,8 @@ def giou(boxes1: Union[Tensor, np.ndarray],
     inter = box_intersection(boxes1, boxes2)
     union = area1[:, np.newaxis] + area2[np.newaxis, :] - inter
     iou_val = inter / np.clip(union, 1e-7, None)
-    
+
     # Compute smallest enclosing box
-    n = boxes1.shape[0]
-    m = boxes2.shape[0]
-    
     boxes1_exp = boxes1[:, np.newaxis, :]  # (N, 1, 4)
     boxes2_exp = boxes2[np.newaxis, :, :]  # (1, M, 4)
     
@@ -327,10 +324,8 @@ def siou(boxes1: Union[Tensor, np.ndarray],
     rho_x = (offset_x / enclose_w) ** 2
     rho_y = (offset_y / enclose_h) ** 2
     distance_cost = gamma * rho_x + gamma * rho_y
-    
+
     # Shape cost (aspect ratio)
-    v = (4.0 / (np.pi ** 2)) * (np.arctan(w2 / np.clip(h2, eps, None)) - 
-                                 np.arctan(w1 / np.clip(h1, eps, None))) ** 2
     omega_w = np.abs(w1 - w2) / np.clip(np.maximum(w1, w2), eps, None)
     omega_h = np.abs(h1 - h2) / np.clip(np.maximum(h1, h2), eps, None)
     shape_cost = (1 - iou_val) * np.exp(-omega_w) + (1 - iou_val) * np.exp(-omega_h)

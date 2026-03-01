@@ -12,15 +12,14 @@ This module provides building blocks for YOLO v12 and similar object detectors:
 """
 
 import numpy as np
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Tuple
 from nanotorch.tensor import Tensor
 from nanotorch.nn.module import Module, Sequential
 from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.batchnorm import BatchNorm2d
-from nanotorch.nn.activation import SiLU, ReLU, Identity
+from nanotorch.nn.activation import SiLU, Identity
 from nanotorch.nn.pooling import MaxPool2d
 from nanotorch.nn.normalization import LayerNorm
-from nanotorch.nn.attention import MultiheadAttention
 
 
 class Conv(Module):

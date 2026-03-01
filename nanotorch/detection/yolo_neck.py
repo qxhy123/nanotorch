@@ -17,7 +17,7 @@ Key concepts:
 import numpy as np
 from typing import Dict, List, Optional
 from nanotorch.tensor import Tensor
-from nanotorch.nn.module import Module, Sequential
+from nanotorch.nn.module import Module
 from nanotorch.detection.layers import Conv, C2f, Upsample, Concat
 
 

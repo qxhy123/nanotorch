@@ -6,7 +6,7 @@ Uses CIoU loss for bounding box regression and BCE loss for classification.
 """
 
 import numpy as np
-from typing import Tuple, Dict, List, Optional
+from typing import Tuple, Dict, List
 
 from nanotorch.tensor import Tensor
 from nanotorch.nn.module import Module

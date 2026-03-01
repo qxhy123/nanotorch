@@ -21,8 +21,6 @@ from typing import Tuple, Dict, List, Optional, Union
 from nanotorch.tensor import Tensor
 from nanotorch.nn.module import Module, Sequential
 from nanotorch.nn.conv import Conv2D
-from nanotorch.nn.linear import Linear
-from nanotorch.nn.pooling import MaxPool2d, AvgPool2d
 from nanotorch.nn.activation import LeakyReLU, Sigmoid, ReLU
 from nanotorch.nn.normalization import BatchNorm2d
 

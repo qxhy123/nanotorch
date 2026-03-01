@@ -87,7 +87,7 @@ class FeatureEmbedding(Module):
             (batch_size, num_sparse_features, embed_dim) stacked embeddings
             where embed_dim varies per feature
         """
-        batch_size = x.shape[0]
+        # batch_size = x.shape[0]
         
         embedded_list = []
         x_np = x.data.astype(np.int64)
@@ -424,7 +424,6 @@ class WideDeep(Module):
         Returns:
             (batch, 1) probability
         """
-        batch_size = sparse_input.shape[0]
         x_sparse_np = sparse_input.data.astype(np.int64)
         
         # Embed sparse features
@@ -762,7 +761,6 @@ class DCN(DeepFM):
         dense_input: Optional[Tensor] = None
     ) -> Tensor:
         """Forward pass with cross network."""
-        batch_size = sparse_input.shape[0]
         x_sparse_np = sparse_input.data.astype(np.int64)
         
         embedded_list = []

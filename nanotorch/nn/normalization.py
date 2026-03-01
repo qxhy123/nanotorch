@@ -81,8 +81,8 @@ class _BatchNorm(Module):
     def forward(self, x: Tensor) -> Tensor:
         """Forward pass for batch normalization."""
         self._check_input_dim(x)
-        
-        N, C = x.shape[0], x.shape[1]
+
+        C = x.shape[1]
         axes = self._get_reduction_axes(x)
         
         if self.training and self.track_running_stats:

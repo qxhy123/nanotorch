@@ -23,7 +23,7 @@ Reference:
 """
 
 import numpy as np
-from typing import Tuple, List, Optional, Union
+from typing import Tuple, Optional, Union
 from nanotorch.tensor import Tensor, no_grad
 
 

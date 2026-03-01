@@ -20,7 +20,6 @@ Reference:
     https://arxiv.org/abs/1506.02640
 """
 
-import numpy as np
 from typing import Tuple, Dict, Optional, Union
 from nanotorch.tensor import Tensor
 from nanotorch.nn.module import Module, Sequential

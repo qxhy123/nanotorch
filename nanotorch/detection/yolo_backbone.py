@@ -15,13 +15,10 @@ Key components:
 - A2 Block: Area attention for enhanced feature representation
 """
 
-import numpy as np
-from typing import List, Tuple, Dict, Optional
+from typing import Dict
 from nanotorch.tensor import Tensor
 from nanotorch.nn.module import Module, Sequential
-from nanotorch.detection.layers import (
-    Conv, C2f, SPPF, Bottleneck, AreaAttention, A2Block, make_divisible
-)
+from nanotorch.detection.layers import Conv, C2f, SPPF, AreaAttention, make_divisible
 
 
 class Stem(Module):

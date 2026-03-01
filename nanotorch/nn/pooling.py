@@ -69,12 +69,10 @@ class MaxPool1d(Module):
             padded_data[:, :, self.padding:self.padding + L_in] = x.data
         else:
             padded_data = x.data
-        
+
         output_data = np.zeros((N, C, L_out), dtype=np.float32)
         indices = np.zeros((N, C, L_out), dtype=np.int64)
-        
-        total_L = padded_data.shape[2]
-        
+
         for n in range(N):
             for c in range(C):
                 for l_out in range(L_out):

@@ -329,7 +329,6 @@ def dirac_(tensor: Tensor) -> Tensor:
 
     tensor.data = np.zeros(tensor.shape, dtype=np.float32)
 
-    out_channels = tensor.shape[0]
     min_size = min(tensor.shape[0], min(tensor.shape[2:]))
 
     for i in range(min_size):

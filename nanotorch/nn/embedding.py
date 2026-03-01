@@ -222,10 +222,6 @@ class EmbeddingBag(Module):
         if not weight.requires_grad:
             return
 
-        # Get stored context
-        ctx = getattr(input, '_ctx', None)
-        # Access stored context from the result tensor (we need to pass it differently)
-
         # For now, we need to recalculate indices
         indices = input.data.astype(np.int64)
         grad_weight = np.zeros_like(weight.data)

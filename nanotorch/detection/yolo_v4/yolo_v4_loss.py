@@ -195,12 +195,7 @@ class YOLOv4Loss(Module):
                             gt_cy = (y1 + y2) / 2
                             gt_w = x2 - x1
                             gt_h = y2 - y1
-                            
-                            target_tx = gt_cx * W - j
-                            target_ty = gt_cy * H - i
-                            target_tw = np.log(gt_w / anchor_w + 1e-7)
-                            target_th = np.log(gt_h / anchor_h + 1e-7)
-                            
+
                             # CIoU loss components
                             ciou = self._compute_ciou(
                                 (j + pred_tx) / W, (i + pred_ty) / H,

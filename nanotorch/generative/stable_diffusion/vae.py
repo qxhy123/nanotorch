@@ -18,14 +18,13 @@ Reference:
 """
 
 import numpy as np
-from typing import Tuple, Dict, List, Optional, Union
+from typing import Tuple
+
 from nanotorch.tensor import Tensor
-from nanotorch.nn.module import Module, Sequential
+from nanotorch.nn.module import Module
 from nanotorch.nn.conv import Conv2D
-from nanotorch.nn.linear import Linear
-from nanotorch.nn.activation import SiLU, GELU, Sigmoid
+from nanotorch.nn.activation import SiLU
 from nanotorch.nn.normalization import GroupNorm
-from nanotorch.nn.pooling import AvgPool2d
 
 
 class ResnetBlock(Module):
@@ -149,10 +148,9 @@ class SelfAttention(Module):
         q = q.data.reshape(n, self.num_heads, self.head_dim, hh * ww)
         k = k.data.reshape(n, self.num_heads, self.head_dim, hh * ww)
         v = v.data.reshape(n, self.num_heads, self.head_dim, hh * ww)
-        
-        attn = np.zeros((n, self.num_heads, hh * ww, hh * ww), dtype=np.float32)
+
         out = np.zeros_like(q)
-        
+
         for b in range(n):
             for head in range(self.num_heads):
                 q_head = q[b, head]

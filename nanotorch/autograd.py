@@ -319,11 +319,6 @@ class Conv2DFunction(Function):
         if bias_data is not None:
             output += bias_data.reshape(1, C_out, 1, 1)
 
-        requires_grad = (
-            requires_grad_input
-            or requires_grad_weight
-            or (bias_data is not None and requires_grad_bias)
-        )
         return output
 
     @staticmethod
@@ -1028,7 +1023,6 @@ class ConvTranspose2DFunction(Function):
         input, weight, bias = ctx.saved_tensors
         stride = ctx.get_value("stride")
         padding = ctx.get_value("padding")
-        output_padding = ctx.get_value("output_padding")
         dilation = ctx.get_value("dilation")
         groups = ctx.get_value("groups")
         
@@ -1656,7 +1650,6 @@ class ConvTranspose3DFunction(Function):
         input, weight, bias = ctx.saved_tensors
         stride = ctx.get_value("stride")
         padding = ctx.get_value("padding")
-        output_padding = ctx.get_value("output_padding")
         dilation = ctx.get_value("dilation")
         groups = ctx.get_value("groups")
 
@@ -1923,9 +1916,7 @@ class MaxPool2dFunction(Function):
         kernel_size = ctx.get_value("kernel_size")
         stride = ctx.get_value("stride")
         padding = ctx.get_value("padding")
-        dilation = ctx.get_value("dilation")
         indices = ctx.get_value("indices")
-        ceil_mode = ctx.get_value("ceil_mode")
         H_out = ctx.get_value("H_out")
         W_out = ctx.get_value("W_out")
 
@@ -2110,7 +2101,6 @@ class AvgPool2dFunction(Function):
         kernel_size = ctx.get_value("kernel_size")
         stride = ctx.get_value("stride")
         padding = ctx.get_value("padding")
-        ceil_mode = ctx.get_value("ceil_mode")
         count_include_pad = ctx.get_value("count_include_pad")
         divisor_override = ctx.get_value("divisor_override")
         H_out = ctx.get_value("H_out")
@@ -2763,13 +2753,10 @@ class GroupNormFunction(Function):
         ) = ctx.saved_tensors
         
         grad_output = grad_outputs[0]
-        
+
         # Reshape grad_output to (N, num_groups, group_size, spatial_elements)
         grad_output_reshaped = grad_output.data.reshape(N, num_groups, group_size, spatial_elements)
-        
-        # Prepare gamma (weight) for gradient computation
-        gamma = weight_data.reshape(C, 1, 1) if weight_data is not None else 1.0
-        
+
         # Gradient w.r.t weight (gamma)
         grad_weight = None
         if weight_data is not None:

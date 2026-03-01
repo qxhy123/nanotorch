@@ -20,8 +20,7 @@ import numpy as np
 from typing import Dict, Tuple, Optional, Union
 from nanotorch.tensor import Tensor
 from nanotorch.nn.module import Module
-from nanotorch.nn.loss import BCEWithLogitsLoss, bce_with_logits_loss
-from nanotorch.detection.iou import compute_iou_loss_vectorized, ciou
+from nanotorch.detection.iou import compute_iou_loss_vectorized
 from nanotorch.detection.bbox import _to_numpy
 
 
@@ -373,8 +372,7 @@ class YOLOLoss(Module):
             target_boxes = assigned['box_targets']  # (num_pos, 4)
             target_labels = assigned['labels']      # (num_pos,)
             anchor_points = assigned['anchor_points']  # (num_pos, 2)
-            mask_pos = assigned.get('mask_pos', None)   # (H*W,) or None
-            
+
             num_pos = len(target_boxes)
             if num_pos == 0:
                 continue

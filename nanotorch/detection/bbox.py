@@ -135,10 +135,7 @@ def box_intersection(boxes1: Union[Tensor, np.ndarray],
     """
     boxes1 = _to_numpy(boxes1)
     boxes2 = _to_numpy(boxes2)
-    
-    n = boxes1.shape[0]
-    m = boxes2.shape[0]
-    
+
     # Expand dimensions for broadcasting
     # boxes1: (N, 1, 4), boxes2: (1, M, 4)
     boxes1 = boxes1[:, np.newaxis, :]
@@ -304,11 +301,10 @@ def generate_anchors_for_grid(feature_size: Tuple[int, int],
         (H * W * num_anchors, 4) array of anchors
     """
     h, w = feature_size
-    
+
     # Generate base anchors
     base_anchors = generate_anchors(sizes, ratios)
-    num_anchors = base_anchors.shape[0]
-    
+
     # Create grid of anchor centers
     shift_x = np.arange(0, w) * stride + stride / 2
     shift_y = np.arange(0, h) * stride + stride / 2
