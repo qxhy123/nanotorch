@@ -1,0 +1,76 @@
+{
+  "matmul_(256, 512)_(512, 256)_grad_True": {
+    "nanotorch": {
+      "median_time_ms": 2.2444159840233624,
+      "min_time_ms": 0.7668749894946814,
+      "max_time_ms": 11.69966600718908,
+      "std_time_ms": 3.5280535668976656,
+      "relative_std_percent": 157.19249871733857,
+      "iterations": 179,
+      "total_duration_ms": 706.9078350905329
+    },
+    "numpy": {
+      "median_time_ms": 0.22229101159609854,
+      "min_time_ms": 0.21800000104121864,
+      "max_time_ms": 0.2780419890768826,
+      "std_time_ms": 0.012992525759107882,
+      "relative_std_percent": 5.844827312547942,
+      "iterations": 329,
+      "total_duration_ms": 75.06886892952025
+    },
+    "overhead": 10.096746458203416
+  },
+  "small_tensor": {
+    "with_grad": {
+      "median_time_ms": 0.01562500256113708,
+      "min_time_ms": 0.015166995581239462,
+      "max_time_ms": 0.017000013031065464,
+      "std_time_ms": 0.0003089299412408986,
+      "relative_std_percent": 1.9771512998613985,
+      "iterations": 847,
+      "total_duration_ms": 13.289571681525558
+    },
+    "no_grad": {
+      "median_time_ms": 0.002916989615187049,
+      "min_time_ms": 0.0027909991331398487,
+      "max_time_ms": 0.0031249946914613247,
+      "std_time_ms": 5.0938328865455876e-05,
+      "relative_std_percent": 1.7462636342704123,
+      "iterations": 1975,
+      "total_duration_ms": 5.767293652752414
+    },
+    "numpy": {
+      "median_time_ms": 0.001167005393654108,
+      "min_time_ms": 0.0011659867595881224,
+      "max_time_ms": 0.001167005393654108,
+      "std_time_ms": 4.3985168962356135e-07,
+      "relative_std_percent": 0.03769063039600057,
+      "iterations": 1651,
+      "total_duration_ms": 1.9262864952906966
+    },
+    "overhead_no_grad": 2.4995510998054766,
+    "overhead_with_grad": 13.388972018554542,
+    "gradient_overhead": 5.356550630069742
+  },
+  "matmul_(100, 50)_(50, 30)_grad_True": {
+    "nanotorch": {
+      "median_time_ms": 0.02508299075998366,
+      "min_time_ms": 0.02420798409730196,
+      "max_time_ms": 0.028874987037852407,
+      "std_time_ms": 0.0007089972999110454,
+      "relative_std_percent": 2.8266059127293133,
+      "iterations": 157,
+      "total_duration_ms": 3.932716033887118
+    },
+    "numpy": {
+      "median_time_ms": 0.005792011506855488,
+      "min_time_ms": 0.005707988748326898,
+      "max_time_ms": 0.005915993824601173,
+      "std_time_ms": 3.346616595509915e-05,
+      "relative_std_percent": 0.5777986786712739,
+      "iterations": 500,
+      "total_duration_ms": 2.9042547976132482
+    },
+    "overhead": 4.3306182541756275
+  }
+}
