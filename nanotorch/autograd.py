@@ -2638,14 +2638,14 @@ class LayerNormFunction(Function):
         
         # Reshape back to original input shape
         grad_input = grad_input_reshaped.reshape(input_shape)
-        
+
         # Return gradients: input, normalized_shape, weight, bias, eps
         # normalized_shape and eps have no gradient
         return (
             Tensor(grad_input, requires_grad=False),
             None,
-            grad_weight if grad_weight is not None else None,
-            grad_bias if grad_bias is not None else None,
+            Tensor(grad_weight, requires_grad=False) if grad_weight is not None else None,
+            Tensor(grad_bias, requires_grad=False) if grad_bias is not None else None,
             None,
         )
 
@@ -2827,14 +2827,14 @@ class GroupNormFunction(Function):
         
         # Reshape back to original input shape
         grad_input = grad_input_flat.reshape(input_shape)
-        
+
         # Return gradients: input, num_groups, weight, bias, eps
         # num_groups and eps have no gradient
         return (
             Tensor(grad_input, requires_grad=False),
             None,
-            grad_weight if grad_weight is not None else None,
-            grad_bias if grad_bias is not None else None,
+            Tensor(grad_weight, requires_grad=False) if grad_weight is not None else None,
+            Tensor(grad_bias, requires_grad=False) if grad_bias is not None else None,
             None,
         )
 
@@ -3000,13 +3000,13 @@ class InstanceNormFunction(Function):
         
         # Reshape back to original input shape
         grad_input = grad_input_flat.reshape(input_shape)
-        
+
         # Return gradients: input, weight, bias, eps
         # eps has no gradient
         return (
             Tensor(grad_input, requires_grad=False),
-            grad_weight if grad_weight is not None else None,
-            grad_bias if grad_bias is not None else None,
+            Tensor(grad_weight, requires_grad=False) if grad_weight is not None else None,
+            Tensor(grad_bias, requires_grad=False) if grad_bias is not None else None,
             None,
         )
 
