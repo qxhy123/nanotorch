@@ -548,17 +548,14 @@ class LatentDiffusion:
         # Add noise to latents
         noisy_latents = self.noise_scheduler.add_noise(latents, noise, timesteps)
         noisy_latents = Tensor(noisy_latents, requires_grad=True)
-        
+
         # Predict noise
         noise_pred = self.unet(noisy_latents, timesteps, text_embeddings)
-        
-        # Compute loss (MSE)
-        diff = noise_pred.data - noise.data
-        loss = Tensor(
-            np.mean(diff ** 2),
-            requires_grad=True
-        )
-        
+
+        # Compute loss (MSE) - keep computation graph for backward
+        diff = noise_pred - noise
+        loss = (diff * diff).mean()
+
         return loss, loss.data
 
 
