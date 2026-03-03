@@ -1,37 +1,25 @@
 # YOLO v4 Object Detection Model Implementation Tutorial
 
-## The Bag of Tricks...
+## If YOLO v3 is a sports car...
 
-By 2020, object detection had accumulated a mountain of techniques.
+Then YOLO v4 is its racetrack upgrade—same chassis, but with a stronger engine, smarter transmission, and lighter body.
 
-There were architectural innovations (residual connections, CSP, attention). There were training tricks (data augmentation, loss functions, label smoothing). There were inference optimizations (quantization, pruning, knowledge distillation).
+In 2020, YOLO v4 arrived with two "bags of tricks":
 
-**YOLO v4 asked: what if we combined the best of everything?**
+**Bag of Freebies**: Techniques that only work during training—data augmentation, hard example mining, label smoothing... They help the model learn better without slowing down inference by a single millisecond.
+
+**Bag of Specials**: Modules that slightly increase inference cost but bring significant improvements—attention modules, enhanced receptive fields, more refined feature fusion...
 
 ```
-The "Bag of Freebies" and "Bag of Specials":
+v3 is an artist: imaginative, full of flair
+v4 is an engineer: carefully calculated, every millimeter contested
 
-  Bag of Freebies (training only, free at inference):
-    - MixUp, CutMix, Mosaic → Data augmentation
-    - Class label smoothing → Regularization
-    - CIoU loss → Better bounding box regression
-    - Self-adversarial training → Robustness
-
-  Bag of Specials (small inference cost, big accuracy gain):
-    - Mish activation → Smoother gradients
-    - SPP module → Larger receptive field
-    - PANet → Better feature fusion
-    - CSP connections → Efficient gradient flow
-
-  The YOLO v4 philosophy:
-    "We'll try everything that works.
-     We'll keep what helps.
-     We'll optimize for speed-accuracy tradeoff."
+Every improvement is carefully considered
+Every optimization is well-founded
+Speed and accuracy finally shake hands
 ```
 
-**YOLO v4 is YOLO as engineering art.** It's not a single brilliant idea—it's dozens of ideas, carefully selected and tuned, working together. The CSPDarknet53 backbone, the SPP module for context, the PANet for feature fusion, the CIoU loss for precise boxes—all chosen through systematic experimentation.
-
-In this tutorial, we'll implement YOLO v4 from scratch. We'll see how CSP (Cross Stage Partial) connections work, how SPP expands receptive fields without extra computation, and how CIoU loss improves bounding box accuracy over simple IoU.
+**YOLO v4—The triumph of engineering aesthetics**, finding perfect balance at the edge of limits.
 
 ---
 
@@ -339,7 +327,7 @@ predictions = {
 }
 
 targets = [
-    {'boxes': np.array([[100, 100, 200, 200]], dtype=np.float32), 
+    {'boxes': np.array([[100, 100, 200, 200]], dtype=np.float32),
      'labels': np.array([0], dtype=np.int64)},
     {'boxes': np.array([[50, 50, 150, 150]], dtype=np.float32),
      'labels': np.array([1], dtype=np.int64)}
@@ -462,26 +450,26 @@ dataloader = create_dataloader(
 for epoch in range(5):
     model.train()
     total_loss = 0
-    
+
     for batch in dataloader:
         images = np.stack([item['image'] for item in batch])
         images = Tensor(images)
-        
+
         optimizer.zero_grad()
         output = model(images)
-        
+
         # MSE loss
         loss = 0.0
         for scale_name, pred in output.items():
             diff = pred - Tensor(np.zeros_like(pred.data))
             loss += (diff * diff).mean().item()
-        
+
         loss_tensor = Tensor(loss, requires_grad=True)
         loss_tensor.backward()
         optimizer.step()
-        
+
         total_loss += loss
-    
+
     scheduler.step()
     avg_loss = total_loss / len(dataloader)
     print(f"Epoch {epoch+1}, Loss: {avg_loss:.4f}")
@@ -540,42 +528,42 @@ def train_yolov4():
     learning_rate = 1e-4
     image_size = 224
     num_classes = 80
-    
+
     # Create model
     model = YOLOv4Tiny(num_classes=num_classes, input_size=image_size)
-    
+
     # Optimizer and scheduler
     optimizer = Adam(model.parameters(), lr=learning_rate)
     scheduler = StepLR(optimizer, step_size=5, gamma=0.1)
-    
+
     # Training loop
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0
-        
+
         # Simulated data
         for _ in range(10):
             images = Tensor(np.random.randn(batch_size, 3, image_size, image_size).astype(np.float32))
-            
+
             optimizer.zero_grad()
             output = model(images)
-            
+
             # MSE loss
             loss = 0.0
             for pred in output.values():
                 diff = pred - Tensor(np.zeros_like(pred.data))
                 loss += (diff * diff).mean().item()
-            
+
             loss_tensor = Tensor(loss, requires_grad=True)
             loss_tensor.backward()
             optimizer.step()
-            
+
             total_loss += loss
-        
+
         scheduler.step()
         avg_loss = total_loss / 10
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}")
-    
+
     return model
 
 if __name__ == "__main__":

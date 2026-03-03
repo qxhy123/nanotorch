@@ -1,39 +1,32 @@
 # YOLO v12 Object Detection Model Implementation Tutorial
 
-## Twelve Generations of Seeing...
+## Imagine you're a painter...
 
-Imagine you're teaching a computer to see—not just to recognize, but to understand where things are.
+Your friend hands you a photo: "Help me find what's in the painting."
 
-Not "this image contains a cat" but "here's the cat, here's its bounding box, and by the way, there's also a dog in the corner."
+You glance at it: "An orange cat lying on the sofa in the bottom left corner, a vase by the window with three sunflowers, and in the distance... is that the Eiffel Tower?"
 
-**This is object detection, and YOLO is its most famous family.**
+Your friend is amazed: "How did you do that so fast?"
+
+You smile: "I looked once, and I knew where everything was."
+
+This is the miracle of human vision—one glance, and you see it all.
 
 ```
-The YOLO Revolution:
+The clumsiness of traditional methods:
+  First, scan every corner with a magnifying glass
+  Mark all "suspicious areas"
+  Then identify each one: "What is this?"
+  Like an old pedant, slow and methodical
 
-  Before YOLO (2015):
-    "Let me scan this region... no cat."
-    "Let me scan this region... no cat."
-    "Let me scan this region... found one!"
-    → Slow. Sequential. Too late for real-time.
-
-  YOLO: You Only Look Once
-    "Let me look at the whole image once."
-    "Here are all the objects, all at once."
-    → Fast. Parallel. Real-time magic.
-
-  From v1 to v12:
-    Each version asks: "How can we see better, faster?"
-    v1: The original breakthrough
-    v3: Multi-scale detection
-    v5: Engineering excellence
-    v8: Anchor-free simplicity
-    v12: Attention-centered architecture
+The elegance of YOLO:
+  One glance, everything in its place
+  Position and category, revealed simultaneously
+  Like a seasoned connoisseur
+  "This is a cat, that is a flower"
 ```
 
-**YOLO changed everything.** Before it, object detection was slow, a two-stage process of proposing regions and then classifying them. YOLO said: why not do it all in one pass? Frame detection as regression. Look once, predict everything.
-
-This tutorial implements YOLO v12—the latest evolution—in nanotorch. We'll see how area attention replaces pure convolution, how the R-ELAN backbone extracts features, and how anchor-free heads predict boxes directly. Twelve versions of innovation, distilled into code you can understand.
+**YOLO - You Only Look Once**, just one glance, and all is known.
 
 ---
 
@@ -333,7 +326,7 @@ P5 ─────────────────→ Conv → Upsample →�
 P4 ────────────────────────────────────→┘
                                          ↓ Conv → Upsample →┐
                                                              ↓ Concat → C2f → P3'
-P3 ───────────────────────────────────────────────────────→┘
+P3 ────────────────────────────────────────────────────────→┘
                                                              ↓
                         P3' → Downsample → Concat ← P4' ←───┘
                                          ↓ C2f → P4''

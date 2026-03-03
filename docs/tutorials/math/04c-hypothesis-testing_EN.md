@@ -4,6 +4,49 @@ Hypothesis testing is another core task of statistical inference, used to determ
 
 ---
 
+## 🎯 Life Analogy: A Court Trial
+
+Hypothesis testing is like a **court trial**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        COURT TRIAL                          │
+├─────────────────────────────────────────────────────────────┤
+│  Defendant: New drug/new model/new method                   │
+│  Null hypothesis H₀: Defendant innocent (no effect)         │
+│  Alternative hypothesis H₁: Defendant guilty (has effect)   │
+│                                                             │
+│  Evidence: Sample data                                      │
+│  Threshold: Significance level α = 0.05 (5% wrongful rate)  │
+│                                                             │
+│  Verdict:                                                   │
+│  • p-value < 0.05 → Strong enough evidence → Reject H₀      │
+│  • p-value ≥ 0.05 → Not enough evidence → Don't reject H₀   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Two Types of Errors = Two Kinds of Judicial Mistakes
+
+| Error Type | Court Analogy | Statistical Meaning | Consequence |
+|------------|---------------|---------------------|-------------|
+| **Type I (α)** | Convicting an innocent person | Actually no effect, but we think there is | Approving a useless drug |
+| **Type II (β)** | Letting a guilty person go | Actually has effect, but we miss it | Missing a good drug |
+
+**Key principle**: In court, we'd rather let a guilty person go than convict an innocent one. So α (wrongful conviction rate) is usually controlled at 5% or 1%.
+
+### 📖 Plain English Translation
+
+| Statistics Term | Plain English |
+|-----------------|---------------|
+| Null hypothesis H₀ | "Default position": Assume nothing happened |
+| Alternative hypothesis H₁ | "The accusation": Claims something happened |
+| p-value | "Evidence strength": Probability of data if H₀ is true |
+| Significance level α | "Verdict threshold": How strong evidence must be |
+| Reject H₀ | "Guilty": Enough evidence for H₁ |
+| Don't reject H₀ | "Not enough evidence": Doesn't mean H₀ is true |
+
+---
+
 ## Table of Contents
 
 1. [Basic Concepts of Hypothesis Testing](#basic-concepts-of-hypothesis-testing)

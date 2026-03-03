@@ -1,36 +1,83 @@
-# Chapter 2: Automatic Differentiation
+# Chapter 2: Automatic Differentiation (Autograd)
 
-## The Magic Behind Learning...
+## Have You Ever Been Lost in the Mountains?
 
-Picture a child learning to ride a bicycle.
+You set off in the morning, the sun shining brightly. In the afternoon, you find yourself surrounded by mountains, unfamiliar scenery all around.
 
-They pedal, they wobble, they fall. And then—crucially—they ask themselves: "What did I do wrong? What should I change?"
+It's getting dark, and you must get down quickly. The question is—**which direction leads to the foot of the mountain fastest?**
 
-This question, this process of working backwards from outcome to cause, is the essence of learning. In deep learning, we call it **backpropagation**.
+You look around and notice the slope beneath your feet seems to point northeast. So you take a step. Look around again, adjust direction. Step by step... until you see the lights of the valley below.
+
+This is **gradient descent**: at each step, you move in the steepest downward direction.
 
 ```
-The Flow of Learning:
-
-  Forward:  Data → Model → Prediction
-                          ↓
-  Compare:  Prediction vs Truth → Loss (How wrong were we?)
-                          ↓
-  Backward: Loss → Gradients → "How should each parameter change?"
-
-Like a detective tracing footsteps back to the source,
-backpropagation finds who's responsible for the error,
-and how much each weight contributed to the mistake.
+Mountain height = Loss function
+Your position   = Model parameters
+Downhill direction = Opposite of gradient
+Mountain foot   = Optimal solution
 ```
 
-**Without gradients, there is no learning.** A neural network without backpropagation is like a student who takes tests but never sees the corrections—doomed to repeat the same mistakes forever.
+But there's a problem: in the "ten-thousand-dimensional mountain" of neural networks, manually calculating gradients is nearly impossible. A million parameters means a million directions.
 
-The beauty of automatic differentiation is that we don't need to manually derive gradients for every possible function. The framework does it for us, automatically, using the elegant mathematics of the chain rule.
-
-In this chapter, we'll implement autograd from scratch. We'll see how the computational graph is built, how gradients flow backwards through it, and how this enables neural networks to learn from their mistakes.
+**Automatic differentiation** is your compass. It remembers how you arrived at each step, then tells you precisely: for each direction, what is the slope.
 
 ---
 
-## 2.1 Why Automatic Differentiation?
+## 2.1 Why Do We Need Automatic Differentiation?
+
+### Problem: Training Neural Networks Requires Computing Gradients
+
+The neural network training process:
+
+```
+1. Forward pass:  Input → Network → Prediction
+2. Compute loss:  Prediction vs Ground truth → Loss
+3. Backward pass: Loss → Gradients (tell each parameter how to adjust)
+4. Update parameters: Parameters - Learning rate × Gradient
+```
+
+**Step 3 requires computing gradients**, the problem is: the network may have millions of parameters, manual differentiation is impossible!
+
+### Comparison of Three Differentiation Methods
+
+| Method | Principle | Pros | Cons |
+|--------|-----------|------|------|
+| **Manual differentiation** | Human calculates formula | Exact | Too slow, error-prone |
+| **Numerical differentiation** | `(f(x+h)-f(x-h))/2h` | Simple | Inexact, slow |
+| **Automatic differentiation** | Computational graph + Chain rule | Exact, fast | Complex to implement |
+
+### Numerical Differentiation Example
+
+```python
+def numerical_grad(f, x, eps=1e-5):
+    """Numerical differentiation: approximate derivative with small difference"""
+    return (f(x + eps) - f(x - eps)) / (2 * eps)
+
+# Test: f(x) = x², derivative at x=3
+f = lambda x: x ** 2
+print(numerical_grad(f, 3))  # ≈ 6.0 (exact value is 6)
+
+# Problem: if function is complex, need to compute f() many times
+```
+
+### Automatic Differentiation: What We'll Implement
+
+```python
+x = Tensor([3.0], requires_grad=True)
+y = x ** 2           # y = x²
+y.backward()         # Automatically compute gradient
+print(x.grad)        # [6.] ← Exact answer!
+```
+
+**One sentence summary**: Automatic differentiation = Computer computes derivatives for you, you only need to write forward computation.
+
+---
+
+## 2.2 Computational Graph: The Map of Automatic Differentiation
+
+### What is a Computational Graph?
+
+**Computational graph = Drawing the computation process as a graph**
 
 Consider the function `f(x) = x² + 2x + 1`, we need to find `df/dx`:
 

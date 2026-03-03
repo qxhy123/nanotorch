@@ -1,39 +1,29 @@
 # Chapter 16: Recommendation System in Practice - DeepFM Model
 
-## The Art of Knowing What You Want...
+## Imagine You Walk Into a Bookstore You've Never Been To...
 
-Imagine walking into a bookstore with a million titles.
+Tens of thousands of books sit quietly on the shelves. You feel a bit lost—where should you start?
 
-You don't know what you're looking for. The titles blur together. But a wise bookseller studies you—what you've bought before, what you've lingered over, what makes your eyes light up.
+Then, an elderly shopkeeper approaches. He doesn't know you, yet he seems to read your mind:
+"You bought Higashino Keigo last time; we just got 'The Devotion of Suspect X.' That sci-fi section you were browsing—Liu Cixin's new work just arrived. Oh, and readers like you usually enjoy Otsuichi too..."
 
-"This," they say, placing a book in your hands. "I think you'll love this."
-
-And somehow, they're usually right.
-
-**This is the magic of recommendation systems.**
+You marvel at his insight. In truth, he simply remembers three things:
+- Who you are (user profile)
+- What the books are (item features)
+- What books people like you usually like (historical interaction patterns)
 
 ```
-The Challenge of Personalization:
+In the vast sea of books:
+  Without guidance → Browse randomly, might miss your true loves
+  With recommendations → Every book handed to you is exactly what you wanted
 
-  A million products. A million users.
-  How do you connect the right product to the right user?
-
-  Traditional approach:
-    "People who bought X also bought Y"
-    Simple. But misses the subtle patterns.
-
-  Deep learning approach:
-    "I understand this user's hidden preferences"
-    "I see the latent factors that connect products"
-    "I predict what they'll click before they see it"
-
-  CTR (Click-Through Rate) = The heartbeat of modern commerce
-  Every 0.1% improvement = millions in revenue
+The secret of recommendation systems:
+  Not guessing, but calculating
+  Not luck, but patterns
+  It turns "encounters" into "reunions"
 ```
 
-**Recommendation systems are where deep learning meets business value most directly.** They're not academic exercises—they're the engines behind Amazon's "Customers who bought this also bought," TikTok's addictive feed, and Spotify's uncanny playlist suggestions.
-
-In this chapter, we'll implement DeepFM—a production-ready model that combines the memorization power of factorization machines with the generalization power of deep neural networks. We'll see how feature interactions are learned automatically, how sparse categorical data becomes dense embeddings, and how to train and evaluate a real recommendation model.
+**Recommendation systems are the kindred spirits of the digital world**—presenting you with that "just right" choice among thousands of options.
 
 ---
 
@@ -182,12 +172,12 @@ In recommendation systems, features are typically divided into two categories:
     'category': 15,           # Category
     'brand': 42,              # Brand
     'device': 0,              # Device type (0=mobile, 1=desktop)
-    
+
     # Dense features (numerical)
     'user_age': 0.45,         # Normalized age
     'item_price': 0.23,       # Normalized price
     'item_rating': 0.85,      # Normalized rating
-    
+
     # Label
     'label': 1                # Click or not
 }
@@ -206,7 +196,7 @@ class SparseFeat:
     vocabulary_size: int
     embedding_dim: int = 8
 
-@dataclass  
+@dataclass
 class DenseFeat:
     """Dense feature configuration"""
     name: str
@@ -214,7 +204,7 @@ class DenseFeat:
 
 class RecommendationDataset(Dataset):
     """Recommendation dataset"""
-    
+
     def __init__(
         self,
         sparse_features: Dict[str, np.ndarray],
@@ -224,10 +214,10 @@ class RecommendationDataset(Dataset):
         self.sparse_features = sparse_features
         self.dense_features = dense_features
         self.labels = labels
-    
+
     def __len__(self):
         return len(self.labels)
-    
+
     def __getitem__(self, idx):
         sparse = {k: v[idx] for k, v in self.sparse_features.items()}
         dense = {k: v[idx] for k, v in self.dense_features.items()}
@@ -247,16 +237,16 @@ import numpy as np
 
 class FactorizationMachine(Module):
     """Factorization Machine layer
-    
+
     Formula: y = 0.5 * (||sum(x)||^2 - sum(||x||^2))
     """
-    
+
     def __init__(self, num_fields: int, embed_dim: int, reduce_sum: bool = True):
         super().__init__()
         self.num_fields = num_fields
         self.embed_dim = embed_dim
         self.reduce_sum = reduce_sum
-    
+
     def forward(self, x: Tensor) -> Tensor:
         """
         Args:
@@ -267,14 +257,14 @@ class FactorizationMachine(Module):
         # Square of sum: (Σ x)^2
         sum_of_x = x.sum(axis=1)            # (batch, embed_dim)
         square_of_sum = sum_of_x * sum_of_x  # (batch, embed_dim)
-        
+
         # Sum of squares: Σ x^2
         square_of_x = x * x                  # (batch, fields, embed_dim)
         sum_of_square = square_of_x.sum(axis=1)  # (batch, embed_dim)
-        
+
         # FM interaction: 0.5 * (square_of_sum - sum_of_square)
         fm_interaction = (square_of_sum - sum_of_square) * 0.5
-        
+
         if self.reduce_sum:
             return fm_interaction.sum(axis=1, keepdims=True)  # (batch, 1)
         return fm_interaction  # (batch, embed_dim)
@@ -288,7 +278,7 @@ from nanotorch.nn import Embedding
 
 class DeepFM(Module):
     """DeepFM: FM + DNN for CTR Prediction
-    
+
     Args:
         sparse_features: Sparse feature configuration list
         dense_features: Dense feature configuration list
@@ -296,7 +286,7 @@ class DeepFM(Module):
         hidden_dims: DNN hidden layer dimension list
         dropout: Dropout ratio
     """
-    
+
     def __init__(
         self,
         sparse_features: List[SparseFeat],
@@ -306,26 +296,26 @@ class DeepFM(Module):
         dropout: float = 0.1
     ):
         super().__init__()
-        
+
         self.sparse_features = sparse_features
         self.dense_features = dense_features
         self.num_sparse = len(sparse_features)
         self.num_dense = len(dense_features)
-        
+
         # Shared embedding layer
         self.embeddings = {}
         for feat in sparse_features:
             emb = Embedding(feat.vocabulary_size, embed_dim)
             self.embeddings[feat.name] = emb
             self.register_module(f'emb_{feat.name}', emb)
-        
+
         # FM component
         self.fm = FactorizationMachine(self.num_sparse, embed_dim)
-        
+
         # DNN component
         total_dense_dim = sum(f.dimension for f in dense_features)
         dnn_input_dim = self.num_sparse * embed_dim + total_dense_dim
-        
+
         self.dnn = Sequential(
             Linear(dnn_input_dim, hidden_dims[0]),
             LayerNorm(hidden_dims[0]),
@@ -337,48 +327,48 @@ class DeepFM(Module):
             Dropout(dropout),
             Linear(hidden_dims[1], 1)
         )
-        
+
         # First-order linear term
         self.linear = Linear(self.num_sparse + self.num_dense, 1)
-    
+
     def forward(self, sparse_input: Tensor, dense_input: Tensor = None) -> Tensor:
         """
         Args:
             sparse_input: (batch, num_sparse) integer indices
             dense_input: (batch, num_dense) float values
-        
+
         Returns:
             (batch, 1) CTR probability
         """
         batch_size = sparse_input.shape[0]
         x_np = sparse_input.data.astype(np.int64)
-        
+
         # Embed sparse features
         embedded_list = []
         for i, feat in enumerate(self.sparse_features):
             indices = Tensor(x_np[:, i])
             emb = self.embeddings[feat.name](indices)
             embedded_list.append(emb.data)
-        
+
         # Stack: (batch, num_sparse, embed_dim)
         embedded = Tensor(
             np.stack(embedded_list, axis=1).astype(np.float32),
             requires_grad=True
         )
-        
+
         # FM output
         fm_output = self.fm(embedded)  # (batch, 1)
-        
+
         # DNN input: flatten embeddings + dense features
         embedded_flat = embedded.data.reshape(batch_size, -1)
         if dense_input is not None:
             dnn_input = np.concatenate([embedded_flat, dense_input.data], axis=1)
         else:
             dnn_input = embedded_flat
-        
+
         dnn_input_tensor = Tensor(dnn_input.astype(np.float32), requires_grad=True)
         dnn_output = self.dnn(dnn_input_tensor)  # (batch, 1)
-        
+
         # First-order linear output
         if dense_input is not None:
             linear_input = np.concatenate([x_np, dense_input.data], axis=1)
@@ -386,16 +376,16 @@ class DeepFM(Module):
             linear_input = x_np
         linear_input_tensor = Tensor(linear_input.astype(np.float32), requires_grad=True)
         linear_output = self.linear(linear_input_tensor)
-        
+
         # Combine: FM + DNN + Linear
         combined = fm_output.data + dnn_output.data + linear_output.data
-        
+
         # Sigmoid activation
         output = Tensor(
             1.0 / (1.0 + np.exp(-np.clip(combined, -15, 15))),
             requires_grad=True
         )
-        
+
         return output
 ```
 
@@ -430,60 +420,60 @@ from nanotorch.utils import clip_grad_norm_
 
 def train_model(model, train_loader, val_loader, config):
     """Complete training process"""
-    
+
     # Optimizer
     optimizer = AdamW(
         model.parameters(),
         lr=config.learning_rate,
         weight_decay=config.weight_decay
     )
-    
+
     # Learning rate scheduler
     scheduler = CosineWarmupScheduler(
         optimizer,
         warmup_epochs=config.warmup_epochs,
         max_epochs=config.num_epochs
     )
-    
+
     # Loss function
     criterion = BCELoss()
-    
+
     # Early stopping
     best_val_auc = 0.0
     patience_counter = 0
-    
+
     for epoch in range(1, config.num_epochs + 1):
         # === Training phase ===
         model.train()
         train_loss = 0.0
-        
+
         for batch in train_loader:
             sparse, dense, labels = batch
-            
+
             # Forward pass
             predictions = model(
                 Tensor(sparse.astype(np.float32)),
                 Tensor(dense.astype(np.float32)) if dense is not None else None
             )
-            
+
             loss = criterion(predictions, Tensor(labels.reshape(-1, 1)))
-            
+
             # Backward pass
             optimizer.zero_grad()
             loss.backward()
             clip_grad_norm_(model.parameters(), config.gradient_clip_norm)
             optimizer.step()
-            
+
             train_loss += loss.item()
-        
+
         scheduler.step()
-        
+
         # === Validation phase ===
         val_auc = evaluate(model, val_loader)
-        
+
         print(f"Epoch {epoch}: Loss={train_loss/len(train_loader):.4f}, "
               f"Val AUC={val_auc:.4f}")
-        
+
         # Early stopping check
         if val_auc > best_val_auc + 0.0001:
             best_val_auc = val_auc
@@ -493,7 +483,7 @@ def train_model(model, train_loader, val_loader, config):
             if patience_counter >= config.early_stop_patience:
                 print(f"Early stopping at epoch {epoch}")
                 break
-    
+
     return model
 ```
 
@@ -524,13 +514,13 @@ def auc_score(predictions, targets):
     """Calculate AUC"""
     sorted_indices = np.argsort(-predictions)
     sorted_targets = targets[sorted_indices]
-    
+
     n_pos = np.sum(targets == 1)
     n_neg = np.sum(targets == 0)
-    
+
     tp_cumsum = np.cumsum(sorted_targets == 1)
     auc = np.sum(tp_cumsum[sorted_targets == 0]) / (n_pos * n_neg)
-    
+
     return auc
 
 def ndcg_at_k(predictions, targets, k):
@@ -538,14 +528,14 @@ def ndcg_at_k(predictions, targets, k):
     # DCG: sum(rel_i / log2(i+1))
     ranked_indices = np.argsort(-predictions)
     ranked_relevances = targets[ranked_indices][:k]
-    
+
     discounts = 1.0 / np.log2(np.arange(len(ranked_relevances)) + 2)
     dcg = np.sum(ranked_relevances * discounts)
-    
+
     # IDCG: ideal DCG
     ideal_relevances = np.sort(targets)[::-1][:k]
     idcg = np.sum(ideal_relevances * discounts)
-    
+
     return dcg / idcg if idcg > 0 else 0
 ```
 

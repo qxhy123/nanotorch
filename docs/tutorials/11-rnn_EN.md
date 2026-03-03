@@ -1,308 +1,300 @@
-# Tutorial 11: Recurrent Neural Networks (RNN/LSTM/GRU)
+# Tutorial 11: Recurrent Neural Networks
 
-## Memory in the Stream of Time...
+## You're Watching a Suspense Movie...
 
-Imagine reading a sentence, word by word.
+Act 1, the protagonist finds a key. You don't think much of it.
 
-"The key was in the..." — you wait, anticipating.
+Act 2, the protagonist discovers a locked box. You start to anticipate.
 
-"...drawer" — ah, now it makes sense.
+Act 3, the protagonist uses the key to open the box, inside is—you hold your breath.
 
-But how did you know to expect a location? Because you remembered "key" and "in the" from before. You held those words in your mind, carrying context forward, letting earlier meaning shape later understanding.
+You're tense because you **remembered the key from Act 1**. If each act were independent, you wouldn't care whether the box could be opened at all.
 
-**This is what recurrent neural networks do.**
+**Memory is the key to understanding sequences.**
+
+But ordinary neural networks have no memory. Like a goldfish, they only live in the moment. Give it an article, after reading the first word, it forgets the first word; after reading the second word, it forgets the second word.
+
+RNN (Recurrent Neural Network) gives the network a "memory".
 
 ```
-The Flow of Memory:
+Ordinary network:
+  See "I" → Forgot
+  See "love" → Forgot
+  See "you" → Output "What are you?"
 
-  Time step 1: See "The"     → Remember: {article detected}
-       ↓
-  Time step 2: See "key"     → Remember: {subject is "key"}
-       ↓
-  Time step 3: See "was"     → Remember: {past tense, "key" is subject}
-       ↓
-  Time step 4: See "in"      → Remember: {location coming}
-       ↓
-  Time step 5: See "the"     → Remember: {specific location}
-       ↓
-  Time step 6: See "drawer"  → Understanding complete!
-
-Each step carries forward a memory,
-updated by what it sees,
-shaping what comes next.
+RNN:
+  See "I" → Remember: subject is I
+  See "love" → Remember: subject loves me
+  See "you" → Understand: Complete sentence "I love you"
 ```
 
-**RNNs give neural networks the gift of memory.** Unlike feedforward networks that process each input independently, RNNs maintain a hidden state—a memory—that flows through time. What the network saw at step 1 influences what it predicts at step 100.
-
-But basic RNNs have a problem: they forget. On long sequences, gradients vanish like echoes in a canyon. LSTM and GRU solve this with gates—mechanisms that learn what to remember, what to forget, what to pass on. They are the memory masters of deep learning.
-
-In this tutorial, we'll implement RNN, LSTM, and GRU from scratch. We'll see how gates work, how bidirectional processing captures both past and future, and how these architectures power everything from machine translation to speech recognition.
+**RNN gives machines a sense of time.** It no longer lives only in the present, but can understand the past, grasp the present, and foresee the future.
 
 ---
 
-## Table of Contents
+## 11.1 Why Do We Need RNN?
 
-1. [Overview](#overview)
-2. [RNN Basics](#rnn-basics)
-3. [LSTM Details](#lstm-details)
-4. [GRU Details](#gru-details)
-5. [Cell Version vs Full Version](#cell-version-vs-full-version)
-6. [Bidirectional RNN](#bidirectional-rnn)
-7. [Usage Examples](#usage-examples)
-8. [Summary](#summary)
+### Problem: Ordinary Networks Have No Memory
+
+```
+Ordinary network processing a sentence:
+
+"I love Beijing Tiananmen"
+ ↓   ↓    ↓     ↓
+Process each word independently
+
+Problem:
+  - Don't know "love" has subject "I"
+  - Don't know "Tiananmen" is in Beijing
+  - Each word is isolated
+```
+
+### Solution: Introduce Hidden State
+
+```
+RNN processing a sentence:
+
+Time 1: "I" + hidden state 0 → output 1 → hidden state 1
+Time 2: "love" + hidden state 1 → output 2 → hidden state 2
+Time 3: "Beijing" + hidden state 2 → output 3 → hidden state 3
+...
+
+Hidden state = memory, passing previous information
+```
 
 ---
 
-## Overview
+## 11.2 RNN Basics
 
-Recurrent Neural Networks (RNN) are the core architecture for processing **sequential data**. Unlike traditional feedforward networks, RNNs have **memory** capability, enabling them to capture temporal dependencies in sequences.
-
-nanotorch implements three main types of recurrent neural networks:
-- **RNN**: Basic recurrent neural network
-- **LSTM**: Long Short-Term Memory
-- **GRU**: Gated Recurrent Unit
-
----
-
-## RNN Basics
-
-### Core Idea
-
-RNN passes information between time steps through a hidden state:
+### Core Formula
 
 ```
-Time step t calculation:
-h_t = tanh(W_ih @ x_t + b_ih + W_hh @ h_{t-1} + b_hh)
-y_t = h_t  (for basic RNN)
+h_t = tanh(W_xh @ x_t + W_hh @ h_{t-1} + b)
+y_t = W_hy @ h_t + b_y
+
+Explanation:
+  x_t = current input
+  h_{t-1} = hidden state from previous time step (memory)
+  h_t = current hidden state (updated memory)
+  y_t = current output
+
+tanh: Compress values to (-1, 1), prevent numerical explosion
 ```
 
-### Information Flow
+### RNN Diagram
 
 ```
-Input sequence:  x_1, x_2, x_3, ..., x_T
-                   ↓    ↓    ↓         ↓
-Hidden states:   h_1→ h_2→ h_3→ ...→ h_T
-                   ↓    ↓    ↓         ↓
-Output:          y_1, y_2, y_3, ..., y_T
+Time expansion:
+
+       x_1      x_2      x_3
+        ↓        ↓        ↓
+     ┌─────┐  ┌─────┐  ┌─────┐
+h_0→│ RNN │→│ RNN │→│ RNN │→ h_3
+     └─────┘  └─────┘  └─────┘
+        ↓        ↓        ↓
+       y_1      y_2      y_3
+
+Each RNN cell shares the same weights!
 ```
 
 ### RNNCell Implementation
 
 ```python
-# nanotorch/nn/rnn.py
-
 class RNNCell(Module):
-    """Single-step RNN cell.
-    
-    h' = tanh(W_{ih} @ x + b_{ih} + W_{hh} @ h + b_{hh})
-    
-    Args:
-        input_size: Number of input features
-        hidden_size: Hidden state size
-        bias: Whether to use bias
-        nonlinearity: Activation function ('tanh' or 'relu')
+    """
+    Single-step RNN cell
+
+    Analogy:
+      - Input: Current scene you're watching
+      - Hidden state: Previous memory
+      - Output: Updated memory
     """
 
     def __init__(
         self,
-        input_size: int,
-        hidden_size: int,
+        input_size: int,    # Input dimension
+        hidden_size: int,   # Hidden state dimension
         bias: bool = True,
-        nonlinearity: str = "tanh",
-    ) -> None:
+    ):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.nonlinearity = nonlinearity
-        
-        # Input to hidden weights
+
+        # Input to hidden layer weights
         self.weight_ih = Tensor(
-            np.random.randn(input_size, hidden_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
+            np.random.randn(input_size, hidden_size).astype(np.float32) * 0.1,
             requires_grad=True,
         )
-        
-        # Hidden to hidden weights
+
+        # Hidden to hidden layer weights (memory transfer)
         self.weight_hh = Tensor(
-            np.random.randn(hidden_size, hidden_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
+            np.random.randn(hidden_size, hidden_size).astype(np.float32) * 0.1,
             requires_grad=True,
         )
-        
-        # Bias
-        self.bias_ih = None
-        self.bias_hh = None
+
         if bias:
             self.bias_ih = Tensor(np.zeros(hidden_size), requires_grad=True)
             self.bias_hh = Tensor(np.zeros(hidden_size), requires_grad=True)
 
-    def forward(self, x: Tensor, h: Optional[Tensor] = None) -> Tensor:
-        """Single-step forward propagation.
-        
+    def forward(self, x: Tensor, h: Tensor = None) -> Tensor:
+        """
+        Single-step forward propagation
+
         Args:
-            x: Current time step input (batch, input_size)
-            h: Previous time step hidden state (batch, hidden_size)
-        
+            x: Current input (batch, input_size)
+            h: Previous hidden state (batch, hidden_size)
+
         Returns:
-            New hidden state (batch, hidden_size)
+            New hidden state
         """
         if h is None:
             h = Tensor(np.zeros((x.shape[0], self.hidden_size)))
-        
-        # Compute input part
+
+        # Calculate new hidden state
         ih = x.matmul(self.weight_ih)
-        if self.bias_ih is not None:
-            ih = ih + self.bias_ih
-        
-        # Compute hidden part
         hh = h.matmul(self.weight_hh)
-        if self.bias_hh is not None:
+
+        if hasattr(self, 'bias_ih'):
+            ih = ih + self.bias_ih
             hh = hh + self.bias_hh
-        
-        # Combine and apply activation function
-        out = ih + hh
-        if self.nonlinearity == "tanh":
-            out = out.tanh()
-        elif self.nonlinearity == "relu":
-            out = out.relu()
-        
-        return out
+
+        # tanh activation
+        h_new = (ih + hh).tanh()
+
+        return h_new
 ```
 
-### Full RNN Implementation
+### Usage
 
 ```python
-class RNN(RNNBase):
-    """Multi-layer RNN network.
-    
-    Args:
-        input_size: Number of input features
-        hidden_size: Hidden state size
-        num_layers: Number of layers
-        nonlinearity: 'tanh' or 'relu'
-        bias: Whether to use bias
-        batch_first: Whether input is (batch, seq, feature) format
-        dropout: Dropout probability between layers
-        bidirectional: Whether to use bidirectional RNN
-    """
+# Create RNN cell
+cell = RNNCell(input_size=64, hidden_size=128)
 
-    def __init__(
-        self,
-        input_size: int,
-        hidden_size: int,
-        num_layers: int = 1,
-        nonlinearity: str = "tanh",
-        bias: bool = True,
-        batch_first: bool = False,
-        dropout: float = 0.0,
-        bidirectional: bool = False,
-    ) -> None:
-        super().__init__(
-            mode="RNN",
-            input_size=input_size,
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            bias=bias,
-            batch_first=batch_first,
-            dropout=dropout,
-            bidirectional=bidirectional,
-            nonlinearity=nonlinearity,
-        )
-```
+# Manually loop through sequence
+h = None
+outputs = []
 
-### RNN Problem: Vanishing Gradients
+for t in range(seq_len):
+    x_t = x[:, t, :]  # Current time step input
+    h = cell(x_t, h)   # Update hidden state
+    outputs.append(h)
 
-Basic RNNs suffer from **vanishing gradients** on long sequences:
-
-```
-Gradient propagation through time steps:
-∂L/∂h_t = ∂L/∂h_T × ∏(∂h_i/∂h_{i-1})
-
-When the sequence is long, the multiplied gradients decay or explode exponentially.
+# outputs is the hidden states for all time steps
 ```
 
 ---
 
-## LSTM Details
+## 11.3 RNN's Problem: Vanishing Gradients
 
-### Core Innovation
+### Problem
 
-LSTM (Long Short-Term Memory) solves the vanishing gradient problem through **gating mechanisms**:
-- **Forget Gate**: Decides what information to discard
-- **Input Gate**: Decides what information to update
-- **Output Gate**: Decides what information to output
-- **Cell State**: Long-term memory
+```
+RNN gradient propagation:
+
+∂L/∂h_1 = ∂L/∂h_T × ∂h_T/∂h_{T-1} × ... × ∂h_2/∂h_1
+
+Problem: Continuous multiplication many times!
+
+If each gradient < 1:
+  0.9 × 0.9 × 0.9 × ... × 0.9 (100 times) ≈ 0.00003
+
+Gradient vanishing → Early information cannot be learned
+```
+
+### Life Analogy
+
+```
+Telephone game:
+
+Original: "Meet at the usual place at 3 PM tomorrow"
+Person 1: "Meet at 3 at the usual place"
+Person 2: "Meet at 3 tomorrow"
+Person 3: "Meet tomorrow"
+...
+Person 10: "???" (Forgot)
+
+Information is gradually lost during transmission
+```
+
+---
+
+## 11.4 LSTM: Long-term Memory
+
+### Core Idea
+
+```
+LSTM = Long Short-Term Memory
+
+Introduces "cell state" c_t as long-term memory
+Uses "gates" to control information flow
+
+Three gates:
+  - Forget gate: Decides what old information to forget
+  - Input gate: Decides what new information to remember
+  - Output gate: Decides what information to output
+```
+
+### LSTM Diagram
+
+```
+                c_{t-1} ─────────────────────→ c_t
+                   │                    ↑
+                   │    ┌─────────────┐ │
+                   └──→ │ Forget gate │─┘
+                        │ Input gate  │──→ h_t
+            h_{t-1} ──→ │ Output gate │──→ output
+                ↑       └─────────────┘
+                │             ↑
+            x_t ─────────────┘
+```
 
 ### LSTM Formulas
 
 ```
-f_t = σ(W_f @ [h_{t-1}, x_t] + b_f)     Forget gate
-i_t = σ(W_i @ [h_{t-1}, x_t] + b_i)     Input gate
-o_t = σ(W_o @ [h_{t-1}, x_t] + b_o)     Output gate
-g_t = tanh(W_g @ [h_{t-1}, x_t] + b_g)  Candidate value
+Forget gate: f_t = sigmoid(W_f @ [h_{t-1}, x_t])     "How much to forget"
+Input gate: i_t = sigmoid(W_i @ [h_{t-1}, x_t])     "How much to remember"
+Candidate: g_t = tanh(W_g @ [h_{t-1}, x_t])        "New information"
+Output gate: o_t = sigmoid(W_o @ [h_{t-1}, x_t])     "How much to output"
 
-c_t = f_t * c_{t-1} + i_t * g_t         Update cell state
-h_t = o_t * tanh(c_t)                   Update hidden state
+Cell state: c_t = f_t * c_{t-1} + i_t * g_t      "Update long-term memory"
+Hidden state: h_t = o_t * tanh(c_t)                "Update short-term memory"
 ```
 
 ### LSTMCell Implementation
 
 ```python
 class LSTMCell(Module):
-    """LSTM cell.
-    
-    Args:
-        input_size: Number of input features
-        hidden_size: Hidden state size
-        bias: Whether to use bias
-    
-    Shape:
-        - Input: (batch, input_size)
-        - Hidden: ((batch, hidden_size), (batch, hidden_size))  # (h, c)
-        - Output: ((batch, hidden_size), (batch, hidden_size))  # (h', c')
+    """
+    LSTM cell
+
+    Analogy:
+      - c (cell state) = long-term memory (remembers things from long ago)
+      - h (hidden state) = short-term memory (remembers recent things)
+      - gates = brain's control mechanism
     """
 
-    def __init__(
-        self,
-        input_size: int,
-        hidden_size: int,
-        bias: bool = True,
-    ) -> None:
+    def __init__(self, input_size: int, hidden_size: int):
         super().__init__()
-        self.input_size = input_size
         self.hidden_size = hidden_size
-        
-        # Combine parameters for four gates (4 * hidden_size)
+
+        # Four gates combined for efficiency
         gate_size = 4 * hidden_size
-        
+
         self.weight_ih = Tensor(
-            np.random.randn(input_size, gate_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
+            np.random.randn(input_size, gate_size).astype(np.float32) * 0.1,
             requires_grad=True,
         )
         self.weight_hh = Tensor(
-            np.random.randn(hidden_size, gate_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
+            np.random.randn(hidden_size, gate_size).astype(np.float32) * 0.1,
             requires_grad=True,
         )
-        
-        self.bias_ih = None
-        self.bias_hh = None
-        if bias:
-            self.bias_ih = Tensor(np.zeros(gate_size), requires_grad=True)
-            self.bias_hh = Tensor(np.zeros(gate_size), requires_grad=True)
+        self.bias = Tensor(np.zeros(gate_size), requires_grad=True)
 
-    def forward(
-        self,
-        x: Tensor,
-        state: Optional[Tuple[Tensor, Tensor]] = None,
-    ) -> Tuple[Tensor, Tensor]:
-        """Single-step forward propagation.
-        
+    def forward(self, x: Tensor, state: tuple = None):
+        """
         Args:
-            x: Current input (batch, input_size)
+            x: Input (batch, input_size)
             state: (h, c) tuple
-        
         Returns:
             (h_new, c_new) tuple
         """
@@ -311,196 +303,256 @@ class LSTMCell(Module):
             c = Tensor(np.zeros((x.shape[0], self.hidden_size)))
         else:
             h, c = state
-        
-        # Compute all gates
-        gates = x.matmul(self.weight_ih) + h.matmul(self.weight_hh)
-        if self.bias_ih is not None:
-            gates = gates + self.bias_ih
-        if self.bias_hh is not None:
-            gates = gates + self.bias_hh
-        
+
+        # Calculate all gates
+        gates = x.matmul(self.weight_ih) + h.matmul(self.weight_hh) + self.bias
+
         # Split into four gates
-        i = gates[:, :self.hidden_size].sigmoid()           # Input gate
+        i = gates[:, :self.hidden_size].sigmoid()                    # Input gate
         f = gates[:, self.hidden_size:2*self.hidden_size].sigmoid()  # Forget gate
-        g = gates[:, 2*self.hidden_size:3*self.hidden_size].tanh()    # Candidate value
-        o = gates[:, 3*self.hidden_size:].sigmoid()         # Output gate
-        
+        g = gates[:, 2*self.hidden_size:3*self.hidden_size].tanh()   # Candidate value
+        o = gates[:, 3*self.hidden_size:].sigmoid()                  # Output gate
+
         # Update state
-        c_new = f * c + i * g
-        h_new = o * c_new.tanh()
-        
+        c_new = f * c + i * g        # Long-term memory: selective forgetting + selective remembering
+        h_new = o * c_new.tanh()     # Short-term memory: selective output
+
         return h_new, c_new
 ```
 
-### Full LSTM
+### Why Doesn't LSTM Easily Vanish Gradients?
 
-```python
-from nanotorch.nn import LSTM
+```
+Cell state update:
+  c_t = f_t * c_{t-1} + i_t * g_t
 
-lstm = LSTM(
-    input_size=64,
-    hidden_size=128,
-    num_layers=2,
-    batch_first=True,
-    bidirectional=True
-)
+Gradient propagation:
+  ∂c_t/∂c_{t-1} = f_t
 
-x = Tensor.randn((32, 10, 64))  # (batch, seq_len, input_size)
-output, (h_n, c_n) = lstm(x)
-
-print(output.shape)  # (32, 10, 256)  # 256 = 128 * 2 (bidirectional)
-print(h_n.shape)     # (4, 32, 128)   # 4 = 2 layers * 2 directions
+If f_t ≈ 1, gradient can pass through directly!
+The forget gate learns when to preserve information.
 ```
 
 ---
 
-## GRU Details
+## 11.5 GRU: Simplified LSTM
 
 ### Core Idea
 
-GRU (Gated Recurrent Unit) is a simplified version of LSTM with only two gates:
-- **Reset Gate**: Controls how to combine new input with previous memory
-- **Update Gate**: Controls how much of the previous hidden state to retain
+```
+GRU = Gated Recurrent Unit
+
+Simplified version of LSTM:
+  - Only 2 gates (LSTM has 3)
+  - Only 1 state (LSTM has h and c)
+  - Fewer parameters, faster training
+```
 
 ### GRU Formulas
 
 ```
-r_t = σ(W_r @ [h_{t-1}, x_t])      Reset gate
-z_t = σ(W_z @ [h_{t-1}, x_t])      Update gate
-n_t = tanh(W_n @ [r_t * h_{t-1}, x_t])  Candidate hidden state
+Reset gate: r_t = sigmoid(W_r @ [h_{t-1}, x_t])    "How much to reset"
+Update gate: z_t = sigmoid(W_z @ [h_{t-1}, x_t])    "How much to update"
+Candidate: n_t = tanh(W_n @ [r_t * h_{t-1}, x_t]) "New information"
 
-h_t = (1 - z_t) * n_t + z_t * h_{t-1}   New hidden state
+New state: h_t = (1-z_t) * n_t + z_t * h_{t-1}
 ```
 
 ### GRUCell Implementation
 
 ```python
 class GRUCell(Module):
-    """GRU cell.
-    
-    Shape:
-        - Input: (batch, input_size)
-        - Hidden: (batch, hidden_size)
-        - Output: (batch, hidden_size)
+    """
+    GRU cell
+
+    Simpler than LSTM, but similar performance
+    """
+
+    def __init__(self, input_size: int, hidden_size: int):
+        super().__init__()
+        self.hidden_size = hidden_size
+
+        # 3 gates
+        gate_size = 3 * hidden_size
+
+        self.weight_ih = Tensor(
+            np.random.randn(input_size, gate_size).astype(np.float32) * 0.1,
+            requires_grad=True,
+        )
+        self.weight_hh = Tensor(
+            np.random.randn(hidden_size, gate_size).astype(np.float32) * 0.1,
+            requires_grad=True,
+        )
+
+    def forward(self, x: Tensor, h: Tensor = None) -> Tensor:
+        if h is None:
+            h = Tensor(np.zeros((x.shape[0], self.hidden_size)))
+
+        gates = x.matmul(self.weight_ih) + h.matmul(self.weight_hh)
+
+        # Split
+        r = gates[:, :self.hidden_size].sigmoid()                     # Reset gate
+        z = gates[:, self.hidden_size:2*self.hidden_size].sigmoid()   # Update gate
+        n = gates[:, 2*self.hidden_size:].tanh()                       # Candidate value
+
+        # Update
+        h_new = (1 - z) * n + z * h
+
+        return h_new
+```
+
+---
+
+## 11.6 LSTM vs GRU
+
+| Feature | LSTM | GRU |
+|------|------|-----|
+| Number of gates | 3 | 2 |
+| Number of states | 2 (h, c) | 1 (h) |
+| Parameters | More | 30% fewer |
+| Computation speed | Slower | Faster |
+| Expressiveness | Slightly stronger | Similar |
+| Training difficulty | Harder | Easier |
+
+```
+Selection suggestions:
+  - Pursuing performance: LSTM
+  - Pursuing speed: GRU
+  - Uncertain: Try GRU first
+```
+
+---
+
+## 11.7 Complete RNN Layer
+
+### Encapsulating the Loop
+
+```python
+class LSTM(Module):
+    """
+    Complete LSTM layer
+
+    Automatically handles entire sequence, no manual looping needed
     """
 
     def __init__(
         self,
         input_size: int,
         hidden_size: int,
-        bias: bool = True,
-    ) -> None:
+        num_layers: int = 1,
+        batch_first: bool = False,
+        bidirectional: bool = False,
+    ):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        
-        # Three gate parameters (3 * hidden_size)
-        self.weight_ih = Tensor(
-            np.random.randn(input_size, 3 * hidden_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
-            requires_grad=True,
-        )
-        self.weight_hh = Tensor(
-            np.random.randn(hidden_size, 3 * hidden_size).astype(np.float32)
-            * math.sqrt(1.0 / hidden_size),
-            requires_grad=True,
-        )
-        
-        # bias initialization...
+        self.num_layers = num_layers
+        self.batch_first = batch_first
+        self.bidirectional = bidirectional
 
-    def forward(self, x: Tensor, h: Optional[Tensor] = None) -> Tensor:
-        if h is None:
-            h = Tensor(np.zeros((x.shape[0], self.hidden_size)))
-        
-        # Compute gates
-        gi = x.matmul(self.weight_ih)
-        gh = h.matmul(self.weight_hh)
-        # ... add bias
-        
-        # Split into three parts
-        i_r, i_z, i_n = gi.chunk(3, dim=-1)
-        h_r, h_z, h_n = gh.chunk(3, dim=-1)
-        
-        # Compute gates
-        r = (i_r + h_r).sigmoid()  # Reset gate
-        z = (i_z + h_z).sigmoid()  # Update gate
-        n = (i_n + r * h_n).tanh() # Candidate hidden state
-        
-        # Update hidden state
-        h_new = (1 - z) * n + z * h
-        
-        return h_new
-```
+        # Create multi-layer LSTM
+        self.cells = []
+        for i in range(num_layers):
+            in_size = input_size if i == 0 else hidden_size
+            self.cells.append(LSTMCell(in_size, hidden_size))
 
-### LSTM vs GRU
+    def forward(self, x: Tensor, state: tuple = None):
+        """
+        Args:
+            x: Input sequence
+               batch_first=False: (seq_len, batch, input_size)
+               batch_first=True:  (batch, seq_len, input_size)
+            state: Initial state (h_0, c_0)
 
-| Feature | LSTM | GRU |
-|---------|------|-----|
-| Number of gates | 3 | 2 |
-| Number of states | 2 (h, c) | 1 (h) |
-| Parameters | More | Fewer |
-| Computation speed | Slower | Faster |
-| Expressiveness | Stronger | Similar |
-| Training difficulty | Harder | Easier |
+        Returns:
+            output: Output for all time steps
+            (h_n, c_n): State at last time step
+        """
+        if self.batch_first:
+            # Convert to (seq_len, batch, input_size)
+            x = x.transpose(0, 1)
 
----
+        seq_len, batch, _ = x.shape
 
-## Cell Version vs Full Version
+        # Initialize state
+        if state is None:
+            h = [Tensor(np.zeros((batch, self.hidden_size))) for _ in range(self.num_layers)]
+            c = [Tensor(np.zeros((batch, self.hidden_size))) for _ in range(self.num_layers)]
+        else:
+            h, c = state
 
-### Cell Version
+        outputs = []
 
-For **manual control** of each time step:
+        # Process time step by time step
+        for t in range(seq_len):
+            x_t = x[t]
 
-```python
-from nanotorch.nn import LSTMCell
+            # Process layer by layer
+            for layer, cell in enumerate(self.cells):
+                h[layer], c[layer] = cell(x_t, (h[layer], c[layer]))
+                x_t = h[layer]
 
-cell = LSTMCell(input_size=64, hidden_size=128)
+            outputs.append(h[-1])
 
-h = None
-c = None
-outputs = []
+        output = Tensor(np.stack([o.data for o in outputs], axis=0))
 
-for t in range(seq_len):
-    x_t = x[:, t, :]  # Current time step input
-    h, c = cell(x_t, (h, c))
-    outputs.append(h)
-
-output = Tensor(np.stack([o.data for o in outputs], axis=1))
-```
-
-### Full Version
-
-Automatically handles the entire sequence:
-
-```python
-from nanotorch.nn import LSTM
-
-lstm = LSTM(input_size=64, hidden_size=128, batch_first=True)
-
-# Process entire sequence at once
-output, (h_n, c_n) = lstm(x)
-```
-
----
-
-## Bidirectional RNN
-
-### Principle
-
-Bidirectional RNN processes sequences from both forward and backward directions:
-
-```
-Forward:  h_1 → h_2 → h_3 → ... → h_T
-Backward: h'_1 ← h'_2 ← h'_3 ← ... ← h'_T
-
-Output: [h_1, h'_1], [h_2, h'_2], ..., [h_T, h'_T]
+        return output, (h, c)
 ```
 
 ### Usage
 
 ```python
-from nanotorch.nn import LSTM
+# Create LSTM
+lstm = LSTM(
+    input_size=64,
+    hidden_size=128,
+    num_layers=2,
+    batch_first=True,
+    bidirectional=False
+)
 
+# Input
+x = Tensor.randn((32, 10, 64))  # (batch, seq_len, input_size)
+
+# Forward propagation
+output, (h_n, c_n) = lstm(x)
+
+print(output.shape)  # (32, 10, 128)
+```
+
+---
+
+## 11.8 Bidirectional RNN
+
+### Principle
+
+```
+Ordinary RNN: Only looks at past
+  I → love → you → !
+
+Bidirectional RNN: Looks at both past and future
+  Forward: I → love → you → !
+  Backward: I ← love ← you ← !
+
+Merge: [forward h_t, backward h_t]
+```
+
+### Use Cases
+
+```
+Suitable for: Tasks requiring complete context
+  - Machine translation
+  - Named entity recognition
+  - Sentiment analysis
+
+Not suitable for: Real-time generation tasks
+  - Real-time speech recognition (can't see future)
+  - Text generation
+```
+
+### Usage
+
+```python
 # Bidirectional LSTM
 bi_lstm = LSTM(
     input_size=64,
@@ -517,90 +569,60 @@ print(output.shape)  # (32, 10, 256)  # 256 = 128 * 2 directions
 
 ---
 
-## Usage Examples
+## 11.9 Application Examples
 
 ### Text Classification
 
 ```python
-from nanotorch import Tensor
-from nanotorch.nn import Embedding, LSTM, Linear
-
 class TextClassifier:
+    """
+    Text classification using LSTM
+
+    Structure: Embedding → LSTM → Take last hidden state → Classification
+    """
+
     def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes):
         self.embedding = Embedding(vocab_size, embed_dim)
-        self.lstm = LSTM(
-            input_size=embed_dim,
-            hidden_size=hidden_dim,
-            num_layers=2,
-            batch_first=True,
-            bidirectional=True
-        )
-        self.fc = Linear(hidden_dim * 2, num_classes)  # *2 for bidirectional
-    
+        self.lstm = LSTM(embed_dim, hidden_dim, batch_first=True)
+        self.fc = Linear(hidden_dim, num_classes)
+
     def __call__(self, x):
-        # x: (batch, seq_len) integer indices
-        x = self.embedding(x)  # (batch, seq_len, embed_dim)
+        # x: (batch, seq_len) word indices
+        x = self.embedding(x)        # (batch, seq_len, embed_dim)
         output, (h_n, c_n) = self.lstm(x)
-        
-        # Use last time step output
-        # h_n shape: (num_layers * 2, batch, hidden_dim)
-        # Take bidirectional output from last layer
-        h_forward = h_n[-2]  # Forward last layer
-        h_backward = h_n[-1]  # Backward last layer
-        h_concat = Tensor(np.concatenate([h_forward.data, h_backward.data], axis=-1))
-        
-        return self.fc(h_concat)
-    
+        h_last = h_n[-1]              # Last layer's hidden state
+        return self.fc(h_last)
+
     def parameters(self):
         return self.embedding.parameters() + self.lstm.parameters() + self.fc.parameters()
-
-# Usage
-model = TextClassifier(vocab_size=10000, embed_dim=128, hidden_dim=256, num_classes=5)
-x = Tensor(np.random.randint(0, 10000, (32, 50)))  # (batch, seq_len)
-logits = model(x)
-```
-
-### Sequence Labeling (NER)
-
-```python
-class SequenceTagger:
-    def __init__(self, vocab_size, embed_dim, hidden_dim, num_tags):
-        self.embedding = Embedding(vocab_size, embed_dim)
-        self.lstm = LSTM(embed_dim, hidden_dim, batch_first=True, bidirectional=True)
-        self.fc = Linear(hidden_dim * 2, num_tags)
-    
-    def __call__(self, x):
-        x = self.embedding(x)
-        output, _ = self.lstm(x)  # output: (batch, seq_len, hidden_dim * 2)
-        
-        # Classify each time step
-        batch, seq_len, _ = output.shape
-        output = output.reshape(batch * seq_len, -1)
-        logits = self.fc(output)
-        return logits.reshape(batch, seq_len, -1)
 ```
 
 ### Language Model
 
 ```python
 class LanguageModel:
-    def __init__(self, vocab_size, embed_dim, hidden_dim, num_layers=2):
+    """
+    Language model using LSTM
+
+    Predict next word
+    """
+
+    def __init__(self, vocab_size, embed_dim, hidden_dim):
         self.embedding = Embedding(vocab_size, embed_dim)
-        self.lstm = LSTM(embed_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = LSTM(embed_dim, hidden_dim, batch_first=True)
         self.fc = Linear(hidden_dim, vocab_size)
-    
+
     def __call__(self, x):
         x = self.embedding(x)
         output, _ = self.lstm(x)
-        logits = self.fc(output)
+        logits = self.fc(output)  # Predict next word at each position
         return logits
-    
-    def generate(self, start_token, max_len=100):
-        """Autoregressive text generation"""
+
+    def generate(self, start_token, max_len=50):
+        """Generate text"""
         tokens = [start_token]
-        h = None
-        c = None
-        
+        h, c = None, None
+
         for _ in range(max_len):
             x = Tensor([[tokens[-1]]])
             x = self.embedding(x)
@@ -608,36 +630,74 @@ class LanguageModel:
             logits = self.fc(output[:, -1, :])
             next_token = np.argmax(logits.data, axis=-1)[0]
             tokens.append(next_token)
-        
+
         return tokens
 ```
 
 ---
 
-## Summary
+## 11.10 Common Pitfalls
 
-This tutorial introduced recurrent neural network implementations in nanotorch:
+### Pitfall 1: Forgetting to Pass Hidden State
 
-| Model | Characteristics | Use Case |
-|-------|-----------------|----------|
-| **RNN** | Simple, but vanishing gradients | Short sequences |
-| **LSTM** | Three gates, long-term memory | Long sequences, complex tasks |
-| **GRU** | Two gates, simpler | Long sequences, efficiency priority |
+```python
+# Wrong: Reset at every time step
+for t in range(seq_len):
+    h = cell(x[t], None)  # Reinitializes every time!
 
-### Key Points
+# Correct: Pass hidden state
+h = None
+for t in range(seq_len):
+    h = cell(x[t], h)
+```
 
-1. **Cell version** is suitable for scenarios requiring fine-grained control
-2. **Full version** is suitable for directly processing entire sequences
-3. **Bidirectional RNN** can utilize both forward and backward context
-4. **LSTM/GRU** solve vanishing gradients through gating mechanisms
+### Pitfall 2: batch_first Confusion
 
-### Next Steps
+```python
+# LSTM defaults to batch_first=False
+lstm = LSTM(64, 128)
+x = Tensor.randn((32, 10, 64))  # (batch, seq, feature)
 
-In [Tutorial 12: Transformer](12-transformer.md), we will learn how to implement the Transformer architecture, which is the foundation of modern NLP.
+# Will error! Should transpose first or set batch_first=True
+lstm = LSTM(64, 128, batch_first=True)
+```
+
+### Pitfall 3: Gradient Clipping
+
+```python
+# RNNs are prone to gradient explosion, need clipping
+from nanotorch.utils import clip_grad_norm_
+
+loss.backward()
+clip_grad_norm_(model.parameters(), max_norm=1.0)  # Important!
+optimizer.step()
+```
 
 ---
 
-**References**:
-- [Understanding LSTM Networks](https://colah.github.io/posts/2015-08-Understanding-LSTMs/)
-- [The Unreasonable Effectiveness of Recurrent Neural Networks](http://karpathy.github.io/2015/05/21/rnn-effectiveness/)
-- [Learning Phrase Representations using RNN Encoder-Decoder (GRU)](https://arxiv.org/abs/1406.1078)
+## 11.11 Summary in One Sentence
+
+| Concept | One Sentence |
+|------|--------|
+| RNN | Neural network with memory, remembers historical information |
+| Hidden state | Carrier for transmitting information |
+| LSTM | Uses gating to solve long-term memory |
+| GRU | Simplified LSTM, faster |
+| Bidirectional | Looks at both past and future simultaneously |
+
+---
+
+## Next Chapter
+
+Now we've learned RNNs for processing sequences!
+
+Next chapter, we'll learn **Transformer** — the foundation of modern NLP, the core of ChatGPT.
+
+→ [Chapter 12: Transformer](12-transformer.md)
+
+```python
+# Preview: What you'll learn in the next chapter
+attention = MultiheadAttention(embed_dim=512, num_heads=8)
+# Use attention mechanism to replace recurrence
+# Process entire sequence in parallel
+```

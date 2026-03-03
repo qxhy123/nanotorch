@@ -1,44 +1,57 @@
 # Chapter 6: Optimizers
 
-## The Art of Descending...
+## In the Fog, How to Find the Valley...
 
-Picture yourself on a mountainside at night.
+You're trapped on a misty mountain, visibility less than three meters.
 
-Your goal: reach the lowest point in the valley. You can't see far ahead—only the slope beneath your feet. Which direction should you step?
+You can't see the full picture, don't know which direction the valley is. You can only sense one thing: **the slope beneath your feet**.
 
-The obvious answer: step downhill. Follow the gradient. Go where the ground slopes downward.
+The slope tells you: "This way is the fastest upward." Then the opposite direction is the fastest way down.
 
-But the obvious answer isn't always the best answer.
+So you take a step. Sense the slope again. Take another step. Step by step... until the mist clears, and you find yourself at the foot of the mountain.
 
 ```
-The Challenge of Descent:
+The Philosophy of Gradient Descent:
 
-  Naive approach:
-    "Always step in the steepest direction"
-    Problem: You might zigzag forever, oscillating in narrow valleys
-
-  With momentum:
-    "Remember where you were going, don't change direction too fast"
-    Like a rolling ball, you carry inertia past small bumps
-
-  Adaptive learning:
-    "Some parameters need big steps, some need small"
-    Like a hiker who takes big steps on flat ground, tiny steps on cliffs
-
-The optimizer is the brain of the descent.
-It decides not just WHICH direction, but HOW to step,
-HOW FAST to move, HOW to adapt to the terrain.
+  I don't know what the mountain looks like
+  But I know the slope beneath my feet
+  Walk in the opposite direction of the slope
+  Someday, I'll reach the valley
 ```
 
-**The optimizer is where the art meets the science.** A neural network with perfect gradients but a poor optimizer will learn slowly, or not at all. The right optimizer can make the difference between training for days and training for hours.
+**The optimizer is that "descent strategy."** It tells you how to walk each step—how big the steps should be, whether to remember previous directions, what to do when encountering flat ground.
 
-SGD is the simple approach—just step downhill. Momentum adds physics, carrying you past local dips. Adam adds intelligence, adapting each step to the terrain. Each optimizer is a different philosophy of learning, a different strategy for the journey downhill.
+Some optimizers are careful,步步为营 (SGD). Some optimizers are clever, adaptively adjusting step size (Adam). But their core philosophy is the same:
 
-In this chapter, we'll implement these optimizers and understand not just the math, but the intuition behind them.
+**Follow the gradient, walk downhill.**
 
 ---
 
 ## 6.1 Gradient Descent Basics
+
+### Core Formula
+
+```
+θ_new = θ_old - lr × ∂L/∂θ
+
+Parameter   Parameter   Learning rate   Gradient
+   ↓           ↓            ↓            ↓
+ Where to go  Now      How big step   Which way up
+```
+
+### Life Analogy
+
+```
+Going downhill = Gradient descent
+
+1. Look at slope beneath feet (gradient)
+2. Take a step in the opposite direction of slope
+3. Repeat until flat ground (loss minimum)
+
+Learning rate = Step size
+  Too small → Walk too slowly, takes forever
+  Too large → Might step over the valley, or even walk back up
+```
 
 ```
 θ_new = θ_old - lr * ∂L/∂θ

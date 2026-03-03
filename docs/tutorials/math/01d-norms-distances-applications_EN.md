@@ -4,6 +4,65 @@ Norms are tools for measuring the "size" of vectors or matrices, while distance 
 
 ---
 
+## 🎯 Life Analogy: Different Ways to Measure Distance
+
+Imagine you want to go from point A to point B. There are several ways to measure the distance:
+
+| Norm | Analogy | Calculation |
+|------|---------|-------------|
+| **L₁** | City streets (can only go horizontal or vertical) | Horizontal + Vertical distance |
+| **L₂** | Straight line (as the crow flies) | Hypotenuse of right triangle |
+| **L∞** | Only look at the longest dimension | The larger of horizontal and vertical |
+
+```
+Manhattan Distance (L1): Walking city blocks
+A ──→ ──→ ──→
+│              │
+↓              ↓
+    B ←── ←── ←
+
+Euclidean Distance (L2): Straight line
+A ╲
+   ╲
+    ╲
+      B
+```
+
+### 📝 Step-by-Step Calculation
+
+For vector $\mathbf{x} = [3, 4]$, calculate various norms:
+
+**L₁ Norm (Manhattan Distance)**:
+$$\|\mathbf{x}\|_1 = |3| + |4| = 7$$
+(Walk 3 blocks horizontally + 4 blocks vertically = 7 blocks total)
+
+**L₂ Norm (Euclidean Distance)**:
+$$\|\mathbf{x}\|_2 = \sqrt{3^2 + 4^2} = \sqrt{9 + 16} = \sqrt{25} = 5$$
+(Hypotenuse of right triangle = 5)
+
+**L∞ Norm (Max Norm)**:
+$$\|\mathbf{x}\|_\infty = \max(|3|, |4|) = 4$$
+(Only look at the largest component)
+
+### 📖 Why Do We Need Different Norms?
+
+| Norm | Use Case | Reason |
+|------|----------|--------|
+| L₁ | Feature selection, sparse solutions | Drives unimportant features to zero |
+| L₂ | Ridge regression, weight decay | Prevents overfitting, smooth |
+| L∞ | Constrain maximum values | Limits any component from getting too big |
+
+### 📖 Plain English Translation
+
+| Math Term | Plain English |
+|-----------|---------------|
+| Norm | A way to measure "size" or "length" |
+| L₁ distance | City block distance (taxicab geometry) |
+| L₂ distance | Straight-line distance (as the crow flies) |
+| Cosine similarity | Angle between two vectors (regardless of length) |
+
+---
+
 ## Table of Contents
 
 1. [Vector Norms](#vector-norms)

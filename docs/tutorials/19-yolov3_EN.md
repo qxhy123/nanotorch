@@ -1,37 +1,32 @@
 # YOLO v3 Object Detection Model Implementation Tutorial
 
-## Seeing at Every Scale...
+## You must have had this experience...
 
-Small objects. Medium objects. Large objects.
+Standing before a giant mural, your gaze wanders through three worlds—
 
-A detection system that only looks at one scale is like a photographer who only uses one lens. Sure, you can capture medium-sized subjects well, but the tiny bird in the distance? Blurred. The towering building up close? Cropped.
+Stepping back, you see rolling mountains, clouds drifting—this is the **big picture**.
 
-**YOLO v3 solved this with a beautiful idea: detect at three scales simultaneously.**
+Moving closer, you see pavilions, figures in motion—this is the **medium view**.
+
+Getting very close, you see dewdrops on petals, feathers on birds—this is the **fine detail**.
+
+A good painting always has something to see at every distance. And a good detector should be the same.
+
+YOLO v2, though excellent, had a fatal blind spot—it could only see the world at one scale. Large objects had nowhere to hide, but small objects were often missed.
+
+So YOLO v3 learned to see the world with **three pairs of eyes**:
 
 ```
-The Power of Multi-Scale Detection:
+A 52×52 fine grid, catching bees on petals
+A 26×26 moderate view, locking onto figures in courtyards
+A 13×13 grand vision, surveying the outline of distant mountains
 
-  Single scale (YOLO v1/v2):
-    Process at 416×416, detect at 13×13 grid
-    Each cell sees a 32×32 pixel region
-    Small objects? Lost in the noise.
-    Large objects? Coarse boundaries.
-
-  Three scales (YOLO v3):
-    Scale 1: 13×13 grid → Large objects
-    Scale 2: 26×26 grid → Medium objects
-    Scale 3: 52×52 grid → Small objects
-
-  The Feature Pyramid Network:
-    Deep features (semantic) flow down
-    Shallow features (spatial) flow up
-    They merge at each scale
-    → Every object, regardless of size, has its moment
+Three realms, three gazes
+The big and the small, the far and the near
+Nothing escapes detection
 ```
 
-**YOLO v3 is where YOLO became complete.** The Darknet-53 backbone was deeper and stronger than ever, with residual connections borrowed from ResNet. The feature pyramid network meant small objects finally got detected. The independent logistic classifiers meant multi-label detection was possible.
-
-In this tutorial, we'll implement YOLO v3 from scratch. We'll see how the FPN fuses features across scales, how the three detection heads work together, and how this architecture became the foundation for virtually every YOLO that followed.
+**YOLO v3—Three eyes see all things**, large and small, near and far.
 
 ---
 
@@ -373,7 +368,7 @@ predictions = {
 }
 
 targets = [
-    {'boxes': np.array([[100, 100, 200, 200]], dtype=np.float32), 
+    {'boxes': np.array([[100, 100, 200, 200]], dtype=np.float32),
      'labels': np.array([0], dtype=np.int64)},
     {'boxes': np.array([[50, 50, 150, 150]], dtype=np.float32),
      'labels': np.array([1], dtype=np.int64)}
@@ -524,7 +519,7 @@ for epoch in range(10):
     model.train()
     total_loss = 0
     num_batches = 0
-    
+
     for batch in dataloader:
         # Prepare data
         images = Tensor(batch['image'])
@@ -532,25 +527,25 @@ for epoch in range(10):
             {'boxes': batch['boxes'][i], 'labels': batch['labels'][i]}
             for i in range(len(batch['boxes']))
         ]
-        
+
         # Forward pass
         optimizer.zero_grad()
         output = model(images)
-        
+
         # Compute MSE loss for gradient update
         loss = 0.0
         for scale_name, pred in output.items():
             diff = pred - Tensor(np.zeros_like(pred.data))
             loss += (diff * diff).mean().item()
-        
+
         # Simplified backward pass
         loss_tensor = Tensor(loss, requires_grad=True)
         loss_tensor.backward()
         optimizer.step()
-        
+
         total_loss += loss
         num_batches += 1
-    
+
     scheduler.step()
     avg_loss = total_loss / num_batches
     print(f"Epoch {epoch}, Average Loss: {avg_loss:.4f}")
@@ -652,14 +647,14 @@ def train_yolov3():
     learning_rate = 1e-4
     image_size = 416
     num_classes = 80
-    
+
     # Create model
     model = YOLOv3Tiny(num_classes=num_classes, input_size=image_size)
-    
+
     # Create optimizer and scheduler
     optimizer = Adam(model.parameters(), lr=learning_rate)
     scheduler = StepLR(optimizer, step_size=10, gamma=0.1)
-    
+
     # Create dataloader
     dataloader = create_dataloader(
         num_samples=200,
@@ -668,40 +663,40 @@ def train_yolov3():
         num_classes=num_classes,
         shuffle=True
     )
-    
+
     # Training loop
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0
-        
+
         for batch in dataloader:
             images = Tensor(batch['image'])
-            
+
             optimizer.zero_grad()
-            
+
             # Forward pass
             output = model(images)
-            
+
             # MSE loss (for backward)
             loss = 0.0
             for scale_name, pred in output.items():
                 diff = pred - Tensor(np.zeros_like(pred.data))
                 loss += (diff * diff).mean().item()
-            
+
             # Simplified backward pass
             loss_tensor = Tensor(loss, requires_grad=True)
             loss_tensor.backward()
             optimizer.step()
-            
+
             total_loss += loss
-        
+
         scheduler.step()
-        
+
         # Print statistics
         avg_loss = total_loss / len(dataloader)
         current_lr = optimizer.param_groups[0]['lr']
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}, LR: {current_lr:.6f}")
-    
+
     return model
 
 if __name__ == "__main__":
@@ -800,7 +795,7 @@ python examples/yolo_v3/demo.py --mode inference \
 ### Complete Workflow (Training + Inference)
 
 ```bash
-# Run complete demo: architecture → training → inference
+# Run complete demo: architecture -> training -> inference
 python examples/yolo_v3/demo.py --mode both
 ```
 

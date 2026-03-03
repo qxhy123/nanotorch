@@ -4,6 +4,72 @@ Limit theorems (law of large numbers and central limit theorem) are the cornerst
 
 ---
 
+## 🎯 Life Analogy: Limit Theorems are "What Happens on Average"
+
+### Law of Large Numbers = "Strength in Numbers, Averages Stabilize"
+
+Imagine you're estimating the average height of all students:
+- Ask 1 person: Might be very tall or very short, not accurate
+- Ask 10 people: Better, but still might be biased
+- Ask 1000 people: Very close to the true average height!
+- Ask everyone: Almost exactly the true average
+
+```
+Sample size:   1 person   10 people   100 people   1000 people
+                 ↓           ↓           ↓            ↓
+Estimate:     185cm      172cm       168cm        170.1cm
+                 ↑           ↑           ↑            ↑
+            Very unstable  Stabilizing  More stable  Very close to true (170cm)
+```
+
+**Law of Large Numbers tells us**: More samples = more stable average = converges to true expectation.
+
+### Central Limit Theorem = "Why Bell Curves Are Everywhere"
+
+No matter what the original distribution looks like, **the sum of many independent random variables** tends toward a **normal distribution** (bell curve).
+
+```
+Rolling 1 die: Each face equally likely ━━━━━━━━ (uniform distribution)
+
+Sum of 100 dice: ╭───╮
+                  ╱     ╲
+                 ╱       ╲
+                ╱         ╲
+               ───────────── (normal distribution!)
+```
+
+**That's why**: Height, test scores, measurement errors are all approximately normal—they're sums of many small factors.
+
+### Entropy = "Measuring Uncertainty"
+
+**Entropy = Average surprise level**
+
+| Event | Probability | Surprise Level |
+|-------|-------------|----------------|
+| Sun rises tomorrow | 99.99% | Very small (expected) |
+| Win lottery | 0.01% | Very large (shocking!) |
+| Coin flip heads | 50% | Medium |
+
+```
+High entropy ─────────────────────────────────→ Low entropy
+    │                                                │
+Very uncertain (coin flip)                    Very certain (sun rises)
+    │                                                │
+Lots of information (result tells you a lot)  Little information (not surprising)
+```
+
+### 📖 Cross Entropy = "Encoding with Wrong Distribution"
+
+**Scenario**: You're guessing if a coin is heads or tails
+- Reality: The coin has 90% chance of heads
+- Your guess: You think it's 50-50
+
+Using your guess to encode, you'll waste many bits!
+
+**Cross-entropy loss**: Measures the gap between your predicted distribution and the true distribution.
+
+---
+
 ## Table of Contents
 
 1. [Law of Large Numbers](#law-of-large-numbers)

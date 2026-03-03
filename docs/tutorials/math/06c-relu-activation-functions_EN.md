@@ -4,6 +4,54 @@ ReLU (Rectified Linear Unit) is the most commonly used activation function in de
 
 ---
 
+## 🎯 Life Analogy: ReLU is Like a Volume Knob
+
+```
+ReLU: "If it's negative, silence it. If positive, let it through."
+
+Input:  -5  -2   0   2   5
+         ↓   ↓   ↓   ↓   ↓
+ReLU:    0   0   0   2   5
+
+Like a volume knob that can't go below zero!
+```
+
+### The "Dead Neuron" Problem
+
+```
+Regular ReLU:
+Input:  -10  -5   0   5   10
+Output:   0   0   0   5   10
+          ↑
+    "Dead" - always outputs 0, never learns
+
+Leaky ReLU:
+Input:  -10   -5    0    5   10
+Output: -0.1 -0.05   0    5   10
+          ↑
+    Still alive! Small gradient allows recovery
+```
+
+### 📖 Activation Functions Comparison
+
+| Function | Formula | Pros | Cons |
+|----------|---------|------|------|
+| **ReLU** | $\max(0, x)$ | Fast, no vanishing gradient | Dead neurons |
+| **Leaky ReLU** | $\max(0.01x, x)$ | No dead neurons | Another hyperparameter |
+| **Sigmoid** | $\frac{1}{1+e^{-x}}$ | Output is probability | Vanishing gradients |
+| **Tanh** | $\frac{e^x-e^{-x}}{e^x+e^{-x}}$ | Zero-centered | Vanishing gradients |
+| **GELU** | $x \cdot \Phi(x)$ | Smooth, works well in Transformers | Slower to compute |
+
+### Plain English Translation
+
+| Term | Plain English |
+|------|---------------|
+| Activation function | Decides if a neuron "fires" |
+| Vanishing gradient | Gradient gets too small to learn |
+| Dead neuron | Neuron that never activates (always outputs 0) |
+
+---
+
 ## Table of Contents
 
 1. [ReLU Function](#relu-function)

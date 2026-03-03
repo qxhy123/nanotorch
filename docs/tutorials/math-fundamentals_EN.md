@@ -1,30 +1,25 @@
 # Mathematical Foundations: Essential Knowledge for Deep Learning
 
-## The Language of Neural Networks...
+## Mathematics is the Key to Understanding Deep Learning...
 
 Many ask: "How much math do I need for deep learning?"
 
-The answer: You don't need to be a mathematician, but you need to understand the language.
+The answer: You don't need to be a mathematician, but you need to understand the language of mathematics.
 
-Neural networks are mathematical machines—matrix multiplications, derivatives, probability distributions, optimization algorithms. If you don't understand them, deep learning is a black box. If you do, everything becomes transparent, comprehensible, controllable.
+Neural networks are essentially a series of mathematical operations: matrix multiplications, derivatives, probability distributions, and optimization. If you don't understand them, deep learning is a black box; if you do, everything becomes transparent, comprehensible, and controllable.
 
 ```
-Mathematics Meets Deep Learning:
+Mathematics and Deep Learning:
 
-  Linear Algebra → Understanding tensors and matrix operations
-  Calculus       → Understanding gradient descent and backpropagation
-  Probability    → Understanding uncertainty and generative models
-  Statistics     → Understanding inference and evaluation
-  Optimization   → Understanding training dynamics
-  Functions      → Understanding activations and losses
-  Sequences      → Understanding learning rate schedules and RNNs
+  Linear Algebra     → Understanding tensor operations, matrix multiplication
+  Calculus           → Understanding gradient descent, backpropagation
+  Probability Theory → Understanding uncertainty, generative models
+  Optimization       → Understanding training processes, convergence conditions
 
-Mathematics is not an obstacle—it's a bridge to understanding.
+Mathematics is not an obstacle, but a bridge to understanding
 ```
 
-**This tutorial systematically covers the math you need.** Each concept is explained in the context of deep learning—not just "what is it," but "why do we need it." Every formula connects to code, every abstraction to application.
-
-From the matrices that power forward passes to the gradients that fuel learning, from the probability distributions that model uncertainty to the optimization methods that find optima—this is the mathematical foundation upon which all of deep learning rests.
+This tutorial will guide you step by step through these foundations. Each concept is explained in the context of practical deep learning applications—not just "what it is," but "why it's needed."
 
 ---
 
@@ -141,7 +136,7 @@ Optimization is the **core engine of machine learning**, finding parameters that
 
 ### Elementary Functions
 
-Elementary functions are the **building blocks of deep learning**, from activation functions to loss functions everywhere.
+Elementary functions are the **building blocks of deep learning**, appearing everywhere from activation functions to loss functions.
 
 **Sub-chapters**:
 - [6.1 Exponential, Logarithmic and Trigonometric Functions](math/06a-exponential-logarithmic-trigonometric_EN.md) - Exponential functions, logarithmic functions, tanh

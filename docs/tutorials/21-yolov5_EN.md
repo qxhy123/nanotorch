@@ -1,37 +1,38 @@
 # YOLO v5 Object Detection Model Implementation Tutorial
 
-## Engineering Excellence...
+## Same Recipe, Five Different Heat Levels...
 
-YOLO v5 is different.
+YOLO v5 is not a revolution, but a thoughtful greeting.
 
-It wasn't a research paper. It wasn't an academic contribution. It was built by a company—Ultralytics—with a different goal: make YOLO easy to use, easy to deploy, and production-ready.
+It comes from Ultralytics, a young and pragmatic team. They didn't chase dazzling innovations, but asked a simple question:
 
-**Sometimes the best research isn't about new ideas—it's about making existing ideas work beautifully.**
+**"Can we make YOLO easier to use?"**
+
+So, they built a complete product line—
+
+**Nano (n)**: Light as a swallow, runs on mobile phones, born for edge devices.
+
+**Small (s)**: Small but complete, the best value choice.
+
+**Medium (m)**: Balanced, just right.
+
+**Large (l)**: Flagship style, born for accuracy.
+
+**XLarge (x)**: Computing power is no object, pursuing the ultimate.
 
 ```
-The YOLO v5 Philosophy:
+Five sizes, five lives
+Same architecture, different choices
 
-  Research-focused (YOLO v1-v4):
-    "Here's our novel contribution"
-    "Here's our experimental results"
-    "Here's the code (good luck running it)"
+Limited computing power? Choose Nano
+Pursuing the ultimate? Choose XLarge
+Want balance? Choose Medium
 
-  Production-focused (YOLO v5):
-    "Here's a pip-installable package"
-    "Here's auto-anchor computation"
-    "Here's model export to ONNX, TensorRT, CoreML"
-    "Here's five sizes: nano, small, medium, large, xlarge"
-
-  The same architecture, but engineered for impact:
-    C3 modules instead of CSP blocks
-    SPPF for faster spatial pooling
-    SiLU activation throughout
-    Mosaic augmentation by default
+One dish, five heat levels
+Take your pick
 ```
 
-**YOLO v5 is YOLO for everyone.** You don't need to be a researcher to use it. You don't need to understand every architectural choice. You pip install, you train, you deploy. That simplicity—and the engineering behind it—is its own kind of innovation.
-
-In this tutorial, we'll implement YOLO v5 from scratch. We'll see how the C3 module improves on CSP, how SPPF speeds up spatial pooling, and how the different model sizes (n, s, m, l, x) trade off accuracy and speed for different applications.
+**YOLO v5 — A triumph of engineering philosophy**, not seeking the most dazzling, but the most practical.
 
 ---
 
@@ -258,7 +259,7 @@ predictions = {
 }
 
 targets = [
-    {'boxes': np.array([[100, 100, 200, 200]], dtype=np.float32), 
+    {'boxes': np.array([[100, 100, 200, 200]], dtype=np.float32),
      'labels': np.array([0], dtype=np.int64)},
 ]
 
@@ -288,25 +289,25 @@ scheduler = StepLR(optimizer, step_size=10, gamma=0.1)
 for epoch in range(10):
     model.train()
     total_loss = 0
-    
+
     for _ in range(10):
         images = Tensor(np.random.randn(2, 3, 224, 224).astype(np.float32))
-        
+
         optimizer.zero_grad()
         output = model(images)
-        
+
         # MSE loss
         loss = 0.0
         for pred in output.values():
             diff = pred - Tensor(np.zeros_like(pred.data))
             loss += (diff * diff).mean().item()
-        
+
         loss_tensor = Tensor(loss, requires_grad=True)
         loss_tensor.backward()
         optimizer.step()
-        
+
         total_loss += loss
-    
+
     scheduler.step()
     print(f"Epoch {epoch+1}, Loss: {total_loss/10:.4f}")
 ```

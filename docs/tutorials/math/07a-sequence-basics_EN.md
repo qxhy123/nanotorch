@@ -4,6 +4,62 @@ A sequence is a list of numbers arranged in a certain order. From simple arithme
 
 ---
 
+## 🎯 Life Analogy: A Piggy Bank
+
+Imagine a **piggy bank where you save money regularly**:
+
+| Day | Amount Added | Total |
+|-----|-------------|-------|
+| 1 | $1 | $1 |
+| 2 | $2 | $3 |
+| 3 | $3 | $6 |
+| 4 | $4 | $10 |
+| 5 | $5 | $15 |
+
+This is an **arithmetic sequence**: $1, 2, 3, 4, 5, ...$
+
+### Arithmetic Sequence = "Climbing Stairs"
+
+```
+Each step is the SAME height:
+Step 1: ___
+Step 2: ___
+Step 3: ___
+Step 4: ___
+
+Height: 1, 2, 3, 4, 5, ...
+
+Formula: a_n = a_1 + (n-1)d
+Where d = step height (common difference)
+```
+
+### Geometric Sequence = "Doubling"
+
+```
+Each step DOUBLES:
+Day 1: ●                     (1 cent)
+Day 2: ●●                    (2 cents)
+Day 3: ●●●●                  (4 cents)
+Day 4: ●●●●●●●●              (8 cents)
+Day 5: ●●●●●●●●●●●●●●●●      (16 cents)
+
+Formula: a_n = a_1 × r^(n-1)
+Where r = multiplier (common ratio)
+```
+
+### 📖 Plain English Translation
+
+| Term | Plain English |
+|------|---------------|
+| Sequence | A list of numbers in order |
+| Arithmetic sequence | Add the same amount each time |
+| Geometric sequence | Multiply by the same amount each time |
+| General term $a_n$ | The formula for the n-th number |
+| Common difference $d$ | What you add each step |
+| Common ratio $r$ | What you multiply each step |
+
+---
+
 ## Table of Contents
 
 1. [Definition and Representation of Sequences](#definition-and-representation-of-sequences)

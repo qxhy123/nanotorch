@@ -1,43 +1,63 @@
 # Chapter 5: Loss Functions
 
-## The Compass of Learning...
+## After an Exam, How Does the Teacher Grade...
 
-Imagine hiking through a dense fog.
+You turned in your paper. The teacher picks up a red pen, grading question by question.
 
-You know where you want to go—the summit. But you can't see it. All you have is a sense of whether you're getting closer or drifting away.
+Question one, correct, a checkmark.
+Question two, wrong, an X. Deduct 5 points.
+Question three, direction right but details wrong, deduct 2 points.
+Question four, completely correct...
 
-This is the role of the loss function in deep learning.
+Finally, the teacher writes the total score at the top: 87.
 
-**The loss function tells the model how wrong it is.** Not just "wrong" or "right"—but *how* wrong, and in *what direction* the answer lies. It converts the gap between prediction and truth into a single number, a guiding star that the optimizer follows downhill.
+**The loss function is that "grading standard."** It tells the neural network: how far your prediction is from the correct answer, where the gap is, how to improve.
 
 ```
-The Journey of Learning:
+Prediction: [0.9, 0.05, 0.05]  ← Model says "90% it's a cat"
+Ground truth: [1.0, 0.00, 0.00]  ← Answer is indeed a cat
 
-  Model makes prediction    → "This is a cat" (90% confidence)
-  Reality answers           → "Actually, it's a dog"
-  Loss function measures    → "You were very wrong. Loss = 2.3"
-
-  Gradient points the way   → "Adjust these weights to reduce error"
-  Optimizer takes a step    → Weights shift, ever so slightly
-
-  Next time, perhaps        → "This might be a dog?" (60% confidence)
-  Loss decreases            → 2.3 → 0.8 → 0.3...
-
-Like a hiker following a compass,
-the model follows the gradient of loss,
-always moving toward lower ground,
-always seeking the valley where predictions match reality.
+Loss function: 0.1 × log(0.9) ≈ 0.01
+         "Correct, but not confident enough, deduct 0.01 points"
 ```
 
-**Without a loss function, there is no destination.** The model would make predictions, but never know if they were good or bad. It would wander aimlessly, never improving.
+Every training iteration, the model is "taking an exam." The loss function grades it, gradients tell it how to improve. Again and again, until... full marks.
 
-Different tasks need different loss functions. Regression needs MSE. Classification needs Cross-Entropy. Each is a different way of measuring "wrongness," each suited to a different kind of problem.
-
-In this chapter, we'll implement these loss functions and understand the mathematics behind them—why they work, when to use which, and how gradients flow through them.
+**The loss function is the model's strict teacher, and also its guiding light.**
 
 ---
 
 ## 5.1 The Role of Loss Functions
+
+### The Essence of Training
+
+```
+Training loop:
+
+┌─────────────────────────────────────┐
+│                                     │
+│   Prediction → Loss Function → Loss Value (scalar)  │
+│              ↑                      │
+│           Ground Truth              │
+│                                     │
+│   Goal: Make loss value as small as possible        │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+### Two Major Categories of Loss Functions
+
+```
+Regression problems (predicting values):
+  - MSE: Mean Squared Error
+  - MAE: Mean Absolute Error
+
+Classification problems (predicting categories):
+  - CrossEntropy: Cross Entropy (multi-class)
+  - BCE: Binary Cross Entropy (binary classification)
+```
+
+**One sentence summary**: The loss function tells the network "how ridiculously wrong," guiding where to improve.
 
 ```
 Prediction y_pred → Loss Function → Scalar L

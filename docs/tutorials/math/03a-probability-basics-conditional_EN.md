@@ -4,6 +4,65 @@ Probability theory is the foundation for understanding **uncertainty in machine 
 
 ---
 
+## 🎯 Life Analogy: Probability is "How Likely Something Happens"
+
+### Probability = Betting Odds
+
+Imagine you're betting with a friend about whether it will rain tomorrow:
+- Weather forecast says "70% chance of precipitation"
+- Meaning: If the same weather conditions repeated 100 days, about 70 days would have rain
+
+```
+Probability 0    ────────────────────────→    Probability 1
+   │                                              │
+Never happens                               Always happens
+
+0.1 = 10%: Very rare (winning lottery)
+0.5 = 50%: Coin flip (equally likely)
+0.9 = 90%: Very likely (sun rises tomorrow)
+```
+
+### Conditional Probability = "Probability After Getting Information"
+
+**Example**: You see someone wearing glasses, are they more likely to be a programmer?
+
+$$P(\text{Programmer} | \text{Wears Glasses})$$
+
+Read as: "The probability of being a programmer, given they wear glasses"
+
+### Bayes' Theorem = "Updating Beliefs with New Evidence"
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Doctor's Diagnosis Example                              │
+├─────────────────────────────────────────────────────────┤
+│  Prior probability P(Disease): 1% of population has it  │
+│  Likelihood P(Positive|Disease): 95% of sick test +    │
+│  Likelihood P(Positive|Healthy): 5% false positive     │
+│                                                         │
+│  Question: After testing positive, what's the chance    │
+│           of actually having the disease?               │
+│  Answer: P(Disease|Positive) ≈ 16% (far below intuition!)│
+│                                                         │
+│  Lesson: Positive results for rare diseases are mostly  │
+│          false positives                                │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 📖 Plain English Translation
+
+| Probability Term | Plain English |
+|-----------------|---------------|
+| Sample space $\Omega$ | All possible outcomes |
+| Event A | Some outcomes we care about |
+| $P(A)$ | How likely A happens (between 0 and 1) |
+| $P(A \cap B)$ | A and B both happen |
+| $P(A \cup B)$ | A or B (at least one) happens |
+| $P(A \| B)$ | Probability of A given B has occurred |
+| Independent | One event doesn't affect another |
+
+---
+
 ## Table of Contents
 
 1. [Random Experiments and Sample Space](#random-experiments-and-sample-space)

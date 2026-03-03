@@ -1,317 +1,324 @@
-# Tutorial 12: Transformer Architecture
+# Tutorial 12: Transformer
 
-## Attention: The Power to Focus...
+## In 2017, a Revolution Quietly Occurred...
 
-Imagine walking into a crowded room.
+Before that, natural language processing was dominated by "recurrence". RNN, LSTM, GRU—they were like diligent readers, reading word by word from left to right.
 
-Voices everywhere. Conversations overlap. Yet somehow, you can focus on the one conversation that matters to you. Your attention filters the noise, amplifying what's relevant, ignoring what's not.
+This approach has a fatal weakness: **cannot parallelize**. You have to finish reading the last word to understand the whole sentence. Training time was long, and long sentences were a nightmare.
 
-**This selective focus is the heart of the Transformer.**
+Then, a paper appeared: "Attention Is All You Need".
+
+It asked: Why must we read from left to right? Why can't we see the whole text at once? Why can't every word directly "see" all other words?
+
+This is **self-attention**.
 
 ```
-The Revolution of Attention:
+RNN's approach:
+  "I" → "love" → "you"
+  Sequential reading, like turning pages
 
-  Traditional approach:
-    Process word by word, in order
-    "The cat sat on the mat"
-    Must finish "The" before "cat", "cat" before "sat"...
-    Slow. Sequential. Distant words barely connected.
-
-  Transformer approach:
-    Every word attends to every other word simultaneously
-    "mat" can directly see "cat" without going through "sat" and "on"
-    "The" can connect to "mat" in a single glance
-
-Distance doesn't matter anymore.
-Position 1 and Position 1000 are equally close.
-Parallel processing replaces sequential waiting.
+Transformer's approach:
+  "I" ←→ "love" ←→ "you"
+  Every word can directly see every other word
+  Like spreading the book open, seeing everything at once
 ```
 
-**Transformer changed everything.** Before 2017, natural language processing was dominated by RNNs—sequential, slow, struggling with long-range dependencies. Then came "Attention Is All You Need." The paper's title said it all: you don't need recurrence. You don't need convolution. You only need attention.
+**Transformer replaced "recurrence" with "attention".** It taught machines: when understanding a sentence, instead of reading word by word, simultaneously attend to all words and find relationships between them.
 
-Multi-head attention lets the model look at the input in many ways simultaneously—one head might track subject-verb relationships, another might track adjectives to nouns. Positional encoding injects order into this parallel paradise. Residual connections and layer normalization keep the deep architecture trainable.
-
-In this tutorial, we'll build the complete Transformer architecture: the encoder that processes input, the decoder that generates output, the attention mechanisms that connect them. We'll see why this architecture powers GPT, BERT, and virtually every modern language model.
+From then on, the era of large models began.
 
 ---
 
-## Table of Contents
+## 12.1 Attention Mechanism
 
-1. [Overview](#overview)
-2. [Attention Mechanism](#attention-mechanism)
-3. [Multi-Head Attention](#multi-head-attention)
-4. [Transformer Encoder Layer](#transformer-encoder-layer)
-5. [Transformer Decoder Layer](#transformer-decoder-layer)
-6. [Positional Encoding](#positional-encoding)
-7. [Complete Transformer](#complete-transformer)
-8. [Usage Examples](#usage-examples)
-9. [Summary](#summary)
-
----
-
-## Overview
-
-Transformer is a revolutionary architecture proposed by Google in 2017. It is entirely based on **attention mechanisms**, abandoning traditional recurrent and convolutional structures.
-
-Core advantages:
-- **Parallel Computation**: Unlike RNNs, doesn't require sequential processing
-- **Long-range Dependencies**: Attention mechanism directly connects any positions
-- **Scalability**: Easily scales to large models
-
-Components implemented in nanotorch:
-- `MultiheadAttention`: Multi-head self-attention
-- `TransformerEncoderLayer`: Encoder layer
-- `TransformerDecoderLayer`: Decoder layer
-- `TransformerEncoder`: Encoder stack
-- `TransformerDecoder`: Decoder stack
-
----
-
-## Attention Mechanism
-
-### Scaled Dot-Product Attention
-
-$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
-
-Where:
-- $Q$ (Query): Query matrix (batch, seq_len, d_k)
-- $K$ (Key): Key matrix (batch, seq_len, d_k)
-- $V$ (Value): Value matrix (batch, seq_len, d_v)
-- $d_k$: Dimension of Key
-
-### Intuitive Understanding
+### Life Analogy
 
 ```
-Attention mechanism = Similarity between "query" and "key", weighted "value"
+You're looking at a photo:
 
-Question: "What color is the apple?"
-      Q: Query vector of current word
-      K: Key vectors of other words (representing "what I'm about")
-      V: Value vectors of other words (representing "what information I contain")
+  👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦
+  A group of people at a party
 
-Calculation process:
-1. Q @ K^T: Calculate relevance of each word to current word
-2. softmax: Normalize to probability distribution
-3. @ V: Weighted sum based on relevance
+Your attention:
+  - Looking for a friend: mainly look at "faces"
+  - Counting people: look at "heads"
+  - Looking at background: look at "environment"
+
+Same scene, you "focus" on different points
+→ This is attention
+```
+
+### Core Idea
+
+```
+Attention mechanism: Query(Q) × Key(K) × Value(V)
+
+Library analogy:
+  Q (Query) = What you're looking for (query)
+  K (Key)   = Each book's label (key)
+  V (Value) = Book's content (value)
+
+Process:
+  1. Compare Q with all K's (relevance)
+  2. Get attention weights (which books are relevant)
+  3. Use weights to combine V's (get relevant content)
+```
+
+### Self-Attention
+
+```
+Self-attention: Q, K, V all come from the same input
+
+Sentence: "I love Beijing Tiananmen"
+
+Q = representation of "love" (what I'm looking for)
+K = representations of all words (each word's label)
+V = representations of all words (each word's content)
+
+Calculate: relevance of "love" with each word
+  - Relevant to "I": 0.7 (subject)
+  - Relevant to "love": 0.1 (self)
+  - Relevant to "Beijing": 0.15 (object)
+  - Relevant to "Tiananmen": 0.05 (modifier)
+
+Use these weights to combine all words → new representation of "love"
+```
+
+---
+
+## 12.2 Attention Calculation
+
+### Formula
+
+```
+Attention(Q, K, V) = softmax(Q @ K^T / √d_k) @ V
+
+Step breakdown:
+  1. Q @ K^T     : Calculate relevance scores
+  2. / √d_k      : Scale (prevent gradient vanishing)
+  3. softmax     : Normalize to probabilities
+  4. @ V         : Weighted sum
+```
+
+### Diagram
+
+```
+Input sequence: [word1, word2, word3]
+
+Q = [q1]    K^T = [k1, k2, k3]    V = [v1]
+    [q2]                           [v2]
+    [q3]                           [v3]
+
+Step 1: Q @ K^T = relevance matrix
+        word1  word2  word3
+word1 [ 0.9    0.3    0.1 ]    word1 most relevant to word1
+word2 [ 0.2    0.8    0.4 ]
+word3 [ 0.1    0.3    0.9 ]
+
+Step 2: softmax = attention weights
+        word1  word2  word3
+word1 [ 0.70   0.20   0.10 ]
+word2 [ 0.15   0.60   0.25 ]
+word3 [ 0.10   0.25   0.65 ]
+
+Step 3: @ V = weighted combination
+Output = [0.7*v1 + 0.2*v2 + 0.1*v3]
+         [0.15*v1 + 0.6*v2 + 0.25*v3]
+         [0.1*v1 + 0.25*v2 + 0.65*v3]
 ```
 
 ### Implementation
 
 ```python
-def scaled_dot_product_attention(
-    q: Tensor, k: Tensor, v: Tensor, 
-    mask: Optional[Tensor] = None,
-    dropout: Optional[float] = None
-) -> Tuple[Tensor, Tensor]:
-    """Scaled dot-product attention.
-    
-    Args:
-        q: Query (batch, heads, seq_len, d_k)
-        k: Key (batch, heads, seq_len, d_k)
-        v: Value (batch, heads, seq_len, d_v)
-        mask: Optional mask
-        dropout: Dropout probability
-    
-    Returns:
-        (output, attention_weights)
+def scaled_dot_product_attention(q, k, v, mask=None):
+    """
+    Scaled dot-product attention
+
+    Analogy:
+      q = query (what I'm looking for)
+      k = key (each book's label)
+      v = value (book's content)
     """
     d_k = q.shape[-1]
-    
-    # Calculate attention scores
+
+    # 1. Calculate relevance scores
     scores = q.matmul(k.transpose(-2, -1)) / math.sqrt(d_k)
-    
-    # Apply mask (for decoder's causal attention)
+
+    # 2. Apply mask (optional)
     if mask is not None:
         scores = scores.masked_fill(mask == 0, float('-inf'))
-    
-    # Softmax normalization
+
+    # 3. softmax normalization
     attn_weights = scores.softmax(dim=-1)
-    
-    # Optional dropout
-    if dropout is not None:
-        attn_weights = dropout(attn_weights)
-    
-    # Weighted sum
+
+    # 4. Weighted sum
     output = attn_weights.matmul(v)
-    
+
     return output, attn_weights
 ```
 
 ---
 
-## Multi-Head Attention
+## 12.3 Multi-Head Attention
 
-### Principle
-
-Multi-head attention projects Q, K, V into multiple subspaces, computes attention separately, then combines results:
+### Why Multi-Head?
 
 ```
-MultiHead(Q, K, V) = Concat(head_1, ..., head_h) @ W_O
+Single-head attention:
+  Can only learn one type of "relevance"
 
-Where:
-head_i = Attention(Q @ W_Q_i, K @ W_K_i, V @ W_V_i)
+Multi-head attention:
+  Can learn multiple types of "relevance"
+
+Example:
+  Head 1: Focus on syntactic relationships (subject-verb)
+  Head 2: Focus on semantic relationships (synonyms)
+  Head 3: Focus on positional relationships (adjacent words)
+  ...
+
+Each head learns independently, then combines
 ```
 
-### Benefits
+### Diagram
 
-1. **Multi-head** can simultaneously attend to different representation subspaces at different positions
-2. **Parallel** multiple heads can be computed simultaneously
-3. **Rich** each head can learn different types of dependencies
+```
+Input X (batch, seq_len, d_model)
+         │
+         ├──→ W_Q → Q ──┐
+         ├──→ W_K → K ──┼──→ Head 1 attention ──┐
+         └──→ W_V → V ──┘                       │
+                                                  │
+         ┌───────────────────────────────────────┘
+         │
+         ├──→ W_Q → Q ──┐
+         ├──→ W_K → K ──┼──→ Head 2 attention ──┼──→ Concat ──→ W_O ──→ Output
+         └──→ W_V → V ──┘                       │
+                                                  │
+         ┌───────────────────────────────────────┘
+         │
+         ... (more heads)
+```
 
 ### Implementation
 
 ```python
-# nanotorch/nn/attention.py
-
 class MultiheadAttention(Module):
-    """Multi-head attention layer.
-    
-    Args:
-        embed_dim: Model dimension
-        num_heads: Number of heads
-        dropout: Dropout probability
-        bias: Whether to use bias
+    """
+    Multi-head attention
+
+    Analogy: Multiple experts looking at the problem from different angles
     """
 
     def __init__(
         self,
-        embed_dim: int,
-        num_heads: int,
+        embed_dim: int,      # Model dimension
+        num_heads: int,      # Number of heads
         dropout: float = 0.0,
-        bias: bool = True,
-    ) -> None:
+    ):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
-        
-        assert self.head_dim * num_heads == embed_dim, \
-            "embed_dim must be divisible by num_heads"
-        
-        # Q, K, V projections
-        self.q_proj = Linear(embed_dim, embed_dim, bias=bias)
-        self.k_proj = Linear(embed_dim, embed_dim, bias=bias)
-        self.v_proj = Linear(embed_dim, embed_dim, bias=bias)
-        
-        # Output projection
-        self.out_proj = Linear(embed_dim, embed_dim, bias=bias)
-        
-        self.dropout = dropout
 
-    def forward(
-        self,
-        query: Tensor,
-        key: Tensor,
-        value: Tensor,
-        attn_mask: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor]:
-        """Forward propagation.
-        
-        Args:
-            query: (batch, seq_len, embed_dim)
-            key: (batch, seq_len, embed_dim)
-            value: (batch, seq_len, embed_dim)
-            attn_mask: Optional attention mask
-        
-        Returns:
-            (output, attention_weights)
-        """
+        assert self.head_dim * num_heads == embed_dim
+
+        # Q, K, V projections
+        self.q_proj = Linear(embed_dim, embed_dim)
+        self.k_proj = Linear(embed_dim, embed_dim)
+        self.v_proj = Linear(embed_dim, embed_dim)
+
+        # Output projection
+        self.out_proj = Linear(embed_dim, embed_dim)
+
+    def forward(self, query, key, value, attn_mask=None):
         batch_size = query.shape[0]
         seq_len = query.shape[1]
-        
-        # Linear projections
+
+        # 1. Linear projections
         q = self.q_proj(query)
         k = self.k_proj(key)
         v = self.v_proj(value)
-        
-        # Reshape to multi-head form: (batch, seq_len, num_heads, head_dim)
+
+        # 2. Reshape to multi-head (batch, seq, heads, head_dim)
         q = q.reshape(batch_size, seq_len, self.num_heads, self.head_dim)
         k = k.reshape(batch_size, key.shape[1], self.num_heads, self.head_dim)
         v = v.reshape(batch_size, value.shape[1], self.num_heads, self.head_dim)
-        
-        # Transpose to: (batch, num_heads, seq_len, head_dim)
+
+        # 3. Transpose (batch, heads, seq, head_dim)
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
-        
-        # Compute attention
+
+        # 4. Calculate attention
         attn_output, attn_weights = scaled_dot_product_attention(
-            q, k, v, attn_mask, self.dropout
+            q, k, v, attn_mask
         )
-        
-        # Merge multi-heads: (batch, seq_len, embed_dim)
+
+        # 5. Merge multi-heads
         attn_output = attn_output.transpose(1, 2).reshape(
             batch_size, seq_len, self.embed_dim
         )
-        
-        # Output projection
+
+        # 6. Output projection
         output = self.out_proj(attn_output)
-        
+
         return output, attn_weights
 ```
 
-### Usage Example
+### Usage
 
 ```python
-from nanotorch.nn import MultiheadAttention
-
-# Create multi-head attention layer
+# Create multi-head attention
 mha = MultiheadAttention(embed_dim=512, num_heads=8)
 
-# Self-attention (query = key = value)
+# Self-attention (Q = K = V)
 x = Tensor.randn((32, 100, 512))  # (batch, seq_len, embed_dim)
 output, weights = mha(x, x, x)
 
-print(output.shape)   # (32, 100, 512)
-print(weights.shape)  # (32, 8, 100, 100)  # (batch, heads, seq, seq)
+print(output.shape)    # (32, 100, 512)
+print(weights.shape)   # (32, 8, 100, 100)  attention weights
 ```
 
 ---
 
-## Transformer Encoder Layer
+## 12.4 Transformer Encoder
 
 ### Structure
 
 ```
 Input x
-    │
-    ├──────────────────┐
-    ↓                  │
+   │
+   ├──────────────────┐
+   ↓                  │
 MultiheadAttention    │
-    ↓                  │
+   ↓                  │
 Dropout               │
-    ↓                  │
-Add (residual) ←──────┘
-    ↓
+   ↓                  │
+Add ←─────────────────┘ (residual connection)
+   ↓
 LayerNorm
-    │
-    ├──────────────────┐
-    ↓                  │
+   │
+   ├──────────────────┐
+   ↓                  │
 FeedForward           │
-    ↓                  │
+   ↓                  │
 Dropout               │
-    ↓                  │
-Add (residual) ←──────┘
-    ↓
+   ↓                  │
+Add ←─────────────────┘ (residual connection)
+   ↓
 LayerNorm
-    │
+   │
 Output
 ```
 
 ### Implementation
 
 ```python
-# nanotorch/nn/transformer.py
-
 class TransformerEncoderLayer(Module):
-    """Transformer encoder layer.
-    
-    Args:
-        d_model: Model dimension
-        nhead: Number of attention heads
-        dim_feedforward: Feed-forward network dimension
-        dropout: Dropout probability
-        activation: Activation function ('relu' or 'gelu')
+    """
+    Transformer encoder layer
+
+    Structure: attention → residual+normalization → feedforward → residual+normalization
     """
 
     def __init__(
@@ -320,422 +327,320 @@ class TransformerEncoderLayer(Module):
         nhead: int,
         dim_feedforward: int = 2048,
         dropout: float = 0.1,
-        activation: str = "relu",
-    ) -> None:
+    ):
         super().__init__()
-        
+
         # Self-attention
-        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
-        
+        self.self_attn = MultiheadAttention(d_model, nhead, dropout)
+
         # Feed-forward network
         self.linear1 = Linear(d_model, dim_feedforward)
         self.linear2 = Linear(dim_feedforward, d_model)
-        
+
         # Normalization
         self.norm1 = LayerNorm(d_model)
         self.norm2 = LayerNorm(d_model)
-        
+
         # Dropout
         self.dropout = Dropout(dropout)
-        
-        # Activation function
-        self.activation = ReLU() if activation == "relu" else GELU()
 
-    def forward(self, src: Tensor, src_mask: Optional[Tensor] = None) -> Tensor:
-        """Forward propagation.
-        
-        Args:
-            src: Input (seq_len, batch, d_model) or (batch, seq_len, d_model)
-            src_mask: Optional source sequence mask
-        
-        Returns:
-            Output tensor
-        """
-        # Self-attention + residual + LayerNorm
+    def forward(self, src, src_mask=None):
+        # 1. Self-attention + residual + LayerNorm
         src2, _ = self.self_attn(src, src, src, src_mask)
-        src = src + self.dropout(src2)
+        src = src + self.dropout(src2)  # Residual connection
         src = self.norm1(src)
-        
-        # Feed-forward network + residual + LayerNorm
-        src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
+
+        # 2. Feed-forward network + residual + LayerNorm
+        src2 = self.linear2(self.dropout(self.linear1(src).relu()))
         src = src + self.dropout(src2)
         src = self.norm2(src)
-        
+
         return src
 ```
 
-### Encoder Stack
+### Residual Connection
 
-```python
-class TransformerEncoder(Module):
-    """Transformer encoder (multi-layer stack)."""
+```
+Why do we need residual connections?
 
-    def __init__(
-        self,
-        encoder_layer: TransformerEncoderLayer,
-        num_layers: int,
-    ) -> None:
-        super().__init__()
-        self.layers = [encoder_layer for _ in range(num_layers)]
-        self.num_layers = num_layers
-        self.norm = LayerNorm(encoder_layer.d_model)
+Problem: Deep networks are hard to train
+  Input → Layer1 → Layer2 → ... → Layer100 → Output
+  Gradient has to propagate 100 layers, easily vanishes
 
-    def forward(self, src: Tensor, mask: Optional[Tensor] = None) -> Tensor:
-        output = src
-        for layer in self.layers:
-            output = layer(output, mask)
-        return self.norm(output)
+Solution: Residual connection
+  Input → Layer → + → Output
+         ↑_____|
+  Gradient can directly "skip" some layers
+
+Analogy:
+  Without: Every layer must be perfect
+  With: Every layer only needs to learn "residual" (difference from input)
 ```
 
 ---
 
-## Transformer Decoder Layer
+## 12.5 Transformer Decoder
 
-### Structure
-
-Decoder has one more **Cross-Attention** than Encoder:
+### Difference from Encoder
 
 ```
-Input tgt (target sequence)
-    │
-    ├──────────────────┐
-    ↓                  │
-Masked Self-Attention │  (with causal mask)
-    ↓                  │
-Add ←─────────────────┘
-    ↓
-LayerNorm
-    │
-    ├──────────────────┐
-    ↓                  │
-Cross-Attention       │  (query=tgt, key=value=memory)
-    ↓                  │
-Add ←─────────────────┘
-    ↓
-LayerNorm
-    │
-    ├──────────────────┐
-    ↓                  │
-FeedForward           │
-    ↓                  │
-Add ←─────────────────┘
-    ↓
-LayerNorm
+Decoder has one more "cross-attention":
+
+Encoder output ────→ cross-attention's K, V
+                     ↓
+Target sequence ──→ self-attention → cross-attention → feedforward → output
+              (with mask)
 ```
 
-### Implementation
+### Causal Mask
+
+```
+Decoder's self-attention needs a "causal mask":
+
+Why?
+  - During decoding, can't see future words
+  - During translation, can't see parts not yet translated
+
+Mask example (4 positions):
+  [[1, 0, 0, 0],   Position 1: can only see position 1
+   [1, 1, 0, 0],   Position 2: can see positions 1,2
+   [1, 1, 1, 0],   Position 3: can see positions 1,2,3
+   [1, 1, 1, 1]]   Position 4: can see positions 1,2,3,4
+
+0 positions will be set to -inf, becomes 0 after softmax
+```
+
+### Generate Mask
 
 ```python
-class TransformerDecoderLayer(Module):
-    """Transformer decoder layer."""
-
-    def __init__(
-        self,
-        d_model: int,
-        nhead: int,
-        dim_feedforward: int = 2048,
-        dropout: float = 0.1,
-        activation: str = "relu",
-    ) -> None:
-        super().__init__()
-        
-        # Self-attention (with mask)
-        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
-        
-        # Cross-attention
-        self.multihead_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
-        
-        # Feed-forward network
-        self.linear1 = Linear(d_model, dim_feedforward)
-        self.linear2 = Linear(dim_feedforward, d_model)
-        
-        # Normalization
-        self.norm1 = LayerNorm(d_model)
-        self.norm2 = LayerNorm(d_model)
-        self.norm3 = LayerNorm(d_model)
-        
-        # Dropout
-        self.dropout = Dropout(dropout)
-        
-        self.activation = ReLU() if activation == "relu" else GELU()
-
-    def forward(
-        self,
-        tgt: Tensor,
-        memory: Tensor,
-        tgt_mask: Optional[Tensor] = None,
-        memory_mask: Optional[Tensor] = None,
-    ) -> Tensor:
-        """Forward propagation.
-        
-        Args:
-            tgt: Target sequence
-            memory: Encoder output
-            tgt_mask: Target sequence causal mask
-            memory_mask: Encoder output mask
-        """
-        # Self-attention
-        tgt2, _ = self.self_attn(tgt, tgt, tgt, tgt_mask)
-        tgt = tgt + self.dropout(tgt2)
-        tgt = self.norm1(tgt)
-        
-        # Cross-attention
-        tgt2, _ = self.multihead_attn(tgt, memory, memory, memory_mask)
-        tgt = tgt + self.dropout(tgt2)
-        tgt = self.norm2(tgt)
-        
-        # Feed-forward network
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
-        tgt = tgt + self.dropout(tgt2)
-        tgt = self.norm3(tgt)
-        
-        return tgt
-```
-
----
-
-## Positional Encoding
-
-### Why Positional Encoding is Needed?
-
-Transformer has no recurrent structure and cannot automatically perceive positional information. Positional encoding must be explicitly added.
-
-### Sinusoidal Positional Encoding
-
-```python
-class PositionalEncoding(Module):
-    """Sinusoidal positional encoding.
-    
-    PE(pos, 2i) = sin(pos / 10000^(2i/d_model))
-    PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))
+def generate_square_subsequent_mask(sz: int):
     """
+    Generate causal mask
 
-    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1):
-        super().__init__()
-        self.dropout = Dropout(dropout)
-        
-        # Calculate positional encoding
-        position = np.arange(max_len)[:, np.newaxis]
-        div_term = np.exp(np.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
-        
-        pe = np.zeros((max_len, d_model))
-        pe[:, 0::2] = np.sin(position * div_term)
-        pe[:, 1::2] = np.cos(position * div_term)
-        
-        self.pe = Tensor(pe[np.newaxis, :, :])  # (1, max_len, d_model)
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Add positional encoding.
-        
-        Args:
-            x: (batch, seq_len, d_model)
-        """
-        x = x + self.pe[:, :x.shape[1], :]
-        return self.dropout(x)
-```
-
-### Learnable Positional Encoding
-
-```python
-class LearnablePositionalEncoding(Module):
-    """Learnable positional encoding."""
-
-    def __init__(self, d_model: int, max_len: int = 5000):
-        super().__init__()
-        self.pe = Tensor(
-            np.random.randn(1, max_len, d_model).astype(np.float32) * 0.02,
-            requires_grad=True
-        )
-
-    def forward(self, x: Tensor) -> Tensor:
-        return x + self.pe[:, :x.shape[1], :]
-```
-
----
-
-## Complete Transformer
-
-### Seq2Seq Model
-
-```python
-class Transformer(Module):
-    """Complete Transformer model."""
-
-    def __init__(
-        self,
-        d_model: int = 512,
-        nhead: int = 8,
-        num_encoder_layers: int = 6,
-        num_decoder_layers: int = 6,
-        dim_feedforward: int = 2048,
-        dropout: float = 0.1,
-    ) -> None:
-        super().__init__()
-        
-        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout)
-        self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers)
-        
-        decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout)
-        self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers)
-
-    def forward(
-        self,
-        src: Tensor,
-        tgt: Tensor,
-        src_mask: Optional[Tensor] = None,
-        tgt_mask: Optional[Tensor] = None,
-    ) -> Tensor:
-        # Encode
-        memory = self.encoder(src, src_mask)
-        
-        # Decode
-        output = self.decoder(tgt, memory, tgt_mask)
-        
-        return output
-```
-
-### Generate Causal Mask
-
-```python
-def generate_square_subsequent_mask(sz: int) -> Tensor:
-    """Generate causal mask for decoder.
-    
-    Prevents position i from seeing information after position i.
-    
-    Example for sz=4:
-    [[1, 0, 0, 0],
-     [1, 1, 0, 0],
-     [1, 1, 1, 0],
-     [1, 1, 1, 1]]
+    Prevents seeing future information
     """
     mask = np.triu(np.ones((sz, sz)), k=1) == 0
+    # Upper triangle is False, lower triangle is True
     return Tensor(mask.astype(np.float32))
 ```
 
 ---
 
-## Usage Examples
+## 12.6 Positional Encoding
 
-### Text Classification (Encoder Only)
+### Why Do We Need It?
+
+```
+Transformer has no "recurrence", all positions processed simultaneously
+
+Problem:
+  "I love you" and "You love me" are processed the same way
+  But they mean completely different things!
+
+Solution:
+  Add a "position label" to each position
+  Let the model know "I'm the Nth word"
+```
+
+### Sinusoidal Positional Encoding
 
 ```python
-from nanotorch import Tensor
-from nanotorch.nn import (
-    Embedding, TransformerEncoderLayer, TransformerEncoder,
-    Linear, LayerNorm, PositionalEncoding
-)
+class PositionalEncoding(Module):
+    """
+    Sinusoidal positional encoding
 
+    Encodes position using sine waves of different frequencies
+
+    Position 0: sin(0), cos(0), sin(0), cos(0), ...
+    Position 1: sin(1), cos(1), sin(0.01), cos(0.01), ...
+    Position 2: sin(2), cos(2), sin(0.02), cos(0.02), ...
+    """
+
+    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1):
+        super().__init__()
+        self.dropout = Dropout(dropout)
+
+        # Calculate positional encoding
+        position = np.arange(max_len)[:, np.newaxis]
+        div_term = np.exp(np.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+
+        pe = np.zeros((max_len, d_model))
+        pe[:, 0::2] = np.sin(position * div_term)  # Even positions
+        pe[:, 1::2] = np.cos(position * div_term)  # Odd positions
+
+        self.pe = Tensor(pe[np.newaxis, :, :])  # (1, max_len, d_model)
+
+    def forward(self, x: Tensor):
+        # x: (batch, seq_len, d_model)
+        x = x + self.pe[:, :x.shape[1], :]
+        return self.dropout(x)
+```
+
+---
+
+## 12.7 Complete Transformer
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────┐
+│              Transformer                │
+├─────────────────────────────────────────┤
+│                                         │
+│  Source language ──→ Embedding ──→ + Positional encoding
+│                    ↓                    │
+│            ┌──────────────┐             │
+│            │   Encoder    │ × N layers  │
+│            └──────────────┘             │
+│                    ↓                    │
+│               Memory                    │
+│                    ↓                    │
+│  Target language ──→ Embedding ──→ + Positional encoding
+│                    ↓                    │
+│            ┌──────────────┐             │
+│            │   Decoder    │ × N layers  │
+│            └──────────────┘             │
+│                    ↓                    │
+│              Linear                     │
+│                    ↓                    │
+│             Softmax                     │
+│                    ↓                    │
+│           Output probabilities          │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+### Usage Example
+
+```python
 class TransformerClassifier:
+    """
+    Text classification using Transformer (Encoder only)
+    """
+
     def __init__(self, vocab_size, d_model, nhead, num_layers, num_classes):
         self.embedding = Embedding(vocab_size, d_model)
         self.pos_encoder = PositionalEncoding(d_model)
-        
-        encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward=d_model * 4)
+
+        # Encoder
+        encoder_layer = TransformerEncoderLayer(d_model, nhead)
         self.encoder = TransformerEncoder(encoder_layer, num_layers)
-        
+
+        # Classification head
         self.fc = Linear(d_model, num_classes)
-    
+
     def __call__(self, x):
         # x: (batch, seq_len) word indices
-        x = self.embedding(x)  # (batch, seq_len, d_model)
+        x = self.embedding(x)
         x = self.pos_encoder(x)
         x = self.encoder(x)
-        
-        # Use [CLS] position or mean pooling
-        x = x.mean(dim=1)  # (batch, d_model)
+
+        # Mean pooling
+        x = x.mean(dim=1)
         return self.fc(x)
 ```
 
-### Machine Translation (Encoder-Decoder)
+---
 
-```python
-class TranslationModel:
-    def __init__(self, src_vocab, tgt_vocab, d_model=512, nhead=8, num_layers=6):
-        self.src_embedding = Embedding(src_vocab, d_model)
-        self.tgt_embedding = Embedding(tgt_vocab, d_model)
-        self.pos_encoder = PositionalEncoding(d_model)
-        
-        self.transformer = Transformer(
-            d_model=d_model,
-            nhead=nhead,
-            num_encoder_layers=num_layers,
-            num_decoder_layers=num_layers,
-        )
-        
-        self.fc_out = Linear(d_model, tgt_vocab)
-    
-    def encode(self, src):
-        src = self.src_embedding(src)
-        src = self.pos_encoder(src)
-        return self.transformer.encoder(src)
-    
-    def decode(self, tgt, memory):
-        tgt = self.tgt_embedding(tgt)
-        tgt = self.pos_encoder(tgt)
-        tgt_mask = generate_square_subsequent_mask(tgt.shape[1])
-        return self.transformer.decoder(tgt, memory, tgt_mask)
-    
-    def __call__(self, src, tgt):
-        memory = self.encode(src)
-        output = self.decode(tgt, memory)
-        return self.fc_out(output)
+## 12.8 Transformer Variants
+
+### BERT (Encoder Only)
+
+```
+BERT = Bidirectional Encoder Representations from Transformers
+
+Features:
+  - Uses only Encoder
+  - Bidirectional (can see entire sentence)
+  - Pre-training + Fine-tuning
+
+Use: Understanding tasks (classification, labeling, etc.)
 ```
 
-### GPT Style (Decoder Only)
+### GPT (Decoder Only)
+
+```
+GPT = Generative Pre-trained Transformer
+
+Features:
+  - Uses only Decoder
+  - Unidirectional (causal mask)
+  - Autoregressive generation
+
+Use: Generation tasks (text generation, dialogue, etc.)
+```
+
+### Comparison
+
+| Model | Architecture | Direction | Use |
+|------|------|------|------|
+| BERT | Encoder | Bidirectional | Understanding |
+| GPT | Decoder | Unidirectional | Generation |
+| T5 | Encoder+Decoder | Bidirectional+Unidirectional | Translation |
+
+---
+
+## 12.9 Common Pitfalls
+
+### Pitfall 1: Forgetting Positional Encoding
 
 ```python
-class GPTModel:
-    """GPT-style autoregressive language model."""
-    
-    def __init__(self, vocab_size, d_model, nhead, num_layers):
-        self.embedding = Embedding(vocab_size, d_model)
-        self.pos_encoder = PositionalEncoding(d_model)
-        
-        decoder_layer = TransformerDecoderLayer(d_model, nhead, d_model * 4)
-        self.decoder = TransformerDecoder(decoder_layer, num_layers)
-        
-        self.lm_head = Linear(d_model, vocab_size)
-    
-    def __call__(self, x):
-        x = self.embedding(x)
-        x = self.pos_encoder(x)
-        
-        # Causal mask
-        mask = generate_square_subsequent_mask(x.shape[1])
-        
-        # For decoder-only, memory is itself
-        output = self.decoder(x, x, tgt_mask=mask)
-        
-        return self.lm_head(output)
+# Wrong: No position information
+x = self.embedding(tokens)
+x = self.encoder(x)  # Doesn't know word order!
+
+# Correct
+x = self.embedding(tokens)
+x = self.pos_encoder(x)  # Add positional encoding
+x = self.encoder(x)
+```
+
+### Pitfall 2: Decoder Forgetting Mask
+
+```python
+# Wrong: Can see future
+output = self.decoder(tgt, memory)  # No mask
+
+# Correct: Causal mask
+mask = generate_square_subsequent_mask(tgt.shape[1])
+output = self.decoder(tgt, memory, tgt_mask=mask)
+```
+
+### Pitfall 3: Dimension Mismatch
+
+```python
+# Multi-head attention: embed_dim must be divisible by num_heads
+MultiheadAttention(embed_dim=512, num_heads=8)   # ✓ 512/8=64
+MultiheadAttention(embed_dim=512, num_heads=7)   # ✗ 512/7 not divisible
 ```
 
 ---
 
-## Summary
+## 12.10 Summary in One Sentence
 
-This tutorial introduced the core components of Transformer architecture:
-
-| Component | Function |
-|-----------|----------|
-| **MultiheadAttention** | Parallel computation of multiple attentions |
-| **TransformerEncoder** | Encodes input sequence |
-| **TransformerDecoder** | Decodes to generate target sequence |
-| **PositionalEncoding** | Injects positional information |
-
-### Key Points
-
-1. **Attention mechanism** calculates relevance through Q, K, V
-2. **Multi-head attention** allows model to attend to different subspaces
-3. **Residual connection + LayerNorm** stabilizes deep network training
-4. **Causal mask** prevents decoder from seeing future information
-
-### Next Steps
-
-In [Tutorial 13: Data Loading](13-dataloader.md), we will learn how to implement DataLoader and Dataset for efficiently loading and processing training data.
+| Concept | One Sentence |
+|------|--------|
+| Attention | Q queries K to get weights, weighted combination of V |
+| Self-attention | Q=K=V, relationship with itself |
+| Multi-head | Look from multiple angles simultaneously, merge results |
+| Residual connection | Input directly added to output, facilitates gradient flow |
+| Positional encoding | Add label to each position, distinguish order |
+| Causal mask | Don't let Decoder see the future |
 
 ---
 
-**References**:
-- [Attention Is All You Need (Original Paper)](https://arxiv.org/abs/1706.03762)
-- [The Illustrated Transformer](http://jalammar.github.io/illustrated-transformer/)
-- [Transformers from Scratch](https://e2eml.school/transformers.html)
+## Next Chapter
+
+Now we've learned Transformer!
+
+Next chapter, we'll learn **Data Loading** — how to efficiently load and process training data.
+
+→ [Chapter 13: Data Loading](13-dataloader.md)
+
+```python
+# Preview: What you'll learn in the next chapter
+dataset = TensorDataset(X, y)
+dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+for batch_x, batch_y in dataloader:
+    # Automatic batching, shuffling, parallel loading
+```

@@ -4,6 +4,55 @@ Series are the natural extension of sequence summation and have widespread appli
 
 ---
 
+## 🎯 Life Analogy: Adding Up Money
+
+Imagine someone offers you two payment options:
+- Option A: $1 million today
+- Option B: 1 cent today, 2 cents tomorrow, 4 cents the next day, ... for 30 days
+
+**Which is better?**
+
+```
+Day 1:   $0.01
+Day 2:   $0.02
+Day 3:   $0.04
+...
+Day 30:  $5,368,709.12
+
+Total: Over $10 million!
+```
+
+This is a **geometric series**: $1 + 2 + 4 + 8 + ...$
+
+### Convergence vs Divergence = "Bucket Filling"
+
+```
+Convergent series: Like filling a bucket that eventually stops
+    ╭───╮
+    │   │ ← Water level settles
+    │   │
+    └───┘
+Water added: 1 + 1/2 + 1/4 + 1/8 + ... = 2 (finite!)
+
+Divergent series: Like filling an infinite tank
+    │
+    │ ← Water keeps rising forever
+    │
+    │
+Water added: 1 + 2 + 3 + 4 + ... = ∞
+```
+
+### 📖 Plain English Translation
+
+| Term | Plain English |
+|------|---------------|
+| Series | Adding up the terms of a sequence |
+| Convergent | The sum approaches a finite number |
+| Divergent | The sum grows to infinity |
+| Partial sum | Sum of the first n terms |
+
+---
+
 ## Table of Contents
 
 1. [Basic Concepts of Series](#basic-concepts-of-series)

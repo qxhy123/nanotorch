@@ -1,36 +1,59 @@
 # Chapter 1: Tensor Basics
 
-## Data, in the Eyes of Deep Learning...
+## Data is the Blood of Deep Learning...
 
-Imagine you're looking at a photograph.
+What is an image? An array of 224×224×3 numbers.
 
-To your eyes, it's a sunset over the ocean—waves, clouds, golden light.
+What is text? A sequence of word vectors.
 
-But to a computer, it's just numbers. Millions of them. A grid of pixel values, each one a tiny piece of the bigger picture.
+What is sound? A waveform of amplitude over time.
 
-**This is the fundamental truth of deep learning: everything becomes numbers.**
+Neural networks cannot see images, hear sounds, or read text. The only thing they can understand is **numbers**. And Tensor is the container that carries these numbers.
 
-Images become matrices. Sentences become vectors. Sounds become sequences. The magic of neural networks isn't in understanding the world as we do—it's in transforming these numbers, layer by layer, until they represent something meaningful.
+Imagine a Rubik's cube—length, width, height, three dimensions. Now, extend this cube infinitely: four dimensions, five dimensions... even a hundred dimensions. This is Tensor.
 
 ```
-The Language of Neural Networks:
-
-  A photograph    → 3D Tensor [Height × Width × Channels]
-  A sentence      → 2D Tensor [Words × Embeddings]
-  A video         → 4D Tensor [Frames × Height × Width × Channels]
-  A batch of data → Just add another dimension
-
-Numbers flow through the network like water through pipes,
-transformed at every junction, until they emerge as predictions.
+0D: A drop of water    → Scalar (5)
+1D: A string of beads  → Vector ([1,2,3])
+2D: A chess board      → Matrix ([[1,2],[3,4]])
+3D: A photo album      → Tensor ([[[...]]])
+4D: A video            → Batch×Time×Height×Width×Channel
 ```
 
-**The Tensor is the vessel that carries these numbers.** It's the foundational data structure upon which all of deep learning is built. Understanding tensors is like learning the alphabet before writing poetry—essential, fundamental, and surprisingly elegant.
-
-In this chapter, we'll build a Tensor class from scratch. Not just to use it, but to understand it—deeply, intuitively, completely.
+**Tensor is the myriad forms of numbers in computers.**
 
 ---
 
-## 1.1 What is a Tensor?
+## 1.1 Why Do We Need Tensor?
+
+**Question**: Doesn't NumPy already have ndarray?
+
+**Answer**: Yes, but Tensor has two key capabilities:
+
+| Capability | NumPy ndarray | Tensor |
+|------------|--------------|--------|
+| GPU Acceleration | ❌ | ✅ |
+| Automatic Differentiation | ❌ | ✅ |
+
+```
+Regular computation:       Deep learning computation:
+[1,2,3]                    [1,2,3]
+  +                          +
+[4,5,6]                    [4,5,6]
+  =                          =
+[5,7,9]                    [5,7,9] → Can remember: this result came from addition!
+                             ↓
+                       Can automatically compute gradients during backward()
+```
+
+---
+
+## 1.2 Simplest Tensor: Starting from Zero
+
+### Goal
+Create a Tensor class that can store data.
+
+### Implementation
 
 A Tensor is essentially a **multi-dimensional array**, similar to NumPy's ndarray.
 

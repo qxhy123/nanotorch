@@ -9,7 +9,13 @@
       "Bash(git commit:*)",
       "Bash(python:*)",
       "Bash(pip install:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(pandoc:*)",
+      "Bash(brew install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(brew search:*)",
+      "Bash(python3:*)",
+      "Bash(source:*)"
     ]
   }
 }

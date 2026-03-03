@@ -1,37 +1,28 @@
 # YOLO v1 Object Detection Model Implementation Tutorial
 
-## The Beginning of a Revolution...
+## In 2015, a revolutionary idea was born...
 
-In 2015, a paper titled "You Only Look Once" changed object detection forever.
+Before that, computers saw the world like blind men feeling an elephant—
 
-Before YOLO, detection was slow. Models would propose hundreds of candidate regions, then classify each one separately. It worked, but it was like reading a book by examining one word at a time.
+It carefully held up two thousand magnifying glasses, examining every corner of the image one by one: "Is there something here? How about here? And here?" After finding suspicious areas, it would send them off for identification. Tedious, slow, clumsy.
 
-**YOLO asked: why not read the whole page at once?**
+Until someone asked this question:
+
+**"Why not look at everything at once, like humans do?"**
+
+And so YOLO was born. It no longer wandered around holding magnifying glasses, but gently divided the image into a 7×7 grid—like dropping a window lattice onto the picture. Each cell only needed to answer one question: "Is there something here? What is it? Where?"
 
 ```
-The YOLO v1 Breakthrough:
+The R-CNN way:
+  Two thousand gazes, two thousand guesses
+  Like a diligent but inefficient clerk
 
-  Traditional detection:
-    1. Generate region proposals (slow)
-    2. Classify each region (slow)
-    3. Refine bounding boxes (slow)
-    → 0.05 frames per second
-
-  YOLO v1:
-    1. Look at the whole image once
-    2. Predict all boxes simultaneously
-    3. Done
-    → 45 frames per second
-
-  The insight:
-    Detection is just regression.
-    Each grid cell predicts what it contains.
-    No proposals needed. No slow pipelines.
+The YOLO v1 way:
+  One gaze, everything clear
+  Like a hunter with piercing eyes
 ```
 
-**YOLO v1 wasn't perfect, but it was a paradigm shift.** It showed that object detection could be unified, elegant, and fast. The accuracy wasn't state-of-the-art, but the speed made real-time detection possible for the first time.
-
-In this tutorial, we'll implement YOLO v1 from scratch. We'll see how grid-based prediction works, how the loss function balances localization and classification, and how a single forward pass can predict all objects in an image. This is where the YOLO story begins.
+**This is YOLO—You Only Look Once**, one glance, eternity in a moment.
 
 ---
 
@@ -409,9 +400,9 @@ print(sample['labels'].shape)    # (N,)
 
 # VOC 20 classes
 print(dataset.VOC_CLASSES)
-# ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 
-#  'bus', 'car', 'cat', 'chair', 'cow', 
-#  'diningtable', 'dog', 'horse', 'motorbike', 'person', 
+# ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle',
+#  'bus', 'car', 'cat', 'chair', 'cow',
+#  'diningtable', 'dog', 'horse', 'motorbike', 'person',
 #  'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
 ```
 
@@ -497,29 +488,29 @@ dataloader = create_synthetic_dataloader(
 for epoch in range(10):
     total_loss = 0
     num_batches = 0
-    
+
     for batch in dataloader:
         # Prepare data
         images = Tensor(batch['images'])
         targets = Tensor(batch['targets'])
-        
+
         # Forward pass
         optimizer.zero_grad()
         output = model(images)
         output_reshaped = output.reshape((images.shape[0], 7, 7, 30))
-        
+
         # MSE loss for gradient computation
         # (YOLOv1Loss doesn't support backward, uses NumPy internally)
         diff = output_reshaped - targets
         loss = (diff * diff).mean()
-        
+
         # Backward pass
         loss.backward()
         optimizer.step()
-        
+
         total_loss += loss.item()
         num_batches += 1
-    
+
     avg_loss = total_loss / num_batches
     print(f"Epoch {epoch}, Average Loss: {avg_loss:.4f}")
 ```
@@ -630,17 +621,17 @@ def train_yolov1():
     learning_rate = 1e-4
     image_size = 448
     S, B, C = 7, 2, 20
-    
+
     # Create model
     model = YOLOv1(input_size=image_size, S=S, B=B, C=C)
-    
+
     # Create optimizer and scheduler
     optimizer = Adam(model.parameters(), lr=learning_rate)
     scheduler = StepLR(optimizer, step_size=10, gamma=0.1)
-    
+
     # Create loss function (for monitoring)
     loss_fn = YOLOv1Loss(S=S, B=B, C=C)
-    
+
     # Create dataloader
     dataloader = create_synthetic_dataloader(
         num_samples=200,
@@ -649,38 +640,38 @@ def train_yolov1():
         S=S, B=B, C=C,
         shuffle=True
     )
-    
+
     # Training loop
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0
-        
+
         for batch in dataloader:
             images = Tensor(batch['images'])
             targets = Tensor(batch['targets'])
-            
+
             optimizer.zero_grad()
-            
+
             # Forward pass
             output = model(images)
             output_reshaped = output.reshape((images.shape[0], S, S, B*5+C))
-            
+
             # MSE loss (for backward)
             diff = output_reshaped - targets
             loss = (diff * diff).mean()
-            
+
             # Backward pass
             loss.backward()
             optimizer.step()
-            
+
             total_loss += loss.item()
-        
+
         scheduler.step()
-        
+
         # Print statistics
         avg_loss = total_loss / len(dataloader)
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}, LR: {scheduler.get_lr():.6f}")
-    
+
     return model
 
 if __name__ == "__main__":
@@ -702,15 +693,15 @@ def inference_example():
     # Load model
     model = YOLOv1(input_size=448, S=7, B=2, C=20)
     model.eval()
-    
+
     # Prepare input (in practice, load real image)
     image = np.random.randn(1, 3, 448, 448).astype(np.float32)
     x = Tensor(image)
-    
+
     # Forward pass
     output = model(x)
     output_reshaped = output.reshape((1, 7, 7, 30))
-    
+
     # Decode predictions
     predictions = output_reshaped.data[0]
     boxes, scores, class_ids = decode_predictions(
@@ -718,7 +709,7 @@ def inference_example():
         conf_threshold=0.3,
         image_size=448
     )
-    
+
     # VOC class names
     VOC_CLASSES = [
         'aeroplane', 'bicycle', 'bird', 'boat', 'bottle',
@@ -726,7 +717,7 @@ def inference_example():
         'diningtable', 'dog', 'horse', 'motorbike', 'person',
         'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor'
     ]
-    
+
     # Print detection results
     print(f"Detected {len(boxes)} objects:")
     for i in range(len(boxes)):
@@ -828,7 +819,7 @@ python examples/yolo_v1/demo.py --mode train \
 python examples/yolo_v1/demo.py --mode train --full --batch-size 1
 ```
 
-> ⚠️ **Memory Warning**: Full YOLOv1 has 271M parameters, 448×448 input requires ~8GB memory.
+> **Memory Warning**: Full YOLOv1 has 271M parameters, 448x448 input requires ~8GB memory.
 > If you encounter SIGKILL errors, use `--tiny` or reduce `--batch-size`.
 
 Training parameters:
@@ -866,7 +857,7 @@ Inference parameters:
 ### Complete Workflow (Training + Inference)
 
 ```bash
-# Run complete demo: architecture → encode/decode → train → inference
+# Run complete demo: architecture -> encode/decode -> train -> inference
 python examples/yolo_v1/demo.py --mode both
 ```
 

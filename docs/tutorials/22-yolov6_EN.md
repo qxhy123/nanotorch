@@ -1,36 +1,28 @@
 # YOLO v6 Object Detection Model Implementation Tutorial
 
-## Industrial Strength...
+## Training and Inference Are Two Worlds...
 
-Not all YOLOs come from academia.
+During training, you have the luxury of time—you can stack complex structures, let the model learn more thoroughly.
 
-YOLO v6 emerged from Meituan—one of China's largest tech companies. They weren't trying to publish papers. They were trying to deploy object detection at scale, in production, under real-world constraints.
+During inference, you count every penny—every millisecond is a cost, every multiplication must be carefully calculated.
 
-**When industry builds deep learning tools, different priorities emerge.**
+**Can you have the best of both worlds?**
+
+YOLO v6 provides the answer: **Structural Reparameterization**.
+
+During training, it's like a lush tree with three branches drawing nutrients together—3x3 convolution, 1x1 convolution, identity mapping—each doing its part, complementing each other.
+
+During inference, this tree quietly transforms, all branches merge into one, becoming a solid trunk—a single 3x3 convolution, traveling light, fast as lightning.
 
 ```
-The Industrial Perspective:
+Training: Intricate as brocade, layer upon layer
+Inference: Simple as a sword, striking with precision
 
-  Academic priorities:
-    "Is this novel?"
-    "Does it beat state-of-the-art?"
-    "Is the math elegant?"
-
-  Industrial priorities:
-    "Does it run fast enough?"
-    "Can we deploy it on edge devices?"
-    "Is it stable under real-world conditions?"
-
-  YOLO v6's answers:
-    - RepVGG backbone → Fast inference through reparameterization
-    - Decoupled head → Better accuracy, no speed penalty
-    - Quantization-friendly → Runs on mobile chips
-    - Training efficiency → Faster convergence, lower cost
+This is not compromise, but wisdom
+Doing the right thing at the right time
 ```
 
-**YOLO v6 is YOLO for the real world.** Its signature innovation is structural reparameterization—a technique that lets you have your cake and eat it too. During training, the network has multiple branches for better gradients. During inference, those branches fuse into a single convolution. Training complexity becomes inference simplicity.
-
-In this tutorial, we'll implement YOLO v6 from scratch. We'll see how RepVGG blocks reparameterize, how decoupled heads improve accuracy, and how this architecture was built for deployment from day one.
+**YOLO v6 — From Meituan, born for production**, industrial-grade elegance.
 
 ---
 

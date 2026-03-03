@@ -1,380 +1,397 @@
 # Tutorial 10: Normalization Layers
 
-## Calming the Storm Within...
+## The Harmony Secret of a Choir...
 
-Imagine a conversation where everyone speaks at different volumes.
+Everyone in the choir is singing. But here's the problem—
 
-One person whispers, another shouts. Some are barely audible, others deafening. The listener—trying to understand all of them—becomes confused, overwhelmed, unable to focus on what matters.
+The tenor is too loud, drowning out the alto.
+The mezzo-soprano is pitchy, throwing off the whole section.
+Some voices are unsteady, now strong, now weak.
 
-**Deep neural networks face the same problem.**
+If everyone follows their own rhythm, the result can only be noise.
+
+So the conductor steps forward. He constantly adjusts: "Tenor, a little softer. Alto, louder. Overall, more steady."
+
+**Normalization layers are the "conductors" of neural networks.**
+
+In deep networks, each layer's output may deviate from the "right track"—some values explode, others vanish. Subsequent layers become confused: "What should I learn?"
+
+Normalization layers "pull back" the data at every step, returning them to a stable distribution.
 
 ```
-The Problem of Shifting Distributions:
+Without normalization:
+  Layer 1 output: [0.001, 0.002, ...]
+  Layer 2 output: [0.0001, 0.0002, ...]
+  Layer 3 output: [0.00001, ...]  ← Vanished
 
-  Layer 1 outputs values around 0.5
-       ↓
-  Layer 2 receives them, outputs values around 10
-       ↓
-  Layer 3 receives them, outputs values around 0.001
-       ↓
-  Each layer must constantly adapt:
-  "What range am I working with today?"
-
-Training becomes a game of chasing moving targets.
-Learning slows. Gradients vanish or explode.
-The network struggles to find its footing.
+With normalization:
+  Every layer output: mean ≈ 0, variance ≈ 1
+  Stable, controllable, learnable
 ```
 
-**Normalization layers bring calm to the chaos.** They take whatever values come in—large or small, clustered or scattered—and reshape them to a consistent distribution. Mean zero. Variance one. Every layer receives data in a format it can work with.
-
-BatchNorm does this across the batch. LayerNorm does it across features. GroupNorm finds a middle ground. Each has its philosophy, its strengths, its loyal applications.
-
-In this tutorial, we'll implement these normalization layers and understand when to use which. We'll see why BatchNorm needs running statistics, why LayerNorm powers Transformers, and why GroupNorm saves the day for small batches.
+**Normalization is the stabilizer of deep networks.** It makes training more stable and convergence faster.
 
 ---
 
-## Table of Contents
+## 10.1 Why Do We Need Normalization?
 
-1. [Overview](#overview)
-2. [Why Normalization is Needed](#why-normalization-is-needed)
-3. [BatchNorm Implementation](#batchnorm-implementation)
-4. [LayerNorm Implementation](#layernorm-implementation)
-5. [GroupNorm Implementation](#groupnorm-implementation)
-6. [InstanceNorm Implementation](#instancenorm-implementation)
-7. [Comparison of Normalization Methods](#comparison-of-normalization-methods)
-8. [Usage Examples](#usage-examples)
-9. [Summary](#summary)
-
----
-
-## Overview
-
-Normalization layers are core components of modern deep neural networks. They can:
-- **Accelerate Training**: Allow using larger learning rates
-- **Stabilize Training**: Reduce Internal Covariate Shift
-- **Regularization Effect**: BatchNorm has certain regularization properties
-
-nanotorch implements the following normalization layers:
-- **BatchNorm1d/2d/3d**: Batch normalization
-- **LayerNorm**: Layer normalization
-- **GroupNorm**: Group normalization
-- **InstanceNorm1d/2d/3d**: Instance normalization
-
----
-
-## Why Normalization is Needed
-
-### Internal Covariate Shift
-
-In deep networks, the input distribution of each layer changes as the parameters of previous layers are updated. This leads to:
-1. Each layer must constantly adapt to new input distributions
-2. Learning rates must be set very small
-3. Training is unstable and convergence is slow
-
-### The Effect of Normalization
+### Problem: Internal Covariate Shift
 
 ```
-Before Normalization:        After Normalization:
-    ┌─────┐                     ┌─────┐
-    │Large│                     │Mean 0│
-    │Var  │                     │Var 1 │
-    └─────┘                     └─────┘
- Unstable distribution        Stable distribution
+The Dilemma of Deep Networks:
+
+Layer 1 output → Layer 2 → Layer 3 → ... → Layer N
+      ↓             ↓           ↓
+  Distribution   Distribution   Distribution
+    change         change         change
+
+Problem:
+  - Each layer's "input distribution" constantly changes
+  - Later layers must constantly adapt
+  - Training is unstable, convergence is slow
 ```
 
-Through normalization, we stabilize each layer's input around mean 0 and variance 1, making training more stable.
+### Life Analogy
+
+```
+Like taking exams:
+
+Scenario 1: Each exam has different difficulty
+  1st exam: Very easy, average 90
+  2nd exam: Very hard, average 50
+  3rd exam: Easy, average 85
+  → Hard to adjust your study strategy
+
+Scenario 2: Each exam is standardized
+  1st exam: After standardization, average 70
+  2nd exam: After standardization, average 70
+  3rd exam: After standardization, average 70
+  → Easy to see your progress
+```
+
+### Solution: Normalization
+
+```
+Effect of normalization:
+
+Input [very large numbers, very small numbers, ...]
+        ↓
+   Subtract mean, divide by standard deviation
+        ↓
+Output [numbers close to 0, numbers close to 0, ...]
+
+Each layer's input is stable → Training is more stable
+```
 
 ---
 
-## BatchNorm Implementation
+## 10.2 BatchNorm: Normalize by Batch
 
 ### Principle
 
-BatchNorm calculates mean and variance for each channel across samples within a batch:
-
 ```
-Input: (N, C, H, W)
+BatchNorm calculates statistics for each channel within the batch:
+
+Input: (N, C, H, W) = (16, 64, 32, 32)
+      Batch  Channels Height Width
+
 For each channel c:
-    mean = mean(x[:, c, :, :])  # Average over N, H, W
-    var = var(x[:, c, :, :])
-    x_norm[:, c, :, :] = (x[:, c, :, :] - mean) / sqrt(var + eps)
-    output[:, c, :, :] = gamma * x_norm[:, c, :, :] + beta
+  - Calculate mean and variance of these 16 images on channel c
+  - Normalize using these statistics
+
+Intuitive understanding:
+  Suppose channel 1 represents "red"
+  → Look at the average brightness of red in these 16 images
+  → Adjust to standard brightness
 ```
 
-### Difference Between Training and Inference
+### Diagram
 
-| Phase | Statistics Used |
-|-------|-----------------|
-| Training | Mean and variance from current batch |
-| Inference | Running mean/var accumulated during training |
+```
+Input data (N=4, C=3):
 
-### Base Class Implementation
+Channel 0 (Red):      Channel 1 (Green):   Channel 2 (Blue):
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ 255 200 180 │     │ 100 120 90  │     │ 50  60  40  │
+│ 220 190 210 │     │ 110 100 130 │     │ 55  45  70  │
+│ ...         │     │ ...         │     │ ...         │
+└─────────────┘     └─────────────┘     └─────────────┘
+      ↓                   ↓                   ↓
+  mean=200           mean=110            mean=50
+  std=30             std=15              std=10
+      ↓                   ↓                   ↓
+   Normalize          Normalize           Normalize
+```
+
+### Training vs Inference
+
+```
+During training:
+  - Use current batch mean/variance
+  - Simultaneously update running_mean/running_var
+
+During inference:
+  - Use running_mean/running_var accumulated during training
+  - Because inference may have only 1 sample, cannot calculate statistics
+```
+
+### Implementation
 
 ```python
-# nanotorch/nn/normalization.py
+class BatchNorm2d(Module):
+    """
+    2D Batch Normalization
 
-class _BatchNorm(Module):
-    """BatchNorm base class"""
-    
+    Analogy:
+      Training = Live conducting, adjusting based on current situation
+      Inference = Using past experience to adjust
+    """
+
     def __init__(
         self,
-        num_features: int,
-        eps: float = 1e-5,
-        momentum: Optional[float] = 0.1,
-        affine: bool = True,
-        track_running_stats: bool = True,
-    ) -> None:
+        num_features: int,      # Number of channels
+        eps: float = 1e-5,      # Prevent division by 0
+        momentum: float = 0.1,  # Running statistics update speed
+        affine: bool = True,    # Whether to learn gamma and beta
+    ):
         super().__init__()
         self.num_features = num_features
         self.eps = eps
         self.momentum = momentum
-        self.affine = affine
-        self.track_running_stats = track_running_stats
-        
-        # Learnable parameters
-        self.gamma = None  # Scale parameter
-        self.beta = None   # Shift parameter
-        if self.affine:
-            self.gamma = Tensor.ones((num_features,), requires_grad=True)
-            self.beta = Tensor.zeros((num_features,), requires_grad=True)
-        
-        # Running statistics
-        self.running_mean = None
-        self.running_var = None
-        if self.track_running_stats:
-            self.running_mean = Tensor.zeros((num_features,), requires_grad=False)
-            self.running_var = Tensor.ones((num_features,), requires_grad=False)
+
+        # Learnable parameters: scale and shift
+        if affine:
+            self.gamma = Tensor.ones((num_features,), requires_grad=True)  # Scale
+            self.beta = Tensor.zeros((num_features,), requires_grad=True)  # Shift
+
+        # Running statistics (not parameters, no gradients)
+        self.running_mean = Tensor.zeros((num_features,))
+        self.running_var = Tensor.ones((num_features,))
 
     def forward(self, x: Tensor) -> Tensor:
-        N, C = x.shape[0], x.shape[1]
-        # Calculate mean over batch and spatial dimensions
-        axes = (0,) + tuple(range(2, x.ndim))
-        
-        if self.training and self.track_running_stats:
-            # Calculate current batch statistics
-            mean = x.mean(axis=axes, keepdims=True)
-            var = ((x - mean) ** 2).mean(axis=axes, keepdims=True)
-            
+        # x: (N, C, H, W)
+        N, C, H, W = x.shape
+
+        if self.training:
+            # Training mode: use current batch statistics
+            # Calculate mean and variance over N, H, W dimensions
+            mean = x.mean(axis=(0, 2, 3), keepdims=True)
+            var = ((x - mean) ** 2).mean(axis=(0, 2, 3), keepdims=True)
+
             # Update running statistics
-            mean_squeezed = mean.squeeze(axis=axes)
-            var_squeezed = var.squeeze(axis=axes)
-            
-            if self.momentum is not None:
-                self.running_mean.data = (
-                    1 - self.momentum
-                ) * self.running_mean.data + self.momentum * mean_squeezed.data
-                self.running_var.data = (
-                    1 - self.momentum
-                ) * self.running_var.data + self.momentum * var_squeezed.data
-            
-            # Normalize using batch statistics
-            x_normalized = (x - mean) / (var + self.eps) ** 0.5
+            self.running_mean.data = (1 - self.momentum) * self.running_mean.data + \
+                                     self.momentum * mean.squeeze().data
+            self.running_var.data = (1 - self.momentum) * self.running_var.data + \
+                                    self.momentum * var.squeeze().data
         else:
-            # Use running statistics
-            broadcast_shape = (1, C) + (1,) * (x.ndim - 2)
-            mean = self.running_mean.reshape(broadcast_shape)
-            var = self.running_var.reshape(broadcast_shape)
-            x_normalized = (x - mean) / (var + self.eps) ** 0.5
-        
-        # Affine transformation
-        if self.affine:
-            broadcast_shape = (1, C) + (1,) * (x.ndim - 2)
-            gamma_reshaped = self.gamma.reshape(broadcast_shape)
-            beta_reshaped = self.beta.reshape(broadcast_shape)
-            x_normalized = gamma_reshaped * x_normalized + beta_reshaped
-        
-        return x_normalized
+            # Inference mode: use running statistics
+            mean = self.running_mean.reshape(1, C, 1, 1)
+            var = self.running_var.reshape(1, C, 1, 1)
+
+        # Normalize
+        x_norm = (x - mean) / (var + self.eps) ** 0.5
+
+        # Scale and shift (let the network decide the best distribution)
+        if hasattr(self, 'gamma'):
+            x_norm = self.gamma.reshape(1, C, 1, 1) * x_norm + \
+                     self.beta.reshape(1, C, 1, 1)
+
+        return x_norm
 ```
 
-### BatchNorm2d Implementation
+### Usage
 
 ```python
-class BatchNorm2d(_BatchNorm):
-    """2D Batch Normalization.
-    
-    Shape:
-        - Input: (N, C, H, W)
-        - Output: (N, C, H, W)
-    """
-    
-    def __init__(
-        self,
-        num_features: int,
-        eps: float = 1e-5,
-        momentum: Optional[float] = 0.1,
-        affine: bool = True,
-        track_running_stats: bool = True,
-    ) -> None:
-        super().__init__(
-            num_features=num_features,
-            eps=eps,
-            momentum=momentum,
-            affine=affine,
-            track_running_stats=track_running_stats,
-        )
-    
-    def _check_input_dim(self, x: Tensor) -> None:
-        if x.ndim != 4:
-            raise ValueError(f"BatchNorm2d expects 4D input, got {x.ndim}D")
-```
-
-### Usage Example
-
-```python
-from nanotorch import Tensor
 from nanotorch.nn import BatchNorm2d
 
-# Create BatchNorm layer
-bn = BatchNorm2d(num_features=64)
+# Create BatchNorm
+bn = BatchNorm2d(num_features=64)  # 64 channels
 
-# Training mode
+# Training
 bn.train()
-x = Tensor.randn((16, 64, 32, 32))
-output = bn(x)
+output = bn(x_train)
 
-# Inference mode
+# Inference
 bn.eval()
-x_test = Tensor.randn((1, 64, 32, 32))
-output_test = bn(x_test)  # Uses running statistics
+output = bn(x_test)
 ```
 
 ---
 
-## LayerNorm Implementation
+## 10.3 LayerNorm: Normalize by Layer
 
 ### Principle
 
-LayerNorm normalizes each sample across the feature dimension, without relying on batch statistics:
-
 ```
+LayerNorm normalizes all features of each sample:
+
 Input: (N, C, H, W)
 For each sample n:
-    mean = mean(x[n, :, :, :])  # Average over C, H, W
-    var = var(x[n, :, :, :])
-    x_norm[n, :, :, :] = (x[n, :, :, :] - mean) / sqrt(var + eps)
+  - Calculate mean and variance of all features in this sample
+  - Does not depend on batch size
+
+Intuitive understanding:
+  Each person adjusts themselves, regardless of others
+  I look at my own scores in various subjects, adjust to average
+```
+
+### BatchNorm vs LayerNorm
+
+```
+BatchNorm (across samples):    LayerNorm (across features):
+
+┌─────────────────┐            ┌─────────────────┐
+│ Sample1 │ Sample2  │          │ Sample1         │
+│  ↓    │  ↓      │          │  All features    │
+│ Stats │ Stats   │          │  together       │
+└─────────────────┘          │  ↓              │
+                             │  Stats          │
+                             └─────────────────┘
+Each channel separately       Each sample separately
+
+Needs large batch             Doesn't depend on batch
 ```
 
 ### Implementation
 
 ```python
 class LayerNorm(Module):
-    """Layer Normalization.
-    
-    Normalizes over the last (or last few) dimensions.
-    Commonly used in Transformers and NLP tasks.
-    
-    Shape:
-        - Input: (*, normalized_shape)
-        - Output: (*, normalized_shape)
+    """
+    Layer Normalization
+
+    Commonly used in: Transformers, NLP tasks
+    Advantages: Doesn't depend on batch size, suitable for variable-length sequences
     """
 
     def __init__(
         self,
-        normalized_shape: Union[int, Tuple[int, ...]],
+        normalized_shape: int,   # Size of last dimension
         eps: float = 1e-5,
-        elementwise_affine: bool = True,
-    ) -> None:
+    ):
         super().__init__()
-        if isinstance(normalized_shape, int):
-            normalized_shape = (normalized_shape,)
-        
         self.normalized_shape = normalized_shape
         self.eps = eps
-        self.elementwise_affine = elementwise_affine
-        
-        self.gamma = None
-        self.beta = None
-        if self.elementwise_affine:
-            self.gamma = Tensor.ones(normalized_shape, requires_grad=True)
-            self.beta = Tensor.zeros(normalized_shape, requires_grad=True)
+
+        # Learnable parameters
+        self.gamma = Tensor.ones((normalized_shape,), requires_grad=True)
+        self.beta = Tensor.zeros((normalized_shape,), requires_grad=True)
 
     def forward(self, x: Tensor) -> Tensor:
-        # Use LayerNormFunction for forward propagation
-        return LayerNormFunction.apply(
-            x, self.normalized_shape, self.gamma, self.beta, self.eps
-        )
+        # x: (batch, seq_len, hidden_dim)
+        # Normalize over the last dimension
+
+        mean = x.mean(axis=-1, keepdims=True)
+        var = ((x - mean) ** 2).mean(axis=-1, keepdims=True)
+
+        x_norm = (x - mean) / (var + self.eps) ** 0.5
+
+        return self.gamma * x_norm + self.beta
 ```
 
-### Usage Example
+### Usage
 
 ```python
 from nanotorch.nn import LayerNorm
 
-# Normalize over the last dimension
-ln = LayerNorm(normalized_shape=512)
+# Commonly used in Transformers
+ln = LayerNorm(normalized_shape=512)  # hidden_dim = 512
 
-# Usage in Transformer
 x = Tensor.randn((32, 100, 512))  # (batch, seq_len, hidden_dim)
 output = ln(x)
-
-# Normalize over last two dimensions
-ln_2d = LayerNorm(normalized_shape=(64, 64))
-x_2d = Tensor.randn((8, 3, 64, 64))
-output_2d = ln_2d(x_2d)
 ```
 
 ---
 
-## GroupNorm Implementation
+## 10.4 GroupNorm: Normalize by Groups
 
 ### Principle
 
-GroupNorm divides channels into groups and normalizes within each group's channels and spatial dimensions:
+```
+GroupNorm divides channels into groups, normalizes within each group:
+
+Input: (N, C, H, W), C=32, divide into 8 groups
+→ Each group has 4 channels
+→ Calculate statistics over 4 channels + H + W in each group
+
+Between LayerNorm and InstanceNorm
+```
+
+### Visual Comparison
 
 ```
-Input: (N, C, H, W), groups = G
-Divide C channels into G groups, each with C/G channels
-For each sample n and group g:
-    mean = mean(x[n, g*C/G:(g+1)*C/G, :, :])
-    var = var(x[n, g*C/G:(g+1)*C/G, :, :])
+Input shape: (N, C, H, W), assuming C=6
+
+BatchNorm:  For each channel, across (N, H, W) statistics
+            Channel 1: [All pixels of channel 1 from all samples]
+            Channel 2: [All pixels of channel 2 from all samples]
+            ...
+
+LayerNorm:  For each sample, across (C, H, W) statistics
+            Sample 1: [All pixels of all channels]
+            Sample 2: [All pixels of all channels]
+            ...
+
+GroupNorm:  For each group of each sample, across (C/G, H, W) statistics
+            Sample 1-Group 1: [All pixels of channels 1,2]
+            Sample 1-Group 2: [All pixels of channels 3,4]
+            Sample 1-Group 3: [All pixels of channels 5,6]
+            ...
+
+InstanceNorm: For each channel of each sample, across (H, W) statistics
+            Sample 1-Channel 1: [All pixels of channel 1]
+            Sample 1-Channel 2: [All pixels of channel 2]
+            ...
 ```
 
 ### Implementation
 
 ```python
 class GroupNorm(Module):
-    """Group Normalization.
-    
-    Normalizes within groups after dividing channels.
-    Between LayerNorm and InstanceNorm.
-    
-    Args:
-        num_groups: Number of groups
-        num_channels: Number of channels (must be divisible by num_groups)
+    """
+    Group Normalization
+
+    Advantages: Doesn't depend on batch size
+    Commonly used in: Object detection, segmentation (batch usually small)
     """
 
     def __init__(
         self,
-        num_groups: int,
-        num_channels: int,
+        num_groups: int,      # Number of groups
+        num_channels: int,    # Number of channels (must be divisible by num_groups)
         eps: float = 1e-5,
-        affine: bool = True,
-    ) -> None:
+    ):
         super().__init__()
-        
-        if num_channels % num_groups != 0:
-            raise ValueError(
-                f"num_channels ({num_channels}) must be divisible by num_groups ({num_groups})"
-            )
-        
+        assert num_channels % num_groups == 0
+
         self.num_groups = num_groups
         self.num_channels = num_channels
         self.eps = eps
-        self.affine = affine
-        
-        self.gamma = None
-        self.beta = None
-        if self.affine:
-            self.gamma = Tensor.ones((num_channels,), requires_grad=True)
-            self.beta = Tensor.zeros((num_channels,), requires_grad=True)
+
+        self.gamma = Tensor.ones((num_channels,), requires_grad=True)
+        self.beta = Tensor.zeros((num_channels,), requires_grad=True)
 
     def forward(self, x: Tensor) -> Tensor:
-        return GroupNormFunction.apply(
-            x, self.num_groups, self.gamma, self.beta, self.eps
-        )
+        # x: (N, C, H, W)
+        N, C, H, W = x.shape
+        G = self.num_groups
+
+        # Reshape to (N, G, C/G, H, W)
+        x = x.reshape(N, G, C // G, H, W)
+
+        # Calculate statistics over (C/G, H, W) dimensions
+        mean = x.mean(axis=(2, 3, 4), keepdims=True)
+        var = ((x - mean) ** 2).mean(axis=(2, 3, 4), keepdims=True)
+
+        x_norm = (x - mean) / (var + self.eps) ** 0.5
+
+        # Restore shape
+        x_norm = x_norm.reshape(N, C, H, W)
+
+        return self.gamma.reshape(1, C, 1, 1) * x_norm + \
+               self.beta.reshape(1, C, 1, 1)
 ```
 
-### Usage Example
+### Usage
 
 ```python
 from nanotorch.nn import GroupNorm
@@ -385,196 +402,130 @@ gn = GroupNorm(num_groups=8, num_channels=32)
 x = Tensor.randn((16, 32, 64, 64))
 output = gn(x)
 
-# Special cases: GroupNorm(num_groups=1, ...) = LayerNorm (channel dimension)
-# Special cases: GroupNorm(num_groups=C, ...) = InstanceNorm
+# Special cases:
+# GroupNorm(num_groups=1, ...) ≈ LayerNorm
+# GroupNorm(num_groups=C, ...) = InstanceNorm
 ```
 
 ---
 
-## InstanceNorm Implementation
-
-### Principle
-
-InstanceNorm normalizes each channel of each sample independently:
-
-```
-Input: (N, C, H, W)
-For each sample n and each channel c:
-    mean = mean(x[n, c, :, :])
-    var = var(x[n, c, :, :])
-```
-
-### Implementation
-
-```python
-class InstanceNorm2d(_InstanceNorm):
-    """Instance Normalization for 2D inputs.
-    
-    Commonly used in style transfer tasks.
-    Equivalent to GroupNorm(num_groups=num_features).
-    
-    Shape:
-        - Input: (N, C, H, W) or (C, H, W)
-        - Output: same as input
-    """
-
-    def __init__(
-        self,
-        num_features: int,
-        eps: float = 1e-5,
-        momentum: float = 0.1,
-        affine: bool = False,  # InstanceNorm doesn't learn parameters by default
-        track_running_stats: bool = False,
-    ) -> None:
-        super().__init__(
-            num_features=num_features,
-            eps=eps,
-            momentum=momentum,
-            affine=affine,
-            track_running_stats=track_running_stats,
-            num_spatial_dims=2,
-        )
-```
-
----
-
-## Comparison of Normalization Methods
-
-### Normalization Dimension Comparison
-
-Assuming input shape `(N, C, H, W)`:
-
-```
-BatchNorm:    Calculate statistics over (N, H, W), each channel independent
-LayerNorm:    Calculate statistics over (C, H, W), each sample independent
-InstanceNorm: Calculate statistics over (H, W), each channel of each sample independent
-GroupNorm:    Calculate statistics over (C/G, H, W), each group independent
-```
-
-### Visual Comparison
-
-```
-Input Tensor (N=2, C=4, H=2, W=2):
-
-BatchNorm (across N, H, W):  LayerNorm (across C, H, W):
-┌───┬───┐                    ┌───┬───┐
-│ N │ N │                    │C=1│C=2│
-│ 0 │ 1 │                    │   │   │
-├───┼───┤                    ├───┼───┤
-│ N │ N │                    │C=3│C=4│
-│ 0 │ 1 │                    │   │   │
-└───┴───┘                    └───┴───┘
-
-GroupNorm (G=2):             InstanceNorm:
-┌─────┬─────┐                ┌───┬───┐
-│G=1  │G=2  │                │N=0│N=1│
-│C=1,2│C=3,4│                │each│each│
-└─────┴─────┘                │channel│channel│
-                             │independent│independent│
-                             └───┴───┘
-```
+## 10.5 Comparison of Normalization Methods
 
 ### Selection Guide
 
-| Scenario | Recommended Normalization | Reason |
-|----------|---------------------------|--------|
-| CNN Image Classification | BatchNorm | Works well with large batches |
-| Small batches / Memory constrained | GroupNorm | Doesn't depend on batch size |
-| RNN/NLP | LayerNorm | Handles variable-length sequences |
-| Style Transfer | InstanceNorm | Preserves content, ignores style |
-| Object Detection/Segmentation | GroupNorm or SyncBN | Batches usually small |
-| Transformer | LayerNorm | Standard Transformer architecture |
-
----
-
-## Usage Examples
-
-### BatchNorm in CNN
-
-```python
-from nanotorch import Tensor
-from nanotorch.nn import Conv2D, BatchNorm2d, ReLU, Sequential
-
-# Standard CNN block
-def conv_block(in_ch, out_ch):
-    return Sequential(
-        Conv2D(in_ch, out_ch, kernel_size=3, padding=1),
-        BatchNorm2d(out_ch),
-        ReLU(),
-    )
-
-block = conv_block(64, 128)
-x = Tensor.randn((4, 64, 32, 32))
-output = block(x)
+```
+Scenario                          Recommended
+──────────────────────────────────────
+CNN image classification, large batch    BatchNorm
+CNN, small batch (<8)                    GroupNorm
+Transformer / NLP                        LayerNorm
+Style transfer                           InstanceNorm
+Object detection/segmentation            GroupNorm
 ```
 
-### LayerNorm in Transformer
+### Comparison Table
 
-```python
-from nanotorch.nn import Linear, LayerNorm, Dropout, ReLU
+| Normalization | Statistics Dimensions | Depends on batch | Use case |
+|--------|---------|-----------|----------|
+| BatchNorm | (N, H, W) | Yes | CNN, large batches |
+| LayerNorm | (C, H, W) | No | Transformer |
+| GroupNorm | (C/G, H, W) | No | Small batches |
+| InstanceNorm | (H, W) | No | Style transfer |
 
-class TransformerBlock:
-    def __init__(self, d_model=512, d_ff=2048):
-        self.norm1 = LayerNorm(d_model)
-        self.norm2 = LayerNorm(d_model)
-        self.ff = Sequential(
-            Linear(d_model, d_ff),
-            ReLU(),
-            Linear(d_ff, d_model),
-        )
-    
-    def __call__(self, x):
-        # Pre-norm architecture
-        x = x + self.attention(self.norm1(x))
-        x = x + self.ff(self.norm2(x))
-        return x
+### Visualization
+
 ```
+Assuming input is a tensor of (N=3, C=4, H=2, W=2)
 
-### GroupNorm in ResNet
+Different colored areas represent elements normalized together:
 
-```python
-class ResBlock:
-    def __init__(self, channels, groups=32):
-        self.conv1 = Conv2D(channels, channels, 3, padding=1)
-        self.gn1 = GroupNorm(groups, channels)
-        self.conv2 = Conv2D(channels, channels, 3, padding=1)
-        self.gn2 = GroupNorm(groups, channels)
-    
-    def __call__(self, x):
-        identity = x
-        out = self.gn1(self.conv1(x)).relu()
-        out = self.gn2(self.conv2(out))
-        return (out + identity).relu()
+BatchNorm (per channel):
+  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐
+  │ C=0   │  │ C=1   │  │ C=2   │  │ C=3   │
+  │ across│  │ across│  │ across│  │ across│
+  │ NHW   │  │ NHW   │  │ NHW   │  │ NHW   │
+  └───────┘  └───────┘  └───────┘  └───────┘
+
+LayerNorm (per sample):
+  ┌─────────────────────────────────────┐
+  │ Sample 0: across C, H, W            │
+  └─────────────────────────────────────┘
+  ┌─────────────────────────────────────┐
+  │ Sample 1: across C, H, W            │
+  └─────────────────────────────────────┘
+
+GroupNorm (per sample per group, assuming 2 groups):
+  ┌─────────────┐  ┌─────────────┐
+  │ Sample 0    │  │ Sample 0    │
+  │ Group 0     │  │ Group 1     │
+  │ C=0,1       │  │ C=2,3       │
+  └─────────────┘  └─────────────┘
 ```
 
 ---
 
-## Summary
+## 10.6 Common Pitfalls
 
-This tutorial introduced four normalization layers in nanotorch:
+### Pitfall 1: Training/Inference Mode Confusion
 
-| Normalization | Normalization Dimensions | Characteristics | Use Case |
-|---------------|-------------------------|-----------------|----------|
-| **BatchNorm** | Batch + Spatial | Depends on batch size | CNN, large batch training |
-| **LayerNorm** | Feature + Spatial | Batch independent | Transformer, NLP |
-| **GroupNorm** | Within groups | Batch independent | Small batches, detection/segmentation |
-| **InstanceNorm** | Single channel spatial | Batch independent | Style transfer |
+```python
+# Wrong: Not switching mode during inference
+model.eval()
+output = bn(x)  # If bn is still in training mode, will use current batch statistics
 
-### Key Points
+# Correct
+bn.eval()  # Set individually
+# or
+model.eval()  # Set entire model
+```
 
-1. **BatchNorm** behaves differently during training and inference (running statistics)
-2. **LayerNorm** is suitable for handling variable-length sequences
-3. **GroupNorm** is a good alternative to BatchNorm for small batches
-4. **InstanceNorm** is commonly used in generation tasks
+### Pitfall 2: Using BatchNorm with Small Batches
 
-### Next Steps
+```python
+# Problem: When batch=1 or 2, statistics are unstable
+bn = BatchNorm2d(64)
+x = Tensor.randn((2, 64, 32, 32))  # batch=2 is too small
 
-In [Tutorial 11: Recurrent Neural Networks](11-rnn.md), we will learn how to implement RNN, LSTM, and GRU.
+# Solution: Use GroupNorm
+gn = GroupNorm(num_groups=32, num_channels=64)
+```
+
+### Pitfall 3: Using Dropout After BatchNorm
+
+```python
+# Usually not needed, BatchNorm itself has regularization effect
+model = Sequential(
+    Conv2D(64, 128),
+    BatchNorm2d(128),
+    # Dropout(0.5),  # Usually not needed
+    ReLU(),
+)
+```
 
 ---
 
-**References**:
-- [Batch Normalization: Accelerating Deep Network Training](https://arxiv.org/abs/1502.03167)
-- [Layer Normalization](https://arxiv.org/abs/1607.06450)
-- [Group Normalization](https://arxiv.org/abs/1803.08494)
-- [Instance Normalization](https://arxiv.org/abs/1607.08022)
+## 10.7 Summary in One Sentence
+
+| Concept | One Sentence |
+|------|--------|
+| Normalization | Makes each layer's output stable, accelerates training |
+| BatchNorm | Statistics by batch, suitable for large batches |
+| LayerNorm | Statistics by sample, suitable for Transformers |
+| GroupNorm | Statistics by group, suitable for small batches |
+| Training/Inference | Training uses current statistics, inference uses historical statistics |
+
+---
+
+## Next Chapter
+
+Now we've learned normalization!
+
+Next chapter, we'll learn **Recurrent Neural Networks** — the classic architecture for processing sequential data.
+
+→ [Chapter 11: Recurrent Neural Networks](11-rnn.md)
+
+```python
+# Preview: What you'll learn in the next chapter
+lstm = LSTM(input_size=64, hidden_size=128)
+# Remember historical information, process variable-length sequences
+```

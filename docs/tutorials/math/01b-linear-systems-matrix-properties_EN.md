@@ -4,6 +4,50 @@ Linear systems are one of the core problems in linear algebra, while determinant
 
 ---
 
+## 🎯 Life Analogy: Linear Systems are Shopping Budgets
+
+Imagine you're shopping with a budget constraint:
+
+```
+You want to buy apples ($2 each) and oranges ($3 each)
+You have $15 total
+You want exactly 6 pieces of fruit
+
+Equations:
+2x + 3y = 15  (budget constraint)
+x + y = 6     (quantity constraint)
+
+This is a LINEAR SYSTEM! Solving it tells you what to buy.
+Answer: x = 3 apples, y = 3 oranges
+```
+
+### Determinants = "Scaling Factor"
+
+Think of determinants like **playdough scaling**:
+- det = 2: The playdough grows to 2x its original volume
+- det = 0.5: The playdough shrinks to half its volume
+- det = 0: The playdough gets squished flat (loses a dimension)!
+
+### Matrix Rank = "Effective Number of Equations"
+
+| Rank | Meaning | Shopping Analogy |
+|------|---------|------------------|
+| Full rank | All equations are independent | Each constraint gives new info |
+| Rank deficient | Some equations are redundant | "Buy 6 fruits" and "Buy 3+3 fruits" say the same thing |
+
+### 📖 Plain English Translation
+
+| Math Term | Plain English |
+|-----------|---------------|
+| Linear system | Set of equations to solve together |
+| Unique solution | Exactly one answer exists |
+| Infinite solutions | Many answers work (usually a line or plane) |
+| No solution | Impossible constraints (like x + y = 5 and x + y = 10) |
+| Determinant | How much the transformation scales area/volume |
+| Rank | Number of truly independent equations |
+
+---
+
 ## Table of Contents
 
 1. [Linear Systems](#linear-systems)

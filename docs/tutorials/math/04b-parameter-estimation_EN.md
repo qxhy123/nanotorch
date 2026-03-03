@@ -4,6 +4,61 @@ Parameter estimation is one of the core tasks of statistical inference, which in
 
 ---
 
+## 🎯 Life Analogy: The Blind Men and the Elephant
+
+Parameter estimation is like **blind men trying to understand an elephant**:
+
+```
+Each blind man touches one part of the elephant:
+- "It's a rope!" (touching the tail)
+- "It's a tree!" (touching the leg)
+- "It's a fan!" (touching the ear)
+
+The elephant = True parameter (unknown)
+What they feel = Sample data
+Their guesses = Parameter estimates
+
+Goal: Combine limited information to guess the true picture
+```
+
+### Maximum Likelihood Estimation = "Most Likely Explanation"
+
+**Scenario**: You flip a coin 10 times and get 10 heads.
+**Question**: What's the probability of heads?
+**MLE answer**: 100%! Because if the coin were fair (50%), getting 10 heads in a row would be VERY unlikely (1 in 1024). The most likely explanation is a two-headed coin.
+
+$$\hat{p}_{MLE} = \frac{\text{number of heads}}{\text{total flips}} = \frac{10}{10} = 1.0$$
+
+### 📝 Step-by-Step MLE Example
+
+**Problem**: Estimate the probability of heads from data: H, H, T, H, T
+
+**Step 1**: Write the likelihood
+$$L(p) = p \cdot p \cdot (1-p) \cdot p \cdot (1-p) = p^3(1-p)^2$$
+
+**Step 2**: Take log (easier to work with)
+$$\log L(p) = 3\log p + 2\log(1-p)$$
+
+**Step 3**: Differentiate and set to zero
+$$\frac{d}{dp}\log L = \frac{3}{p} - \frac{2}{1-p} = 0$$
+
+**Step 4**: Solve
+$$\frac{3}{p} = \frac{2}{1-p} \Rightarrow 3(1-p) = 2p \Rightarrow \hat{p} = \frac{3}{5} = 0.6$$
+
+**Result**: The MLE estimate is 60% heads (3 heads out of 5 flips)
+
+### 📖 Plain English Translation
+
+| Math Term | Plain English |
+|-----------|---------------|
+| Parameter | Unknown characteristic of the population |
+| Estimate | Our best guess based on data |
+| Likelihood | How probable is the data given a parameter |
+| MLE | Find the parameter that makes data most likely |
+| Unbiased | On average, the estimate equals the true value |
+
+---
+
 ## Table of Contents
 
 1. [Overview of Parameter Estimation](#overview-of-parameter-estimation)

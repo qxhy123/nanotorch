@@ -1,37 +1,60 @@
 # Chapter 3: Module Base Class and Parameter Management
 
-## Building Complexity from Simplicity...
+## As a Child, You Must Have Played with Blocks...
 
-Imagine building with LEGO bricks.
+Those colorful little blocks, each one plain and unremarkable. But when you put them together—a castle, a race car, a dinosaur—is born from nothing.
 
-Each brick is simple—a rectangular piece of plastic. But combine them thoughtfully, and you can create anything: castles, spaceships, entire cities.
+The magic of LEGO blocks lies in: **any two can seamlessly connect**. Studs on top, grooves on bottom, a unified interface makes all combinations possible.
 
-The magic lies not in individual bricks, but in how they connect. A standard interface. A predictable way to combine. Build, stack, compose.
+Neural networks are just the same.
 
-**Neural networks follow the same principle.**
+A Linear layer, plain and simple. A ReLU activation, also very basic. But when you chain them together—784→256→128→10—suddenly this pile of digital circuits learns to recognize handwritten digits, identify faces, even understand language.
 
 ```
-The Architecture of Complexity:
+The Philosophy of Blocks:
 
-  A single neuron     → Like a single brick
-  A layer             → Like a wall, many bricks together
-  A network           → Like a building, many layers stacked
-  A complex model     → Like a city, many networks combined
+  Simple units → Infinite combinations → Infinite possibilities
 
-Each level builds on the previous.
-Each component knows how to work with others.
-Composition creates complexity from simplicity.
+  Linear + ReLU + Linear = Classifier
+  Conv + Pool + Conv + Pool = Vision system
+  Embedding + Attention + FFN = Language model
 ```
 
-**The Module is our LEGO brick.** It's the base class that every neural network component inherits from. It knows how to hold parameters, how to connect with other modules, how to save and load its state.
-
-With Module, we don't build neural networks from raw tensors anymore. We build with layers, with blocks, with architectures. Linear layers, convolutions, activations—all are modules that snap together elegantly.
-
-In this chapter, we'll implement the Module system. We'll see how parameter management works, how modules compose, and how this design pattern enables us to build arbitrarily complex networks from simple, reusable pieces.
+**Module is the "LEGO interface" of the neural network world.**
 
 ---
 
 ## 3.1 Why Do We Need Module?
+
+### Problem: Using Tensor Directly is Too Cumbersome
+
+```python
+# Without Module — like using scattered blocks
+W1 = Tensor.randn((784, 256), requires_grad=True)  # First layer weights
+b1 = Tensor.zeros((256,), requires_grad=True)      # First layer bias
+W2 = Tensor.randn((256, 10), requires_grad=True)  # Second layer weights
+b2 = Tensor.zeros((10,), requires_grad=True)      # Second layer bias
+
+def forward(x):
+    h = x @ W1 + b1
+    h = relu(h)
+    return h @ W2 + b2
+
+# Problem 1: How to get all parameters?
+params = [W1, b1, W2, b2]  # Manual collection, easy to miss!
+
+# Problem 2: How to zero gradients?
+for p in params:
+    p.grad = None  # Need to write loop every time
+
+# Problem 3: How to save model?
+# Need to manually save each parameter...
+
+# Problem 4: What if network has 100 layers?
+# 💀 Nightmare...
+```
+
+### Solution: Use Module for Unified Management
 
 Building networks directly with Tensors is tedious:
 
