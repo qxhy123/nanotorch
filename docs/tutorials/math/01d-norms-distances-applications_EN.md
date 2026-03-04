@@ -661,7 +661,7 @@ $$
 
 **Characteristics**:
 - Centered cosine similarity
-- Range $[-1, 1]$
+- Range $[-1$, $1]$
 
 ### Jaccard Similarity
 

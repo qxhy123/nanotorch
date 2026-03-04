@@ -101,7 +101,7 @@ A **random experiment** is an experiment that satisfies the following three cond
 **Examples**:
 - Rolling a die: $\Omega = \{1, 2, 3, 4, 5, 6\}$
 - Flipping a coin: $\Omega = \{Heads, Tails\}$
-- Measuring height: $\Omega = (0, +\infty)$
+- Measuring height: $\Omega = (0$, $+\infty)$
 - Binary classification output: $\Omega = \{0, 1\}$
 
 ### Sample Points

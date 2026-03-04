@@ -488,7 +488,7 @@ $$
 $$
 
 Properties:
-- Each term is between $(0, 1)$
+- Each term is between $(0$, $1)$
 - Sum of all terms is $1$
 
 ```python

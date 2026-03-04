@@ -381,7 +381,7 @@ $$
 Where $\sigma$ is the Sigmoid function.
 
 **Properties**:
-- Output range: $(-1, 1)$
+- Output range: $(-1$, $1)$
 - Zero-centered (better than Sigmoid)
 - Gradient: $\frac{d}{dx} \tanh(x) = 1 - \tanh^2(x)$
 - Vanishing gradient problem: gradient approaches 0 when $|x|$ is large

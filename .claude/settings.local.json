@@ -15,7 +15,9 @@
       "Bash(pip3 install:*)",
       "Bash(brew search:*)",
       "Bash(python3:*)",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(command)",
+      "Bash(git checkout:*)"
     ]
   }
 }

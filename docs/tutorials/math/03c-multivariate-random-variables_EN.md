@@ -140,8 +140,8 @@ p(x, y) = P(X = x, Y = y)
 $$
 
 **Properties**:
-- $p(x, y) \geq 0$
-- $\displaystyle\sum_x \sum_y p(x, y) = 1$
+- $p(x$, $y) \geq 0$
+- $\displaystyle\sum_x \sum_y p(x$, $y) = 1$
 
 ### Continuous Case
 
@@ -152,8 +152,8 @@ P((X, Y) \in A) = \iint_A f(x, y) \, dx \, dy
 $$
 
 **Properties**:
-- $f(x, y) \geq 0$
-- $\displaystyle\int_{-\infty}^{\infty} \int_{-\infty}^{\infty} f(x, y) \, dx \, dy = 1$
+- $f(x$, $y) \geq 0$
+- $\displaystyle\int_{-\infty}^{\infty} \int_{-\infty}^{\infty} f(x$, $y) \$, $dx \$, $dy = 1$
 
 ### Bivariate Normal Distribution
 
@@ -625,7 +625,7 @@ $$= \mathbb{E}[(X - \mu_X)^2] + \mathbb{E}[(Y - \mu_Y)^2] + 2\mathbb{E}[(X - \mu
 
 - $\mathbb{E}[(X - \mu_X)^2] = \text{Var}(X)$
 - $\mathbb{E}[(Y - \mu_Y)^2] = \text{Var}(Y)$
-- $\mathbb{E}[(X - \mu_X)(Y - \mu_Y)] = \text{Cov}(X, Y)$
+- $\mathbb{E}[(X - \mu_X)(Y - \mu_Y)] = \text{Cov}(X$, $Y)$
 
 **Step 6**: Combine results.
 

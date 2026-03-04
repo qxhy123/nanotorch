@@ -94,8 +94,8 @@ where $a_n$ is called the **general term** (the $n$-th term) of the sequence.
 
 ### Classification of Sequences
 
-- **Finite sequence**: Has a finite number of terms, e.g., $1, 2, 3, 4, 5$
-- **Infinite sequence**: Has an infinite number of terms, e.g., $1, \frac{1}{2}, \frac{1}{3}, \ldots$
+- **Finite sequence**: Has a finite number of terms, e.g., $1$, $2$, $3$, $4$, $5$
+- **Infinite sequence**: Has an infinite number of terms, e.g., $1$, $\frac{1}{2}$, $\frac{1}{3}$, $\ldots$
 - **Bounded sequence**: There exists $M > 0$ such that $|a_n| \leq M, \forall n$
 - **Unbounded sequence**: No such $M$ exists
 
@@ -488,15 +488,15 @@ print(h)
 
 ### Monotonicity
 
-- **Monotonically increasing**: $a_{n+1} > a_n, \forall n$
-- **Monotonically decreasing**: $a_{n+1} < a_n, \forall n$
-- **Monotonically non-decreasing**: $a_{n+1} \geq a_n, \forall n$
-- **Monotonically non-increasing**: $a_{n+1} \leq a_n, \forall n$
+- **Monotonically increasing**: $a_{n+1} > a_n$, $\forall n$
+- **Monotonically decreasing**: $a_{n+1} < a_n$, $\forall n$
+- **Monotonically non-decreasing**: $a_{n+1} \geq a_n$, $\forall n$
+- **Monotonically non-increasing**: $a_{n+1} \leq a_n$, $\forall n$
 
 ### Boundedness
 
-- **Upper bound**: $\exists M, a_n \leq M, \forall n$
-- **Lower bound**: $\exists m, a_n \geq m, \forall n$
+- **Upper bound**: $\exists M$, $a_n \leq M$, $\forall n$
+- **Lower bound**: $\exists m$, $a_n \geq m$, $\forall n$
 - **Bounded**: Has both upper and lower bounds
 
 ### Monotone Bounded Theorem

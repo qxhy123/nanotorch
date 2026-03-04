@@ -60,9 +60,9 @@ In deep learning, we primarily use real scalars.
 ### Notation
 
 Scalars are usually represented by lowercase letters:
-- Ordinary scalars: $s, t, a, b, c, \ldots$
-- Scalars with subscripts: $x_1, x_2, \ldots, x_n$
-- Greek letters: $\alpha, \beta, \lambda, \eta, \ldots$
+- Ordinary scalars: $s$, $t$, $a$, $b$, $c$, $\ldots$
+- Scalars with subscripts: $x_1$, $x_2$, $\ldots$, $x_n$
+- Greek letters: $\alpha$, $\beta$, $\lambda$, $\eta$, $\ldots$
 
 ### Scalar Examples in Deep Learning
 

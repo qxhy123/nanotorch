@@ -322,7 +322,7 @@ $$
 Where $f(\mathbf{\Lambda}) = \text{diag}(f(\lambda_1), \ldots, f(\lambda_n))$.
 
 Common examples:
-- $e^{\mathbf{A}} = \mathbf{V}\text{diag}(e^{\lambda_1}, \ldots, e^{\lambda_n})\mathbf{V}^{-1}$
+- $e^{\mathbf{A}} = \mathbf{V}\text{diag}(e^{\lambda_1}$, $\ldots$, $e^{\lambda_n})\mathbf{V}^{-1}$
 - $\ln(\mathbf{A})$ (requires $\lambda_i > 0$)
 - $\sqrt{\mathbf{A}}$ (requires $\lambda_i \geq 0$)
 

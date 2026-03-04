@@ -753,7 +753,7 @@ Where:
 - $\mathbf{h}_1 = f_1(\mathbf{x}; \mathbf{W}_1)$
 - $\mathbf{h}_2 = f_2(\mathbf{h}_1; \mathbf{W}_2)$
 - $\mathbf{y} = f_3(\mathbf{h}_2; \mathbf{W}_3)$
-- $L = \ell(\mathbf{y}, \mathbf{y}_{true})$
+- $L = \ell(\mathbf{y}$, $\mathbf{y}_{true})$
 
 **Backpropagation** (chain rule):
 
