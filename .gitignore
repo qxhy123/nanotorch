@@ -145,6 +145,7 @@ cython_debug/
 # IDE files
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 
@@ -174,3 +175,4 @@ datasets/
 models/
 results/
 experiments/
+
