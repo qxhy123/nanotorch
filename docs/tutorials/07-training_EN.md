@@ -529,8 +529,8 @@ You now understand the complete process of deep learning:
 
 ## Next Steps
 
-- Read [Chapter 8: Data Augmentation](08-transforms.md): Make data more varied
-- Learn [Chapter 9: Convolution Layers](09-conv.md): The magic tool for images
+- Read [Chapter 8: Data Augmentation](08-transforms_EN.md): Make data more varied
+- Learn [Chapter 9: Convolution Layers](09-conv_EN.md): The magic tool for images
 - Check complete examples in the `examples/` directory
 - Try implementing your own projects with nanotorch!
 

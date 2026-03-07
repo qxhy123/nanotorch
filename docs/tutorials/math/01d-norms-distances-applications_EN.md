@@ -1206,6 +1206,6 @@ This chapter introduced norms, distance metrics, and their applications in deep 
 
 **Previous section**: [Chapter 1(c): Eigenvalues and Matrix Decomposition](01c-eigenvalues-matrix-decomposition_EN.md)
 
-**Next chapter**: [Chapter 2: Calculus](02-calculus.md) - Learn about derivatives, gradients, chain rule, and understand the mathematical principles of backpropagation.
+**Next chapter**: [Chapter 2: Calculus](02-calculus_EN.md) - Learn about derivatives, gradients, chain rule, and understand the mathematical principles of backpropagation.
 
 **Back**: [Math Fundamentals Tutorial Table of Contents](../math-fundamentals.md)

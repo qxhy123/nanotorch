@@ -290,4 +290,4 @@ print(f"Sum: {probs.sum(dim=1).data}")  # [1, 1, 1, ...]
 
 In the next chapter, we will implement **loss functions** to define training objectives.
 
-→ [Chapter 5: Loss Functions](05-loss.md)
+→ [Chapter 5: Loss Functions](05-loss_EN.md)

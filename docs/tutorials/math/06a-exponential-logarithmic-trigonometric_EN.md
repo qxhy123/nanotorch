@@ -531,4 +531,4 @@ This section introduced fundamental mathematical functions in deep learning:
 
 **Next section**: [Sigmoid and Softmax Functions](06b-sigmoid-softmax_EN.md) - Learn about the Sigmoid function family and Softmax functions.
 
-**Return**: [Chapter 6: Elementary Functions](06-elementary-functions.md) | [Math Fundamentals Tutorial Index](../math-fundamentals.md)
+**Return**: [Chapter 6: Elementary Functions](06-elementary-functions_EN.md) | [Math Fundamentals Tutorial Index](../math-fundamentals.md)

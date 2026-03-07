@@ -534,4 +534,4 @@ This section introduced the ReLU function family and activation function selecti
 
 **Next section**: [Loss Functions and Normalization](06d-loss-functions-normalization_EN.md) - Learn about loss functions like MSE, cross-entropy and normalization techniques like BatchNorm, LayerNorm.
 
-**Return**: [Chapter 6: Elementary Functions](06-elementary-functions.md) | [Math Fundamentals Tutorial Index](../math-fundamentals.md)
+**Return**: [Chapter 6: Elementary Functions](06-elementary-functions_EN.md) | [Math Fundamentals Tutorial Index](../math-fundamentals.md)

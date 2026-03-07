@@ -1636,6 +1636,6 @@ Information gain:   $IG = H(Y) - H(Y\|X) = I(X; Y)$
 
 **Previous section**: [Chapter 3 (c): Multivariate Random Variables and Numerical Characteristics](03c-multivariate-random-variables_EN.md)
 
-**Next chapter**: [Chapter 4: Mathematical Statistics](04-statistics.md) - Learn about statistical inference, parameter estimation, hypothesis testing, and other concepts.
+**Next chapter**: [Chapter 4: Mathematical Statistics](04-statistics_EN.md) - Learn about statistical inference, parameter estimation, hypothesis testing, and other concepts.
 
 **Return**: [Mathematics Fundamentals Tutorial Table of Contents](../math-fundamentals.md)

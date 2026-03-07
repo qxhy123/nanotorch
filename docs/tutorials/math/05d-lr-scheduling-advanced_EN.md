@@ -835,6 +835,6 @@ This section introduced learning rate scheduling and advanced techniques:
 
 **Previous Section**: [Adaptive Learning Rate Methods](05c-adaptive-learning-rate_EN.md)
 
-**Next Chapter**: [Chapter 6: Elementary Functions](06-elementary-functions.md) - Learn mathematical functions such as exponentials, logarithms, and activation functions in deep learning.
+**Next Chapter**: [Chapter 6: Elementary Functions](06-elementary-functions_EN.md) - Learn mathematical functions such as exponentials, logarithms, and activation functions in deep learning.
 
-**Return**: [Chapter 5: Optimization Methods](05-optimization.md) | [Math Fundamentals Tutorial Table of Contents](../math-fundamentals.md)
+**Return**: [Chapter 5: Optimization Methods](05-optimization_EN.md) | [Math Fundamentals Tutorial Table of Contents](../math-fundamentals.md)

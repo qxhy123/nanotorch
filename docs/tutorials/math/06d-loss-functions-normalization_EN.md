@@ -745,4 +745,4 @@ This section introduced loss functions and normalization techniques:
 
 **Previous section**: [ReLU Function Family and Activation Functions](06c-relu-activation-functions_EN.md)
 
-**Return**: [Chapter 6: Elementary Functions](06-elementary-functions.md) | [Math Fundamentals Tutorial Index](../math-fundamentals.md)
+**Return**: [Chapter 6: Elementary Functions](06-elementary-functions_EN.md) | [Math Fundamentals Tutorial Index](../math-fundamentals.md)

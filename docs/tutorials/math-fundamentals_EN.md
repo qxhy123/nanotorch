@@ -290,7 +290,7 @@ After completing this tutorial, you should be able to:
 
 | ← Previous | Current | Next → |
 |:-----------|:-------:|:-------|
-| [Tutorial Overview](00-overview.md) | **Mathematical Foundations** | [Chapter 1: Tensor Basics](01-tensor.md) |
+| [Tutorial Overview](00-overview_EN.md) | **Mathematical Foundations** | [Chapter 1: Tensor Basics](01-tensor_EN.md) |
 
 ---
 

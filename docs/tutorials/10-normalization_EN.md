@@ -522,7 +522,7 @@ Now we've learned normalization!
 
 Next chapter, we'll learn **Recurrent Neural Networks** — the classic architecture for processing sequential data.
 
-→ [Chapter 11: Recurrent Neural Networks](11-rnn.md)
+→ [Chapter 11: Recurrent Neural Networks](11-rnn_EN.md)
 
 ```python
 # Preview: What you'll learn in the next chapter

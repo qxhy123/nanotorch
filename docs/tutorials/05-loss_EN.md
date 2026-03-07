@@ -241,4 +241,4 @@ print(f"Loss: {loss.item():.4f}")
 
 In the next chapter, we will implement **optimizers** to update parameters using gradients.
 
-→ [Chapter 6: Optimizers](06-optimizer.md)
+→ [Chapter 6: Optimizers](06-optimizer_EN.md)

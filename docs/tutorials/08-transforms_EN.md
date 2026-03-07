@@ -700,7 +700,7 @@ Now our data is more varied!
 
 In the next chapter, we'll learn about **convolution layers** — the core component for processing images.
 
-→ [Chapter 9: Convolution Layers](09-conv.md)
+→ [Chapter 9: Convolution Layers](09-conv_EN.md)
 
 ```python
 # Preview: What you'll learn next chapter

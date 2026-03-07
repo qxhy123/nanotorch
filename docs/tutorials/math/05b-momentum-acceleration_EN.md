@@ -633,4 +633,4 @@ This section introduced momentum methods and acceleration techniques:
 
 **Next Section**: [Adaptive Learning Rate Methods](05c-adaptive-learning-rate_EN.md) - Learn AdaGrad, RMSprop, Adam, and other adaptive optimization algorithms.
 
-**Return**: [Chapter 5: Optimization Methods](05-optimization.md) | [Math Fundamentals Tutorial Table of Contents](../math-fundamentals.md)
+**Return**: [Chapter 5: Optimization Methods](05-optimization_EN.md) | [Math Fundamentals Tutorial Table of Contents](../math-fundamentals.md)

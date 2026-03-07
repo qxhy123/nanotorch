@@ -747,4 +747,4 @@ This section introduced optimization basics and gradient descent core concepts:
 
 **Next Section**: [Momentum Methods and Acceleration Techniques](05b-momentum-acceleration_EN.md) - Learn momentum methods, Nesterov accelerated gradient, and other advanced optimization techniques.
 
-**Return**: [Chapter 5: Optimization Methods](05-optimization.md) | [Math Fundamentals Tutorial Table of Contents](../math-fundamentals.md)
+**Return**: [Chapter 5: Optimization Methods](05-optimization_EN.md) | [Math Fundamentals Tutorial Table of Contents](../math-fundamentals.md)

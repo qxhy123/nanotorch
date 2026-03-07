@@ -306,4 +306,4 @@ for epoch in range(100):
 
 In the next chapter, we will integrate all components and implement a complete **training loop**.
 
-→ [Chapter 7: Training Loop](07-training.md)
+→ [Chapter 7: Training Loop](07-training_EN.md)

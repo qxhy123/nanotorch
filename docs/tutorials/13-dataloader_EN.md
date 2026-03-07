@@ -510,7 +510,7 @@ Now we've learned data loading!
 
 Next chapter, we'll learn **parameter initialization** — good initialization makes training twice as effective.
 
-→ [Chapter 14: Parameter Initialization](14-init.md)
+→ [Chapter 14: Parameter Initialization](14-init_EN.md)
 
 ```python
 # Preview: What you'll learn in the next chapter

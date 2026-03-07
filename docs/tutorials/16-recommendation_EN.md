@@ -698,6 +698,6 @@ $$\hat{y} = \sigma(y_{FM} + y_{DNN} + y_{linear})$$
 
 ---
 
-**Previous Chapter**: [Chapter 15: Advanced Topics](15-advanced.md)
+**Previous Chapter**: [Chapter 15: Advanced Topics](15-advanced_EN.md)
 
-**Back to**: [Tutorial Overview](00-overview.md)
+**Back to**: [Tutorial Overview](00-overview_EN.md)

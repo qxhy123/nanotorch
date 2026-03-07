@@ -700,4 +700,4 @@ This section introduced adaptive learning rate methods:
 
 **Next Section**: [Learning Rate Scheduling and Advanced Techniques](05d-lr-scheduling-advanced_EN.md) - Learn learning rate scheduling, second-order methods, and constrained optimization.
 
-**Return**: [Chapter 5: Optimization Methods](05-optimization.md) | [Math Fundamentals Tutorial Table of Contents](../math-fundamentals.md)
+**Return**: [Chapter 5: Optimization Methods](05-optimization_EN.md) | [Math Fundamentals Tutorial Table of Contents](../math-fundamentals.md)

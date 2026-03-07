@@ -749,7 +749,7 @@ Now we've learned convolution!
 
 In the next chapter, we'll learn about **normalization layers** — the secret to stable training.
 
-→ [Chapter 10: Normalization Layers](10-normalization.md)
+→ [Chapter 10: Normalization Layers](10-normalization_EN.md)
 
 ```python
 # Preview: What you'll learn next chapter

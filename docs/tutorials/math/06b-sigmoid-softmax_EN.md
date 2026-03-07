@@ -569,4 +569,4 @@ This section introduced Sigmoid and Softmax functions:
 
 **Next section**: [ReLU Function Family and Activation Functions](06c-relu-activation-functions_EN.md) - Learn about ReLU, LeakyReLU, GELU, and other activation functions.
 
-**Return**: [Chapter 6: Elementary Functions](06-elementary-functions.md) | [Math Fundamentals Tutorial Index](../math-fundamentals.md)
+**Return**: [Chapter 6: Elementary Functions](06-elementary-functions_EN.md) | [Math Fundamentals Tutorial Index](../math-fundamentals.md)

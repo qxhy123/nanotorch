@@ -1325,6 +1325,6 @@ This chapter introduced vector matrix calculus and the backpropagation algorithm
 
 **Previous section**: [Chapter 2(c): Higher-order Derivatives and Taylor Expansion](02c-higher-derivatives-taylor_EN.md)
 
-**Next chapter**: [Chapter 3: Probability Theory](03-probability.md) - Learn about probability distributions, conditional probability, Bayes' theorem, and other concepts.
+**Next chapter**: [Chapter 3: Probability Theory](03-probability_EN.md) - Learn about probability distributions, conditional probability, Bayes' theorem, and other concepts.
 
 **Return to**: [Mathematics Fundamentals Tutorial Index](../math-fundamentals.md)

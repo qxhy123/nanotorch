@@ -693,7 +693,7 @@ Now we've learned RNNs for processing sequences!
 
 Next chapter, we'll learn **Transformer** — the foundation of modern NLP, the core of ChatGPT.
 
-→ [Chapter 12: Transformer](12-transformer.md)
+→ [Chapter 12: Transformer](12-transformer_EN.md)
 
 ```python
 # Preview: What you'll learn in the next chapter

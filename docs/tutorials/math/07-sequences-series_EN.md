@@ -274,9 +274,9 @@ plt.show()
 
 ## Further Reading
 
-- [Chapter 2: Calculus](02-calculus.md) - Limits and derivatives
-- [Chapter 5: Optimization Methods](05-optimization.md) - Learning rate scheduling
-- [Chapter 6: Elementary Functions](06-elementary-functions.md) - Exponential and trigonometric functions
+- [Chapter 2: Calculus](02-calculus_EN.md) - Limits and derivatives
+- [Chapter 5: Optimization Methods](05-optimization_EN.md) - Learning rate scheduling
+- [Chapter 6: Elementary Functions](06-elementary-functions_EN.md) - Exponential and trigonometric functions
 
 ---
 

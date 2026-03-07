@@ -825,6 +825,6 @@ This chapter introduced the statistical foundation of regression analysis and Ba
 
 **Previous Section**: [Chapter 4(c): Hypothesis Testing](04c-hypothesis-testing_EN.md)
 
-**Next Chapter**: [Chapter 5: Optimization Methods](05-optimization.md) - Learn about gradient descent, momentum methods, Adam, and other optimization algorithms.
+**Next Chapter**: [Chapter 5: Optimization Methods](05-optimization_EN.md) - Learn about gradient descent, momentum methods, Adam, and other optimization algorithms.
 
 **Return**: [Mathematics Fundamentals Tutorial Directory](../math-fundamentals.md)

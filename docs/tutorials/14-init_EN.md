@@ -442,7 +442,7 @@ Now we've learned initialization!
 
 Next chapter, we'll learn **advanced topics** — gradient clipping, learning rate warmup, and other practical techniques.
 
-→ [Chapter 15: Advanced Topics](15-advanced.md)
+→ [Chapter 15: Advanced Topics](15-advanced_EN.md)
 
 ```python
 # Preview: What you'll learn in the next chapter
