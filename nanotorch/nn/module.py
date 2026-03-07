@@ -4,11 +4,12 @@ Base Module class for neural network modules.
 This module provides the base Module class similar to PyTorch's nn.Module.
 """
 
-from typing import Dict, Iterator, Tuple, Any
+from typing import Dict, Iterator, Tuple, Any, Union
 from numpy.typing import NDArray
 from collections import OrderedDict
 import numpy as np
 import nanotorch.tensor as T
+from nanotorch.device import Device
 
 
 class Module:
@@ -183,7 +184,7 @@ class Module:
                 module_prefix = f"{prefix}.{module_name}" if prefix else module_name
                 yield from module.named_buffers(prefix=module_prefix, recurse=True)
 
-    def state_dict(self) -> Dict[str, NDArray[np.float32]]:
+    def state_dict(self) -> Dict[str, NDArray[Any]]:
         """Return a dictionary containing module state.
 
         The state dict contains all parameters and buffers.
@@ -191,7 +192,7 @@ class Module:
         Returns:
             Dictionary mapping parameter/buffer names to numpy arrays.
         """
-        state_dict = {}
+        state_dict: Dict[str, NDArray[Any]] = {}
         for name, param in self.named_parameters():
             state_dict[name] = param.data.copy()
         for name, buffer in self.named_buffers():
@@ -199,7 +200,7 @@ class Module:
         return state_dict
 
     def load_state_dict(
-        self, state_dict: Dict[str, NDArray[np.float32]], strict: bool = True
+        self, state_dict: Dict[str, NDArray[Any]], strict: bool = True
     ) -> None:
         """Load state dictionary into module.
 
@@ -263,6 +264,55 @@ class Module:
             Self for method chaining.
         """
         return self.train(False)
+
+    def to(self, device: Union[Device, str]) -> "Module":
+        """Move all parameters and buffers to the specified device.
+
+        Args:
+            device: Target device ('cpu', 'cuda', 'cuda:0', or Device instance).
+
+        Returns:
+            Self for method chaining.
+        """
+        # Move parameters
+        for param in self.parameters():
+            if param.device != device:
+                param_moved = param.to(device)
+                # Update parameter in place by modifying its data
+                param.data = param_moved.data
+                param._device = param_moved._device
+
+        # Move buffers
+        for buffer in self.buffers():
+            if buffer.device != device:
+                buffer_moved = buffer.to(device)
+                buffer.data = buffer_moved.data
+                buffer._device = buffer_moved._device
+
+        return self
+
+    def cuda(self, device: Union[int, str] = 0) -> "Module":
+        """Move all parameters and buffers to CUDA device.
+
+        Args:
+            device: CUDA device index or string like 'cuda:0'.
+
+        Returns:
+            Self for method chaining.
+        """
+        if isinstance(device, int):
+            target = Device('cuda', device)
+        else:
+            target = Device.from_string(device)
+        return self.to(target)
+
+    def cpu(self) -> "Module":
+        """Move all parameters and buffers to CPU.
+
+        Returns:
+            Self for method chaining.
+        """
+        return self.to('cpu')
 
     def __setattr__(self, name: str, value: object) -> None:
         """Set attribute, handling special cases for parameters and modules."""

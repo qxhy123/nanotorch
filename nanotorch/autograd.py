@@ -1500,39 +1500,52 @@ class ConvTranspose3DFunction(Function):
         dilation_d: int,
         dilation_h: int,
         dilation_w: int,
+        groups: int = 1,
     ) -> NDArray[np.float32]:
         output: NDArray[np.float32] = np.zeros((N, C_out, D_out, H_out, W_out), dtype=np.float32)
 
+        C_in_per_group = C_in // groups
+        C_out_per_group = C_out // groups
+
         for n in range(N):
-            for c_out in range(C_out):
-                for d_out in range(D_out):
-                    for h_out in range(H_out):
-                        for w_out in range(W_out):
-                            total = 0.0
-                            for kd in range(K_D):
-                                for kh in range(K_H):
-                                    for kw in range(K_W):
-                                        d_in_numerator = d_out + padding_d - dilation_d * kd
-                                        h_in_numerator = h_out + padding_h - dilation_h * kh
-                                        w_in_numerator = w_out + padding_w - dilation_w * kw
+            for g in range(groups):
+                # Channel range for this group
+                c_in_start = g * C_in_per_group
+                c_in_end = c_in_start + C_in_per_group
+                c_out_start = g * C_out_per_group
+                c_out_end = c_out_start + C_out_per_group
 
-                                        if (d_in_numerator % stride_d != 0 or
-                                            h_in_numerator % stride_h != 0 or
-                                            w_in_numerator % stride_w != 0):
-                                            continue
+                for c_out in range(c_out_start, c_out_end):
+                    c_out_local = c_out - c_out_start
+                    for d_out in range(D_out):
+                        for h_out in range(H_out):
+                            for w_out in range(W_out):
+                                total = 0.0
+                                for kd in range(K_D):
+                                    for kh in range(K_H):
+                                        for kw in range(K_W):
+                                            d_in_numerator = d_out + padding_d - dilation_d * kd
+                                            h_in_numerator = h_out + padding_h - dilation_h * kh
+                                            w_in_numerator = w_out + padding_w - dilation_w * kw
 
-                                        d_in = d_in_numerator // stride_d
-                                        h_in = h_in_numerator // stride_h
-                                        w_in = w_in_numerator // stride_w
+                                            if (d_in_numerator % stride_d != 0 or
+                                                h_in_numerator % stride_h != 0 or
+                                                w_in_numerator % stride_w != 0):
+                                                continue
 
-                                        if 0 <= d_in < D_in and 0 <= h_in < H_in and 0 <= w_in < W_in:
-                                            for c_in in range(C_in):
-                                                total += (
-                                                    input_data[n, c_in, d_in, h_in, w_in] *
-                                                    weight_data[c_in, c_out, kd, kh, kw]
-                                                )
+                                            d_in = d_in_numerator // stride_d
+                                            h_in = h_in_numerator // stride_h
+                                            w_in = w_in_numerator // stride_w
 
-                            output[n, c_out, d_out, h_out, w_out] = total
+                                            if 0 <= d_in < D_in and 0 <= h_in < H_in and 0 <= w_in < W_in:
+                                                for c_in in range(c_in_start, c_in_end):
+                                                    c_in_local = c_in - c_in_start
+                                                    total += (
+                                                        input_data[n, c_in, d_in, h_in, w_in] *
+                                                        weight_data[c_in, c_out_local, kd, kh, kw]
+                                                    )
+
+                                output[n, c_out, d_out, h_out, w_out] = total
 
         if bias_data is not None:
             output += bias_data.reshape(1, C_out, 1, 1, 1)
@@ -1568,10 +1581,13 @@ class ConvTranspose3DFunction(Function):
         N, C_in, D_in, H_in, W_in = input.shape
         C_in_w, C_out_div_groups, K_D, K_H, K_W = weight.shape
 
-        if groups != 1:
-            raise NotImplementedError("Groups > 1 not yet implemented for ConvTranspose3D")
-
         C_out = C_out_div_groups * groups
+
+        # Validate groups parameter
+        if C_in % groups != 0:
+            raise ValueError(f"Input channels ({C_in}) must be divisible by groups ({groups})")
+        if C_out % groups != 0:
+            raise ValueError(f"Output channels ({C_out}) must be divisible by groups ({groups})")
 
         if C_in != C_in_w:
             raise ValueError(
@@ -1632,6 +1648,7 @@ class ConvTranspose3DFunction(Function):
             dilation_d=dilation_d,
             dilation_h=dilation_h,
             dilation_w=dilation_w,
+            groups=groups,
         )
 
         requires_grad = (
@@ -1671,40 +1688,51 @@ class ConvTranspose3DFunction(Function):
         if grad_bias_data is not None:
             grad_bias_data = grad_output_data.sum(axis=(0, 2, 3, 4)).reshape(C_out, 1, 1, 1)
 
+        C_in_per_group = C_in // groups
+        C_out_per_group = C_out // groups
+
         for n in range(N):
-            for c_out in range(C_out):
-                for d_out in range(D_out):
-                    for h_out in range(H_out):
-                        for w_out in range(W_out):
-                            grad_val = grad_output_data[n, c_out, d_out, h_out, w_out]
+            for g in range(groups):
+                c_in_start = g * C_in_per_group
+                c_in_end = c_in_start + C_in_per_group
+                c_out_start = g * C_out_per_group
+                c_out_end = c_out_start + C_out_per_group
 
-                            for kd in range(K_D):
-                                for kh in range(K_H):
-                                    for kw in range(K_W):
-                                        d_in_numerator = d_out + padding_d - dilation_d * kd
-                                        h_in_numerator = h_out + padding_h - dilation_h * kh
-                                        w_in_numerator = w_out + padding_w - dilation_w * kw
+                for c_out in range(c_out_start, c_out_end):
+                    c_out_local = c_out - c_out_start
+                    for d_out in range(D_out):
+                        for h_out in range(H_out):
+                            for w_out in range(W_out):
+                                grad_val = grad_output_data[n, c_out, d_out, h_out, w_out]
 
-                                        if (d_in_numerator % stride_d != 0 or
-                                            h_in_numerator % stride_h != 0 or
-                                            w_in_numerator % stride_w != 0):
-                                            continue
+                                for kd in range(K_D):
+                                    for kh in range(K_H):
+                                        for kw in range(K_W):
+                                            d_in_numerator = d_out + padding_d - dilation_d * kd
+                                            h_in_numerator = h_out + padding_h - dilation_h * kh
+                                            w_in_numerator = w_out + padding_w - dilation_w * kw
 
-                                        d_in = d_in_numerator // stride_d
-                                        h_in = h_in_numerator // stride_h
-                                        w_in = w_in_numerator // stride_w
+                                            if (d_in_numerator % stride_d != 0 or
+                                                h_in_numerator % stride_h != 0 or
+                                                w_in_numerator % stride_w != 0):
+                                                continue
 
-                                        if 0 <= d_in < D_in and 0 <= h_in < H_in and 0 <= w_in < W_in:
-                                            for c_in in range(C_in):
-                                                if grad_input_data is not None:
-                                                    grad_input_data[n, c_in, d_in, h_in, w_in] += (
-                                                        grad_val * weight.data[c_in, c_out, kd, kh, kw]
-                                                    )
+                                            d_in = d_in_numerator // stride_d
+                                            h_in = h_in_numerator // stride_h
+                                            w_in = w_in_numerator // stride_w
 
-                                                if grad_weight_data is not None:
-                                                    grad_weight_data[c_in, c_out, kd, kh, kw] += (
-                                                        grad_val * input.data[n, c_in, d_in, h_in, w_in]
-                                                    )
+                                            if 0 <= d_in < D_in and 0 <= h_in < H_in and 0 <= w_in < W_in:
+                                                for c_in in range(c_in_start, c_in_end):
+                                                    c_in_local = c_in - c_in_start
+                                                    if grad_input_data is not None:
+                                                        grad_input_data[n, c_in, d_in, h_in, w_in] += (
+                                                            grad_val * weight.data[c_in, c_out_local, kd, kh, kw]
+                                                        )
+
+                                                    if grad_weight_data is not None:
+                                                        grad_weight_data[c_in, c_out_local, kd, kh, kw] += (
+                                                            grad_val * input.data[n, c_in, d_in, h_in, w_in]
+                                                        )
 
         grad_input = Tensor(grad_input_data, requires_grad=False) if grad_input_data is not None else None
         grad_weight = Tensor(grad_weight_data, requires_grad=False) if grad_weight_data is not None else None

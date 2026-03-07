@@ -10,6 +10,9 @@ from numpy.typing import NDArray
 from types import TracebackType
 from typing import Optional, Tuple, List, Union, Any, Set, cast, Type
 
+# Import device module
+from nanotorch.device import Device, cpu as cpu_device, is_cuda_available
+
 
 class Tensor:
     """A multi-dimensional array with automatic differentiation support.
@@ -18,14 +21,15 @@ class Tensor:
     to enable automatic differentiation (autograd).
 
     Attributes:
-        data: The underlying numpy array storing tensor values.
+        data: The underlying numpy/cupy array storing tensor values.
         requires_grad: Whether to track gradients for this tensor.
         grad: Gradient tensor (same shape as data).
         _op: Operation that created this tensor (for computational graph).
         _parents: Parent tensors in the computational graph.
+        _device: Device where the tensor is stored (cpu or cuda).
     """
 
-    __slots__ = ["data", "requires_grad", "grad", "_op", "_parents", "_ctx", "_fn"]
+    __slots__ = ["data", "requires_grad", "grad", "_op", "_parents", "_ctx", "_fn", "_device"]
     data: NDArray[np.float32]
 
     def __init__(
@@ -36,6 +40,7 @@ class Tensor:
         _parents: Tuple["Tensor", ...] = (),
         _ctx: Optional[Any] = None,
         _fn: Optional[Any] = None,
+        device: Optional[Union[Device, str]] = None,
     ) -> None:
         """Initialize a Tensor.
 
@@ -44,14 +49,43 @@ class Tensor:
             requires_grad: Whether to compute gradients for this tensor.
             _op: Internal use - operation that created this tensor.
             _parents: Internal use - parent tensors in computational graph.
+            device: Device to place tensor on ('cpu', 'cuda', or Device instance).
         """
-        # Convert input to numpy array with float32 dtype
-        if isinstance(data, (int, float)):
-            self.data = np.array(data, dtype=np.float32)
-        elif isinstance(data, list):
-            self.data = np.array(data, dtype=np.float32)
+        # Handle device
+        if device is None:
+            # Infer device from data or default to CPU
+            if hasattr(data, 'device') and hasattr(data.device, 'type'):
+                # CuPy array
+                self._device = Device('cuda', getattr(data.device, 'id', 0))
+            else:
+                self._device = cpu_device
+        elif isinstance(device, str):
+            self._device = Device.from_string(device)
+        elif isinstance(device, Device):
+            self._device = device
         else:
-            self.data = data.astype(np.float32) if data.dtype != np.float32 else data
+            raise TypeError(f"device must be str or Device, got {type(device)}")
+
+        # Convert input to array with float32 dtype
+        if isinstance(data, (int, float)):
+            arr = np.array(data, dtype=np.float32)
+        elif isinstance(data, list):
+            arr = np.array(data, dtype=np.float32)
+        else:
+            arr = data.astype(np.float32) if data.dtype != np.float32 else data
+
+        # Move to appropriate device
+        if self._device.is_cuda:
+            try:
+                import cupy as cp
+                self.data = cp.asarray(arr)
+            except ImportError:
+                raise RuntimeError(
+                    "CuPy is not installed. Cannot create CUDA tensor. "
+                    "Install with: pip install cupy-cuda11x or pip install cupy-cuda12x"
+                )
+        else:
+            self.data = arr
 
         # Disable gradient tracking if no_grad context is active
         if not _ENABLE_GRAD:
@@ -67,6 +101,99 @@ class Tensor:
         # Initialize gradient if requires_grad is True
         if requires_grad:
             self.zero_grad()
+
+    @property
+    def device(self) -> Device:
+        """Return the device where the tensor is stored."""
+        return self._device
+
+    @property
+    def is_cuda(self) -> bool:
+        """Check if tensor is on CUDA device."""
+        return self._device.is_cuda
+
+    def to(self, device: Union[Device, str]) -> "Tensor":
+        """Move tensor to the specified device.
+
+        Args:
+            device: Target device ('cpu', 'cuda', 'cuda:0', or Device instance).
+
+        Returns:
+            New tensor on the target device.
+        """
+        if isinstance(device, str):
+            target_device = Device.from_string(device)
+        else:
+            target_device = device
+
+        # If already on target device, return self
+        if self._device == target_device:
+            return self
+
+        # Get the data on CPU first
+        if hasattr(self.data, 'get'):
+            # CuPy array
+            cpu_data = self.data.get()
+        else:
+            cpu_data = self.data
+
+        # Create new tensor on target device
+        return Tensor(
+            cpu_data,
+            requires_grad=self.requires_grad,
+            _op=self._op,
+            _parents=self._parents,
+            _ctx=self._ctx,
+            _fn=self._fn,
+            device=target_device,
+        )
+
+    def cuda(self, device: Union[int, str] = 0) -> "Tensor":
+        """Move tensor to CUDA device.
+
+        Args:
+            device: CUDA device index or string like 'cuda:0'.
+
+        Returns:
+            Tensor on CUDA device.
+        """
+        if isinstance(device, int):
+            target = Device('cuda', device)
+        else:
+            target = Device.from_string(device)
+        return self.to(target)
+
+    def cpu(self) -> "Tensor":
+        """Move tensor to CPU.
+
+        Returns:
+            Tensor on CPU.
+        """
+        return self.to('cpu')
+
+    def numpy(self) -> np.ndarray:
+        """Return tensor data as NumPy array (on CPU).
+
+        Returns:
+            NumPy array copy of the data.
+        """
+        if hasattr(self.data, 'get'):
+            return self.data.get()
+        return np.asarray(self.data)
+
+    def _get_xp(self) -> Any:
+        """Get the array module (numpy or cupy) for this tensor's device.
+
+        Returns:
+            numpy or cupy module.
+        """
+        if self._device.is_cuda:
+            try:
+                import cupy as cp
+                return cp
+            except ImportError:
+                return np
+        return np
 
     @property
     def shape(self) -> Tuple[int, ...]:
@@ -91,8 +218,9 @@ class Tensor:
     def __repr__(self) -> str:
         """String representation of the tensor."""
         grad_str = f", grad={self.grad}" if self.grad is not None else ""
+        device_str = f", device='{self._device}'" if self._device.is_cuda else ""
         return (
-            f"Tensor(shape={self.shape}, requires_grad={self.requires_grad}{grad_str})"
+            f"Tensor(shape={self.shape}, requires_grad={self.requires_grad}{grad_str}{device_str})"
         )
 
     def __getitem__(self, key) -> "Tensor":
@@ -938,8 +1066,17 @@ class Tensor:
         self, other: Union["Tensor", NDArray[np.float32], int, float]
     ) -> "Tensor":
         """Element-wise division."""
+        # Check for division by zero before converting to tensor
+        if isinstance(other, (int, float)):
+            if other == 0:
+                raise ValueError("Cannot divide by zero")
+
         if not isinstance(other, Tensor):
             other = Tensor(other, requires_grad=False)
+
+        # Check for division by zero in tensor
+        if np.any(other.data == 0):
+            raise ValueError("Cannot divide by tensor containing zero values")
 
         try:
             result_data = self.data / other.data
@@ -962,6 +1099,10 @@ class Tensor:
         self, other: Union["Tensor", NDArray[np.float32], int, float]
     ) -> "Tensor":
         """Reverse division."""
+        # Check for division by zero in self
+        if np.any(self.data == 0):
+            raise ValueError("Cannot divide by tensor containing zero values")
+
         if not isinstance(other, Tensor):
             other = Tensor(other, requires_grad=False)
         return other / self
@@ -1723,6 +1864,34 @@ class Tensor:
         )
 
     # Utility methods
+    def check_finite(self, check_nan: bool = True, check_inf: bool = True) -> bool:
+        """Check if tensor contains NaN or Inf values.
+
+        Args:
+            check_nan: Whether to check for NaN values.
+            check_inf: Whether to check for Inf values.
+
+        Returns:
+            True if tensor is finite (no NaN/Inf), False otherwise.
+        """
+        if check_nan and np.any(np.isnan(self.data)):
+            return False
+        if check_inf and np.any(np.isinf(self.data)):
+            return False
+        return True
+
+    def assert_finite(self, msg: str = "Tensor contains NaN or Inf values") -> None:
+        """Assert that tensor does not contain NaN or Inf values.
+
+        Args:
+            msg: Error message to raise if assertion fails.
+
+        Raises:
+            ValueError: If tensor contains NaN or Inf values.
+        """
+        if not self.check_finite():
+            raise ValueError(msg)
+
     def item(self) -> float:
         """Convert scalar tensor to Python float."""
         if self.shape != ():
@@ -1731,17 +1900,16 @@ class Tensor:
             )
         return float(self.data)
 
-    def numpy(self) -> NDArray[np.float32]:
-        """Return the tensor data as numpy array."""
-        return self.data
-
     def detach(self) -> "Tensor":
         """Return a new tensor detached from the computational graph."""
-        return Tensor(self.data, requires_grad=False)
+        return Tensor(self.data, requires_grad=False, device=self._device)
 
     def clone(self) -> "Tensor":
         """Return a copy of the tensor."""
-        return Tensor(self.data.copy(), requires_grad=self.requires_grad)
+        if hasattr(self.data, 'get'):
+            # CuPy array - copy and keep on GPU
+            return Tensor(self.data.copy(), requires_grad=self.requires_grad, device=self._device)
+        return Tensor(self.data.copy(), requires_grad=self.requires_grad, device=self._device)
 
     def flatten(self, start_dim: int = 0, end_dim: int = -1) -> "Tensor":
         """Flatten a contiguous range of dims into a single dimension.
@@ -1941,47 +2109,49 @@ class Tensor:
 
     # Static factory methods
     @staticmethod
-    def zeros(shape: Tuple[int, ...], requires_grad: bool = False) -> "Tensor":
+    def zeros(shape: Tuple[int, ...], requires_grad: bool = False, device: Optional[Union[Device, str]] = None) -> "Tensor":
         """Create a tensor filled with zeros."""
-        return Tensor(np.zeros(shape, dtype=np.float32), requires_grad=requires_grad)
+        return Tensor(np.zeros(shape, dtype=np.float32), requires_grad=requires_grad, device=device)
 
     @staticmethod
-    def ones(shape: Tuple[int, ...], requires_grad: bool = False) -> "Tensor":
+    def ones(shape: Tuple[int, ...], requires_grad: bool = False, device: Optional[Union[Device, str]] = None) -> "Tensor":
         """Create a tensor filled with ones."""
-        return Tensor(np.ones(shape, dtype=np.float32), requires_grad=requires_grad)
+        return Tensor(np.ones(shape, dtype=np.float32), requires_grad=requires_grad, device=device)
 
     @staticmethod
     def ones_like(other: "Tensor", requires_grad: bool = False) -> "Tensor":
         """Create a tensor filled with ones with the same shape as another tensor."""
-        return Tensor(np.ones_like(other.data), requires_grad=requires_grad)
+        xp = np if not hasattr(other.data, 'get') else other.data.__class__
+        return Tensor(xp.ones_like(other.data), requires_grad=requires_grad, device=other._device)
 
     @staticmethod
     def zeros_like(other: "Tensor", requires_grad: bool = False) -> "Tensor":
         """Create a tensor filled with zeros with the same shape as another tensor."""
-        return Tensor(np.zeros_like(other.data), requires_grad=requires_grad)
+        xp = np if not hasattr(other.data, 'get') else other.data.__class__
+        return Tensor(xp.zeros_like(other.data), requires_grad=requires_grad, device=other._device)
 
     @staticmethod
-    def randn(shape: Tuple[int, ...], requires_grad: bool = False) -> "Tensor":
+    def randn(shape: Tuple[int, ...], requires_grad: bool = False, device: Optional[Union[Device, str]] = None) -> "Tensor":
         """Create a tensor with random values from standard normal distribution."""
         return Tensor(
-            np.random.randn(*shape).astype(np.float32), requires_grad=requires_grad
+            np.random.randn(*shape).astype(np.float32), requires_grad=requires_grad, device=device
         )
 
     @staticmethod
-    def rand(shape: Tuple[int, ...], requires_grad: bool = False) -> "Tensor":
+    def rand(shape: Tuple[int, ...], requires_grad: bool = False, device: Optional[Union[Device, str]] = None) -> "Tensor":
         """Create a tensor with random values from uniform distribution [0, 1)."""
         return Tensor(
-            np.random.rand(*shape).astype(np.float32), requires_grad=requires_grad
+            np.random.rand(*shape).astype(np.float32), requires_grad=requires_grad, device=device
         )
 
     @staticmethod
-    def eye(n: int, requires_grad: bool = False) -> "Tensor":
+    def eye(n: int, requires_grad: bool = False, device: Optional[Union[Device, str]] = None) -> "Tensor":
         """Create an identity matrix."""
-        return Tensor(np.eye(n, dtype=np.float32), requires_grad=requires_grad)
+        return Tensor(np.eye(n, dtype=np.float32), requires_grad=requires_grad, device=device)
 
     @staticmethod
     def arange(
-        *args: Union[int, float], requires_grad: bool = False, **kwargs: Any
+        *args: Union[int, float], requires_grad: bool = False, device: Optional[Union[Device, str]] = None, **kwargs: Any
     ) -> "Tensor":
         """Create a 1D tensor with values from start to stop with given step.
 
@@ -1997,6 +2167,7 @@ class Tensor:
         Args:
             *args: Either (stop,) or (start, stop) or (start, stop, step)
             requires_grad: Whether to track gradients.
+            device: Device to place tensor on.
             **kwargs: Ignored for compatibility.
 
         Returns:
@@ -2018,7 +2189,7 @@ class Tensor:
             )
 
         return Tensor(
-            np.arange(start, stop, step, dtype=np.float32), requires_grad=requires_grad
+            np.arange(start, stop, step, dtype=np.float32), requires_grad=requires_grad, device=device
         )
 
     @staticmethod

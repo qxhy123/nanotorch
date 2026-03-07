@@ -315,4 +315,19 @@ class YOLOv6Small(YOLOv6):
 
 
 def build_yolov6(variant: str = 's', num_classes: int = 80, input_size: int = 640) -> YOLOv6:
-    return YOLOv6(num_classes=num_classes, input_size=input_size, variant=variant)
+    """Build YOLOv6 model with specified variant.
+
+    Args:
+        variant: Model variant ('n' for nano, 's' for small, etc.)
+        num_classes: Number of classes to detect
+        input_size: Input image size
+
+    Returns:
+        YOLOv6 model instance (YOLOv6Nano for 'n', YOLOv6Small for 's', etc.)
+    """
+    if variant == 'n':
+        return YOLOv6Nano(num_classes=num_classes, input_size=input_size)
+    elif variant == 's':
+        return YOLOv6Small(num_classes=num_classes, input_size=input_size)
+    else:
+        return YOLOv6(num_classes=num_classes, input_size=input_size, variant=variant)

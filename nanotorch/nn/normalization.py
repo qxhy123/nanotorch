@@ -86,11 +86,15 @@ class _BatchNorm(Module):
         axes = self._get_reduction_axes(x)
         
         if self.training and self.track_running_stats:
-            assert (
-                self.running_mean is not None
-                and self.running_var is not None
-                and self.num_batches_tracked is not None
-            )
+            if (
+                self.running_mean is None
+                or self.running_var is None
+                or self.num_batches_tracked is None
+            ):
+                raise RuntimeError(
+                    "running_mean, running_var, and num_batches_tracked must be initialized "
+                    "when track_running_stats=True"
+                )
             # Compute batch statistics (keep dimensions for broadcasting)
             mean = x.mean(axis=axes, keepdims=True)
             var = ((x - mean) ** 2).mean(axis=axes, keepdims=True)

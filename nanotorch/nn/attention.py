@@ -51,8 +51,12 @@ def scaled_dot_product_attention(
     attn_weights = attn_weights.softmax(dim=-1)
 
     if dropout_p > 0.0:
-        dropout = Dropout(dropout_p)
-        attn_weights = dropout(attn_weights)
+        # Manual dropout implementation to avoid creating new Dropout instance on each call
+        dropout_mask = Tensor(
+            (np.random.rand(*attn_weights.shape) > dropout_p).astype(np.float32)
+            / (1.0 - dropout_p)
+        )
+        attn_weights = attn_weights * dropout_mask
 
     output = attn_weights.matmul(v)
     return output, attn_weights

@@ -5,11 +5,14 @@ This module provides various utility functions for tensor operations,
 initialization, and other common tasks.
 """
 
+import logging
 import numpy as np
 import random
 from typing import Tuple, Dict, Any, List, Callable, cast, Union
 from numpy.typing import NDArray
 from nanotorch.tensor import Tensor
+
+logger = logging.getLogger(__name__)
 
 
 # Random seed management
@@ -21,7 +24,7 @@ def manual_seed(seed: int) -> None:
     """
     random.seed(seed)
     np.random.seed(seed)
-    print(f"Random seed set to {seed}")
+    logger.info(f"Random seed set to {seed}")
 
 
 # Initialization functions
@@ -353,32 +356,6 @@ def constant_(tensor: Tensor, value: float) -> Tensor:
         Initialized tensor.
     """
     tensor.data = np.full(tensor.shape, value, dtype=np.float32)
-    return tensor
-
-
-def ones_(tensor: Tensor) -> Tensor:
-    """Fill tensor with ones.
-
-    Args:
-        tensor: Tensor to initialize.
-
-    Returns:
-        Initialized tensor.
-    """
-    tensor.data = np.ones(tensor.shape, dtype=np.float32)
-    return tensor
-
-
-def zeros_(tensor: Tensor) -> Tensor:
-    """Fill tensor with zeros.
-
-    Args:
-        tensor: Tensor to initialize.
-
-    Returns:
-        Initialized tensor.
-    """
-    tensor.data = np.zeros(tensor.shape, dtype=np.float32)
     return tensor
 
 

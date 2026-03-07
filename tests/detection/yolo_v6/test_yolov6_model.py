@@ -61,7 +61,7 @@ class TestEncodeDecode:
     def test_encode(self):
         boxes = np.array([[100, 100, 200, 200]], dtype=np.float32)
         labels = np.array([0])
-        targets = encode_targets_v6(boxes, labels, [], grid_sizes=[28, 14, 7], num_classes=80, image_size=224)
+        targets = encode_targets_v6(boxes, labels, grid_sizes=[28, 14, 7], num_classes=80, image_size=224)
         assert 'scale_0' in targets
     
     def test_decode(self):

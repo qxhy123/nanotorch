@@ -610,6 +610,7 @@ class ConvTranspose3D(Module):
         stride: Stride of the convolution. Can be a single number or a tuple of 3. Default: 1.
         padding: Zero-padding added to all sides of the input. Can be a single number or a tuple of 3. Default: 0.
         output_padding: Additional size added to output shape. Can be a single number or a tuple of 3. Default: 0.
+        groups: Number of blocked connections from input to output channels. Default: 1.
         dilation: Spacing between kernel elements. Can be a single number or a tuple of 3. Default: 1.
         bias: If True, adds a learnable bias to the output. Default: True.
 
@@ -631,6 +632,7 @@ class ConvTranspose3D(Module):
         stride: Union[int, Tuple[int, int, int]] = 1,
         padding: Union[int, Tuple[int, int, int]] = 0,
         output_padding: Union[int, Tuple[int, int, int]] = 0,
+        groups: int = 1,
         dilation: Union[int, Tuple[int, int, int]] = 1,
         bias: bool = True,
     ) -> None:
@@ -647,15 +649,22 @@ class ConvTranspose3D(Module):
         if isinstance(dilation, int):
             dilation = (dilation, dilation, dilation)
 
+        if in_channels % groups != 0:
+            raise ValueError(f"in_channels ({in_channels}) must be divisible by groups ({groups})")
+        if out_channels % groups != 0:
+            raise ValueError(f"out_channels ({out_channels}) must be divisible by groups ({groups})")
+
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
         self.output_padding = output_padding
+        self.groups = groups
         self.dilation = dilation
 
-        weight_shape = (in_channels, out_channels, kernel_size[0], kernel_size[1], kernel_size[2])
+        # Weight shape for grouped convolution: (in_channels, out_channels // groups, K_D, K_H, K_W)
+        weight_shape = (in_channels, out_channels // groups, kernel_size[0], kernel_size[1], kernel_size[2])
         self.weight = Tensor(
             np.random.randn(*weight_shape).astype(np.float32) * 0.1,
             requires_grad=True,
@@ -683,7 +692,7 @@ class ConvTranspose3D(Module):
 
         output = ConvTranspose3DFunction.apply(
             x, self.weight, self.bias, self.stride, self.padding,
-            self.output_padding, self.dilation
+            self.output_padding, self.dilation, self.groups
         )
 
         return output
@@ -696,6 +705,8 @@ class ConvTranspose3D(Module):
             s += f", padding={self.padding}"
         if self.output_padding != (0, 0, 0):
             s += f", output_padding={self.output_padding}"
+        if self.groups != 1:
+            s += f", groups={self.groups}"
         if self.dilation != (1, 1, 1):
             s += f", dilation={self.dilation}"
         s += f", bias={self.bias is not None}"

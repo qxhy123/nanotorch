@@ -11,9 +11,21 @@ Main components:
 - optim: Optimizers (SGD, Adam)
 - autograd: Automatic differentiation engine
 - data: Data loading utilities (Dataset, DataLoader)
+- device: Device management (CPU/GPU)
 """
 
 from nanotorch.tensor import Tensor, no_grad
+from nanotorch.device import (
+    Device,
+    cpu,
+    is_cuda_available,
+    device_count,
+    current_device,
+    set_device,
+    get_device_name,
+    get_device_capability,
+    cuda,
+)
 from nanotorch.nn import (
     MaxPool2d,
     AvgPool2d,
@@ -41,11 +53,26 @@ from nanotorch.data import (
     BatchSampler,
     DataLoader,
 )
+from nanotorch.backend import (
+    Backend,
+    get_backend,
+    set_backend,
+    get_backend_for_device,
+)
 
 __version__ = "0.1.0"
 __all__ = [
     "Tensor",
     "no_grad",
+    "Device",
+    "cpu",
+    "is_cuda_available",
+    "device_count",
+    "current_device",
+    "set_device",
+    "get_device_name",
+    "get_device_capability",
+    "cuda",
     "MaxPool2d",
     "AvgPool2d",
     "max_pool2d",
@@ -69,4 +96,9 @@ __all__ = [
     "RandomSampler",
     "BatchSampler",
     "DataLoader",
+    # Backend module
+    "Backend",
+    "get_backend",
+    "set_backend",
+    "get_backend_for_device",
 ]

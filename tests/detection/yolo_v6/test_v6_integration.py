@@ -152,7 +152,6 @@ class TestEncodeDecode:
         targets = encode_targets_v6(
             boxes=boxes,
             labels=labels,
-            anchors=None,
             grid_sizes=[20, 10, 5],
             num_classes=80,
             image_size=224
