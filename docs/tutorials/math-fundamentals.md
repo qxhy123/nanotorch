@@ -44,10 +44,10 @@
 线性代数是深度学习的**核心数学工具**，几乎所有的神经网络操作都涉及矩阵运算。
 
 **子章节**：
-- [1.1 向量与矩阵基础](math/01a-向量与矩阵基础.md) - 标量、向量、矩阵、张量及基本运算
-- [1.2 线性方程组与矩阵性质](math/01b-线性方程组与矩阵性质.md) - 行列式、秩、子空间
-- [1.3 特征值与矩阵分解](math/01c-特征值与矩阵分解.md) - EVD、SVD、QR、Cholesky
-- [1.4 范数距离与应用](math/01d-范数距离与应用.md) - 正则化、损失函数、注意力机制
+- [1.1 向量与矩阵基础](math/01a-vectors-matrices-basics.md) - 标量、向量、矩阵、张量及基本运算
+- [1.2 线性方程组与矩阵性质](math/01b-linear-systems-matrix-properties.md) - 行列式、秩、子空间
+- [1.3 特征值与矩阵分解](math/01c-eigenvalues-matrix-decomposition.md) - EVD、SVD、QR、Cholesky
+- [1.4 范数距离与应用](math/01d-norms-distances-applications.md) - 正则化、损失函数、注意力机制
 
 **深度学习应用**：
 - 线性层：$\mathbf{Y} = \mathbf{X}\mathbf{W} + \mathbf{b}$
@@ -63,10 +63,10 @@
 微积分是**理解梯度下降和反向传播**的基础。
 
 **子章节**：
-- [2.1 导数与微分基础](math/02a-导数与微分基础.md) - 导数定义、微分法则、链式法则
-- [2.2 偏导数、梯度与多元微分](math/02b-偏导数梯度与多元微分.md) - 梯度下降、方向导数
-- [2.3 高阶导数与泰勒展开](math/02c-高阶导数与泰勒展开.md) - 海森矩阵、牛顿法
-- [2.4 向量矩阵微积分与反向传播](math/02d-向量矩阵微积分与反向传播.md) - 矩阵导数、反向传播实现
+- [2.1 导数与微分基础](math/02a-derivatives-differentiation-basics.md) - 导数定义、微分法则、链式法则
+- [2.2 偏导数、梯度与多元微分](math/02b-partial-derivatives-gradients.md) - 梯度下降、方向导数
+- [2.3 高阶导数与泰勒展开](math/02c-higher-derivatives-taylor.md) - 海森矩阵、牛顿法
+- [2.4 向量矩阵微积分与反向传播](math/02d-vector-matrix-calculus-backprop.md) - 矩阵导数、反向传播实现
 
 **深度学习应用**：
 - 反向传播算法
@@ -82,10 +82,10 @@
 概率论提供了**处理不确定性的数学框架**，是理解机器学习理论的关键。
 
 **子章节**：
-- [3.1 概率基础与条件概率](math/03a-概率基础与条件概率.md) - 样本空间、条件概率、贝叶斯定理
-- [3.2 随机变量与常见分布](math/03b-随机变量与常见分布.md) - PMF/PDF、正态分布、常见分布
-- [3.3 多维随机变量与数字特征](math/03c-多维随机变量与数字特征.md) - 联合分布、协方差、相关系数
-- [3.4 极限定理与信息论](math/03d-极限定理与信息论.md) - 大数定律、中心极限定理、交叉熵
+- [3.1 概率基础与条件概率](math/03a-probability-basics-conditional.md) - 样本空间、条件概率、贝叶斯定理
+- [3.2 随机变量与常见分布](math/03b-random-variables-distributions.md) - PMF/PDF、正态分布、常见分布
+- [3.3 多维随机变量与数字特征](math/03c-multivariate-random-variables.md) - 联合分布、协方差、相关系数
+- [3.4 极限定理与信息论](math/03d-limit-theorems-information-theory.md) - 大数定律、中心极限定理、交叉熵
 
 **深度学习应用**：
 - 损失函数设计（交叉熵）
@@ -101,10 +101,10 @@
 数理统计是**从数据中学习**的理论基础，提供了从样本推断总量的方法。
 
 **子章节**：
-- [4.1 统计量与抽样分布](math/04a-统计量与抽样分布.md) - 样本均值、样本方差、三大抽样分布
-- [4.2 参数估计](math/04b-参数估计.md) - 矩估计、MLE、无偏性、MSE
-- [4.3 假设检验](math/04c-假设检验.md) - 两类错误、p值、置信区间
-- [4.4 回归分析与贝叶斯统计](math/04d-回归分析与贝叶斯统计.md) - 最小二乘、偏差-方差、贝叶斯推断
+- [4.1 统计量与抽样分布](math/04a-statistics-sampling-distributions.md) - 样本均值、样本方差、三大抽样分布
+- [4.2 参数估计](math/04b-parameter-estimation.md) - 矩估计、MLE、无偏性、MSE
+- [4.3 假设检验](math/04c-hypothesis-testing.md) - 两类错误、p值、置信区间
+- [4.4 回归分析与贝叶斯统计](math/04d-regression-bayesian-statistics.md) - 最小二乘、偏差-方差、贝叶斯推断
 
 **深度学习应用**：
 - 批归一化
@@ -120,10 +120,10 @@
 最优化是**机器学习的核心引擎**，寻找使损失函数最小的参数。
 
 **子章节**：
-- [5.1 优化基础与梯度下降](math/05a-优化基础与梯度下降.md) - 凸优化、梯度下降、收敛性分析
-- [5.2 动量法与加速技术](math/05b-动量法与加速技术.md) - Momentum、NAG、收敛率比较
-- [5.3 自适应学习率方法](math/05c-自适应学习率方法.md) - AdaGrad、RMSprop、Adam、AdamW
-- [5.4 学习率调度与高级技巧](math/05d-学习率调度与高级技巧.md) - 余弦退火、二阶方法、梯度裁剪
+- [5.1 优化基础与梯度下降](math/05a-optimization-basics-gradient-descent.md) - 凸优化、梯度下降、收敛性分析
+- [5.2 动量法与加速技术](math/05b-momentum-acceleration.md) - Momentum、NAG、收敛率比较
+- [5.3 自适应学习率方法](math/05c-adaptive-learning-rate.md) - AdaGrad、RMSprop、Adam、AdamW
+- [5.4 学习率调度与高级技巧](math/05d-lr-scheduling-advanced.md) - 余弦退火、二阶方法、梯度裁剪
 
 **深度学习应用**：
 - 训练神经网络
@@ -139,10 +139,10 @@
 初等函数是**深度学习的构建基石**，从激活函数到损失函数无处不在。
 
 **子章节**：
-- [6.1 指数、对数与三角函数](math/06a-指数对数与三角函数.md) - 指数函数、对数函数、tanh
-- [6.2 Sigmoid 与 Softmax 函数](math/06b-Sigmoid与Softmax函数.md) - Sigmoid 族、Softmax、温度参数
-- [6.3 ReLU 函数族与激活函数](math/06c-ReLU函数族与激活函数.md) - ReLU、LeakyReLU、GELU
-- [6.4 损失函数与归一化](math/06d-损失函数与归一化.md) - MSE、交叉熵、BatchNorm、LayerNorm
+- [6.1 指数、对数与三角函数](math/06a-exponential-logarithmic-trigonometric.md) - 指数函数、对数函数、tanh
+- [6.2 Sigmoid 与 Softmax 函数](math/06b-sigmoid-softmax.md) - Sigmoid 族、Softmax、温度参数
+- [6.3 ReLU 函数族与激活函数](math/06c-relu-activation-functions.md) - ReLU、LeakyReLU、GELU
+- [6.4 损失函数与归一化](math/06d-loss-functions-normalization.md) - MSE、交叉熵、BatchNorm、LayerNorm
 
 **深度学习应用**：
 - 激活函数选择
@@ -158,10 +158,10 @@
 数列与级数是**深度学习的数学基石**，从学习率衰减到序列建模，无处不在。
 
 **子章节**：
-- [7.1 数列基础](math/07a-数列基础.md) - 等差数列、等比数列、递推关系
-- [7.2 数列极限](math/07b-数列极限.md) - ε-N定义、Cauchy准则、重要极限
-- [7.3 级数与求和](math/07c-级数与求和.md) - 收敛判别、幂级数、泰勒展开
-- [7.4 数列在深度学习中的应用](math/07d-数列在深度学习中的应用.md) - 学习率衰减、位置编码、梯度分析
+- [7.1 数列基础](math/07a-sequence-basics.md) - 等差数列、等比数列、递推关系
+- [7.2 数列极限](math/07b-sequence-limits.md) - ε-N定义、Cauchy准则、重要极限
+- [7.3 级数与求和](math/07c-series-summation.md) - 收敛判别、幂级数、泰勒展开
+- [7.4 数列在深度学习中的应用](math/07d-sequences-dl-applications.md) - 学习率衰减、位置编码、梯度分析
 
 **深度学习应用**：
 - 学习率调度（指数衰减、余弦退火）

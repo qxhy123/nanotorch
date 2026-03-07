@@ -54,7 +54,7 @@ Linear algebra is the **core mathematical tool** of deep learning; almost all ne
 - Convolution operations
 - Attention mechanisms
 
-👉 [Detailed Tutorial: Linear Algebra](math/01-linear-algebra.md)
+👉 [Detailed Tutorial: Linear Algebra](math/01-linear-algebra_EN.md)
 
 ---
 
@@ -73,7 +73,7 @@ Calculus is the foundation for **understanding gradient descent and backpropagat
 - Gradient descent optimization
 - Second-order optimization methods
 
-👉 [Detailed Tutorial: Calculus](math/02-calculus.md)
+👉 [Detailed Tutorial: Calculus](math/02-calculus_EN.md)
 
 ---
 
@@ -92,7 +92,7 @@ Probability theory provides the **mathematical framework for handling uncertaint
 - Generative models (VAE, GAN)
 - Dropout and uncertainty estimation
 
-👉 [Detailed Tutorial: Probability Theory](math/03-probability.md)
+👉 [Detailed Tutorial: Probability Theory](math/03-probability_EN.md)
 
 ---
 
@@ -111,7 +111,7 @@ Mathematical statistics is the theoretical foundation for **learning from data**
 - Parameter initialization
 - Model evaluation
 
-👉 [Detailed Tutorial: Mathematical Statistics](math/04-statistics.md)
+👉 [Detailed Tutorial: Mathematical Statistics](math/04-statistics_EN.md)
 
 ---
 
@@ -130,7 +130,7 @@ Optimization is the **core engine of machine learning**, finding parameters that
 - Hyperparameter tuning
 - Convergence analysis
 
-👉 [Detailed Tutorial: Optimization Methods](math/05-optimization.md)
+👉 [Detailed Tutorial: Optimization Methods](math/05-optimization_EN.md)
 
 ---
 
