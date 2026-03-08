@@ -6,15 +6,23 @@ import { TokenEmbedding } from './components/visualization/embedding/TokenEmbedd
 import { PositionalEncoding } from './components/visualization/embedding/PositionalEncoding';
 import { AttentionMatrix } from './components/visualization/attention/AttentionMatrix';
 import { MultiHeadAttention } from './components/visualization/attention/MultiHeadAttention';
+import { StagedAttentionVisualization } from './components/visualization/attention/StagedAttentionVisualization';
 import { FeedForward } from './components/visualization/feedforward/FeedForward';
 import { LayerNormalization } from './components/visualization/normalization/LayerNormalization';
 import { TransformerFlow } from './components/visualization/transformer/TransformerFlow';
 import { TransformerStructure3D } from './components/visualization/transformer/TransformerStructure3D';
+import { TransformerSankey, useTransformerSankeyData } from './components/visualization/transformer/TransformerSankey';
+import { FlowDirectionGraph, useQKVFlowData } from './components/visualization/shared/FlowDirectionGraph';
+import { DisclosureLevelProvider, DisclosureLevelSelector } from './components/providers/DisclosureLevelProvider';
+import { TutorialProvider, TutorialOverlay } from './components/tutorial';
+import { allTutorials } from './tutorials';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
-import { Brain, Settings, Sliders, Zap, Box } from 'lucide-react';
+import { Button } from './components/ui/button';
+import { Brain, Settings, Sliders, Zap, Box, BookOpen, Network } from 'lucide-react';
 
-function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState('overview');
+  const [showTutorial, setShowTutorial] = useState(false);
   const config = useTransformerStore((state) => state.config);
 
   return (
@@ -33,6 +41,15 @@ function App() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowTutorial(true)}
+                className="gap-2"
+              >
+                <BookOpen className="h-4 w-4" />
+                Tutorial
+              </Button>
               <a
                 href="https://github.com/anthropics/nanotorch"
                 target="_blank"
@@ -48,8 +65,13 @@ function App() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
+        {/* Disclosure Level Selector */}
+        <div className="mb-4 flex justify-end">
+          <DisclosureLevelSelector showDescriptions={false} />
+        </div>
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
             <TabsTrigger value="overview" className="gap-2">
               <Sliders className="h-4 w-4" />
               Overview
@@ -66,13 +88,17 @@ function App() {
               <Brain className="h-4 w-4" />
               Attention
             </TabsTrigger>
+            <TabsTrigger value="staged" className="gap-2">
+              <Settings className="h-4 w-4" />
+              Staged View
+            </TabsTrigger>
             <TabsTrigger value="layers" className="gap-2">
               <Settings className="h-4 w-4" />
               Layers
             </TabsTrigger>
-            <TabsTrigger value="flow" className="gap-2">
-              <Sliders className="h-4 w-4" />
-              Flow
+            <TabsTrigger value="sankey" className="gap-2">
+              <Network className="h-4 w-4" />
+              Data Flow
             </TabsTrigger>
           </TabsList>
 
@@ -144,6 +170,16 @@ function App() {
           <TabsContent value="flow" className="space-y-6 mt-6">
             <TransformerFlow />
           </TabsContent>
+
+          {/* Staged Attention Tab */}
+          <TabsContent value="staged" className="space-y-6 mt-6">
+            <StagedAttentionTabContent />
+          </TabsContent>
+
+          {/* Architecture Flow Tab */}
+          <TabsContent value="sankey" className="space-y-6 mt-6">
+            <SankeyVisualization config={config} />
+          </TabsContent>
         </Tabs>
 
         {/* Settings Panel (Fixed on right for larger screens) */}
@@ -151,6 +187,13 @@ function App() {
           <ParameterPanel />
         </div>
       </main>
+
+      {/* Tutorial Overlay */}
+      {showTutorial && (
+        <TutorialProvider tutorials={allTutorials}>
+          <TutorialOverlay />
+        </TutorialProvider>
+      )}
 
       {/* Footer */}
       <footer className="border-t mt-12">
@@ -162,6 +205,78 @@ function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// Staged Attention Tab Content Component
+function StagedAttentionTabContent() {
+  const attentionWeights = useTransformerStore((state) => state.attentionWeights);
+  const tokens = useTransformerStore((state) => state.tokens);
+  const inputText = useTransformerStore((state) => state.inputText);
+
+  if (!attentionWeights || attentionWeights.length === 0) {
+    return (
+      <div className="text-center text-gray-500 py-12">
+        <Brain className="h-16 w-16 mx-auto mb-4 opacity-50" />
+        <p className="text-lg font-medium">No attention data available</p>
+        <p className="text-sm">Enter some text and run the model to see the staged attention visualization.</p>
+      </div>
+    );
+  }
+
+  const tokenList = tokens.length > 0
+    ? tokens.map(t => `Token_${t}`)
+    : inputText.split(' ').map((t, i) => t || `<${i}>`);
+
+  // Generate flow graph data for QKV visualization
+  const { nodes: flowNodes, links: flowLinks } = useQKVFlowData(attentionWeights[0], tokenList);
+
+  return (
+    <div className="space-y-6">
+      {/* QKV Flow Direction Graph */}
+      {flowNodes.length > 0 && (
+        <FlowDirectionGraph
+          nodes={flowNodes}
+          links={flowLinks}
+          title="QKV Attention Flow"
+          description="Visualizes the flow of Query, Key, and Value through the attention mechanism"
+        />
+      )}
+
+      {/* Staged Attention Visualization */}
+      <StagedAttentionVisualization
+        attentionData={attentionWeights[0]}
+        tokens={tokenList}
+      />
+    </div>
+  );
+}
+
+// Sankey Visualization Component
+function SankeyVisualization({ config }: { config: any }) {
+  const sankeyData = useTransformerSankeyData(null, config);
+
+  if (!sankeyData || !sankeyData.nodes || sankeyData.nodes.length === 0) {
+    return (
+      <div className="text-center text-gray-500 py-12">
+        <Network className="h-16 w-16 mx-auto mb-4 opacity-50" />
+        <p className="text-lg font-medium">No Sankey data available</p>
+        <p className="text-sm">Configure the Transformer to see the data flow visualization.</p>
+      </div>
+    );
+  }
+
+  return <TransformerSankey data={sankeyData} />;
+}
+
+// Wrap app with providers
+function App() {
+  return (
+    <TutorialProvider tutorials={allTutorials}>
+      <DisclosureLevelProvider defaultLevel="intermediate">
+        <AppContent />
+      </DisclosureLevelProvider>
+    </TutorialProvider>
   );
 }
 
