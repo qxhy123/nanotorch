@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { useTransformerStore } from '../../../stores/transformerStore';
+import { useSemanticColors } from '../../../hooks/useSemanticColors';
 import { Brain, Play, Pause, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { Latex } from '../../ui/Latex';
 
@@ -20,6 +21,7 @@ export const MultiHeadAttention: React.FC<MultiHeadAttentionProps> = ({ classNam
 
   const { selectedHead, selectedLayer } = visualizationState;
   const [showComputationDetails, setShowComputationDetails] = useState(true);
+  const { query, key, value, attention } = useSemanticColors();
 
   const attentionData = useMemo(() => {
     if (!attentionWeights || attentionWeights.length === 0) return null;
@@ -88,23 +90,23 @@ export const MultiHeadAttention: React.FC<MultiHeadAttentionProps> = ({ classNam
       <CardContent className="space-y-6">
         {/* Quick Stats */}
         <div className="grid grid-cols-4 gap-3">
-          <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-            <div className="text-xs text-blue-500 font-medium">Queries</div>
+          <div className="p-3 rounded-lg border" style={{ backgroundColor: `${query.primary}10`, borderColor: `${query.primary}40` }}>
+            <div className="text-xs font-medium" style={{ color: query.primary }}>Queries</div>
             <div className="text-lg font-bold">Q</div>
             <div className="text-[10px] text-muted-foreground">{headDim}d</div>
           </div>
-          <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-            <div className="text-xs text-green-500 font-medium">Keys</div>
+          <div className="p-3 rounded-lg border" style={{ backgroundColor: `${key.primary}10`, borderColor: `${key.primary}40` }}>
+            <div className="text-xs font-medium" style={{ color: key.primary }}>Keys</div>
             <div className="text-lg font-bold">K</div>
             <div className="text-[10px] text-muted-foreground">{headDim}d</div>
           </div>
-          <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
-            <div className="text-xs text-orange-500 font-medium">Values</div>
+          <div className="p-3 rounded-lg border" style={{ backgroundColor: `${value.primary}10`, borderColor: `${value.primary}40` }}>
+            <div className="text-xs font-medium" style={{ color: value.primary }}>Values</div>
             <div className="text-lg font-bold">V</div>
             <div className="text-[10px] text-muted-foreground">{headDim}d</div>
           </div>
-          <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-            <div className="text-xs text-purple-500 font-medium">Output</div>
+          <div className="p-3 rounded-lg border" style={{ backgroundColor: `${attention.primary}10`, borderColor: `${attention.primary}40` }}>
+            <div className="text-xs font-medium" style={{ color: attention.primary }}>Output</div>
             <div className="text-lg font-bold">O</div>
             <div className="text-[10px] text-muted-foreground">{config.d_model}d</div>
           </div>
