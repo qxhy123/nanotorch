@@ -148,3 +148,230 @@ export interface AnimationState {
   currentStep: number;
   speed: number; // milliseconds per step
 }
+
+// ============================================
+// NEW TYPES FOR TRANSFORMER VISUALIZATION 2.0
+// ============================================
+
+/**
+ * Attention computation stages for step-by-step visualization
+ */
+export type AttentionStage =
+  | 'queries'        // Q matrices
+  | 'keys'           // K matrices
+  | 'values'         // V matrices
+  | 'dot_product'    // Q·K^T raw scores
+  | 'scaled'         // Q·K^T / sqrt(d_k)
+  | 'masked'         // After causal mask applied
+  | 'softmax'        // After softmax normalization
+  | 'weighted_sum';  // Final attention output (softmax · V)
+
+/**
+ * Individual computation step data for staged attention visualization
+ */
+export interface AttentionComputationStep {
+  stage: AttentionStage;
+  title: string;
+  description: string;
+  formula: string;
+  data: TensorData;
+  highlightedElements?: {
+    rows?: number[];
+    cols?: number[];
+    cells?: Array<[number, number]>;
+  };
+  metadata?: {
+    scale?: number;
+    maskValue?: number;
+    temperature?: number;
+  };
+}
+
+/**
+ * Progress levels for progressive disclosure
+ */
+export type DisclosureLevel = 'overview' | 'intermediate' | 'detailed' | 'math';
+
+/**
+ * Disclosure level configuration
+ */
+export interface DisclosureLevelConfig {
+  level: DisclosureLevel;
+  showMath: boolean;
+  showImplementation: boolean;
+  showAllParameters: boolean;
+  interactiveElements: string[];
+}
+
+/**
+ * Tutorial system types
+ */
+export interface Tutorial {
+  id: string;
+  title: string;
+  description: string;
+  steps: TutorialStep[];
+  targetAudience: 'beginner' | 'intermediate' | 'advanced';
+  estimatedTime: number; // minutes
+  prerequisites?: string[];
+}
+
+export interface TutorialStep {
+  id: string;
+  title: string;
+  content: string;
+  target?: string; // CSS selector for target element
+  position?: 'top' | 'bottom' | 'left' | 'right' | 'center';
+  action?: {
+    type: 'click' | 'hover' | 'input' | 'wait';
+    selector?: string;
+    timeout?: number;
+  };
+  onNext?: () => void | Promise<void>;
+  onPrev?: () => void | Promise<void>;
+  highlightElements?: string[]; // CSS selectors
+  dismissOnAction?: boolean;
+}
+
+export interface TutorialState {
+  activeTutorial: string | null;
+  currentStep: number;
+  isTutorialActive: boolean;
+  completedTutorials: string[];
+  skippedTutorials: string[];
+}
+
+/**
+ * Sankey diagram types for data flow visualization
+ */
+export interface SankeyNode {
+  id: string;
+  name: string;
+  type: 'input' | 'operation' | 'output' | 'layer' | 'embedding' | 'positional' | 'attention' | 'ffn' | 'normalization';
+  depth: number;
+  value?: number;
+  color?: string;
+  metadata?: {
+    shape?: number[];
+    parameters?: number;
+    computationCost?: number;
+  };
+}
+
+export interface SankeyLink {
+  source: string;
+  target: string;
+  value: number;
+  color?: string;
+  opacity?: number;
+  metadata?: {
+    tensorShape?: number[];
+    dataSize?: number;
+  };
+}
+
+export interface SankeyData {
+  nodes: SankeyNode[];
+  links: SankeyLink[];
+  layers: number;
+}
+
+/**
+ * GSAP animation timeline types
+ */
+export interface AnimationTimeline {
+  id: string;
+  label: string;
+  duration: number;
+  progress: number;
+  isPlaying: boolean;
+  steps: AnimationStep[];
+}
+
+export interface AnimationStep {
+  id: string;
+  label: string;
+  timestamp: number;
+  description?: string;
+  onStart?: () => void;
+  onComplete?: () => void;
+}
+
+/**
+ * Vector visualization data for Canvas renderer
+ */
+export interface VectorVisualizationData {
+  vectors: number[][];
+  labels?: string[];
+  colors?: string[];
+  dimensions: {
+    rows: number;
+    cols: number;
+  };
+  metadata?: {
+    magnitude?: number[][];
+    direction?: number[][];
+  };
+}
+
+/**
+ * Color coded math component types
+ */
+export interface ColorCodedMathProps {
+  latex: string;
+  colorMap?: Record<string, string>; // variable -> color mapping
+  highlightVariables?: string[];
+  interactive?: boolean;
+  onVariableClick?: (variable: string) => void;
+}
+
+/**
+ * Math explanation levels
+ */
+export type MathExplanationLevel = 'intuitive' | 'formal' | 'rigorous';
+
+export interface MathExplanation {
+  level: MathExplanationLevel;
+  title: string;
+  content: string;
+  formula?: string;
+  visualAid?: React.ReactNode;
+  examples?: MathExample[];
+}
+
+export interface MathExample {
+  description: string;
+  input: any;
+  output: any;
+  steps?: string[];
+}
+
+/**
+ * Progressive reveal section states
+ */
+export interface RevealSectionState {
+  id: string;
+  isExpanded: boolean;
+  level: DisclosureLevel;
+  content: React.ReactNode;
+}
+
+/**
+ * Performance monitoring types
+ */
+export interface PerformanceMetrics {
+  fps: number;
+  renderTime: number;
+  memoryUsage: number;
+  tensorSize: number;
+}
+
+/**
+ * Cache entry for memoization
+ */
+export interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  hits: number;
+  size: number;
+}

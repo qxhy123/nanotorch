@@ -5,6 +5,10 @@ import type {
   AttentionData,
   ComponentVisualizationState,
   AnimationState,
+  TutorialState,
+  AnimationTimeline,
+  DisclosureLevel,
+  AttentionStage,
 } from '../types/transformer';
 
 const DEFAULT_CONFIG: TransformerConfig = {
@@ -36,6 +40,18 @@ const DEFAULT_ANIMATION_STATE: AnimationState = {
   speed: 1000,
 };
 
+const DEFAULT_TUTORIAL_STATE: TutorialState = {
+  activeTutorial: null,
+  currentStep: 0,
+  isTutorialActive: false,
+  completedTutorials: [],
+  skippedTutorials: [],
+};
+
+const DEFAULT_DISCLOSURE_LEVEL: DisclosureLevel = 'intermediate';
+
+const DEFAULT_ATTENTION_STAGE: AttentionStage = 'softmax';
+
 interface TransformerState {
   // Model configuration
   config: TransformerConfig;
@@ -58,6 +74,13 @@ interface TransformerState {
   isLoading: boolean;
   error: string | null;
 
+  // New states for Transformer Visualization 2.0
+  tutorialState: TutorialState;
+  animationTimelines: Record<string, AnimationTimeline>;
+  activeTimeline: string | null;
+  disclosureLevel: DisclosureLevel;
+  attentionComputationStage: AttentionStage;
+
   // Actions
   setConfig: (config: Partial<TransformerConfig>) => void;
   setInputText: (text: string) => void;
@@ -76,6 +99,18 @@ interface TransformerState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   reset: () => void;
+
+  // New actions for Transformer Visualization 2.0
+  setActiveTutorial: (tutorialId: string | null) => void;
+  setTutorialStep: (step: number) => void;
+  setIsTutorialActive: (active: boolean) => void;
+  completeTutorial: (tutorialId: string) => void;
+  skipTutorial: (tutorialId: string) => void;
+  registerTimeline: (timeline: AnimationTimeline) => void;
+  setActiveTimeline: (timelineId: string | null) => void;
+  updateTimelineProgress: (timelineId: string, progress: number) => void;
+  setDisclosureLevel: (level: DisclosureLevel) => void;
+  setAttentionComputationStage: (stage: AttentionStage) => void;
 }
 
 export const useTransformerStore = create<TransformerState>((set) => ({
@@ -93,6 +128,13 @@ export const useTransformerStore = create<TransformerState>((set) => ({
   animationState: DEFAULT_ANIMATION_STATE,
   isLoading: false,
   error: null,
+
+  // New states for Transformer Visualization 2.0
+  tutorialState: DEFAULT_TUTORIAL_STATE,
+  animationTimelines: {},
+  activeTimeline: null,
+  disclosureLevel: DEFAULT_DISCLOSURE_LEVEL,
+  attentionComputationStage: DEFAULT_ATTENTION_STAGE,
 
   // Actions
   setConfig: (newConfig) =>
@@ -236,5 +278,88 @@ export const useTransformerStore = create<TransformerState>((set) => ({
       animationState: DEFAULT_ANIMATION_STATE,
       isLoading: false,
       error: null,
+      tutorialState: DEFAULT_TUTORIAL_STATE,
+      animationTimelines: {},
+      activeTimeline: null,
+      disclosureLevel: DEFAULT_DISCLOSURE_LEVEL,
+      attentionComputationStage: DEFAULT_ATTENTION_STAGE,
     }),
+
+  // New actions for Transformer Visualization 2.0
+
+  setActiveTutorial: (tutorialId) =>
+    set((state) => ({
+      tutorialState: {
+        ...state.tutorialState,
+        activeTutorial: tutorialId,
+        currentStep: tutorialId ? 0 : state.tutorialState.currentStep,
+      },
+    })),
+
+  setTutorialStep: (step) =>
+    set((state) => ({
+      tutorialState: {
+        ...state.tutorialState,
+        currentStep: Math.max(0, step),
+      },
+    })),
+
+  setIsTutorialActive: (active) =>
+    set((state) => ({
+      tutorialState: {
+        ...state.tutorialState,
+        isTutorialActive: active,
+      },
+    })),
+
+  completeTutorial: (tutorialId) =>
+    set((state) => ({
+      tutorialState: {
+        ...state.tutorialState,
+        completedTutorials: state.tutorialState.completedTutorials.includes(tutorialId)
+          ? state.tutorialState.completedTutorials
+          : [...state.tutorialState.completedTutorials, tutorialId],
+        activeTutorial: null,
+        isTutorialActive: false,
+      },
+    })),
+
+  skipTutorial: (tutorialId) =>
+    set((state) => ({
+      tutorialState: {
+        ...state.tutorialState,
+        skippedTutorials: state.tutorialState.skippedTutorials.includes(tutorialId)
+          ? state.tutorialState.skippedTutorials
+          : [...state.tutorialState.skippedTutorials, tutorialId],
+        activeTutorial: null,
+        isTutorialActive: false,
+      },
+    })),
+
+  registerTimeline: (timeline) =>
+    set((state) => ({
+      animationTimelines: {
+        ...state.animationTimelines,
+        [timeline.id]: timeline,
+      },
+    })),
+
+  setActiveTimeline: (timelineId) =>
+    set({ activeTimeline: timelineId }),
+
+  updateTimelineProgress: (timelineId, progress) =>
+    set((state) => ({
+      animationTimelines: {
+        ...state.animationTimelines,
+        [timelineId]: state.animationTimelines[timelineId]
+          ? { ...state.animationTimelines[timelineId], progress }
+          : state.animationTimelines[timelineId],
+      },
+    })),
+
+  setDisclosureLevel: (level) =>
+    set({ disclosureLevel: level }),
+
+  setAttentionComputationStage: (stage) =>
+    set({ attentionComputationStage: stage }),
 }));
