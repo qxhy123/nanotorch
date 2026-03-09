@@ -11,7 +11,7 @@ _current_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_current_dir))
 sys.path.insert(0, _project_root)
 
-from app.api.routes import transformer
+from app.api.routes import transformer, tokenizer, layer
 from app.models.schemas import HealthResponse
 
 # Create FastAPI app
@@ -50,6 +50,8 @@ except ImportError:
 
 # Include routers
 app.include_router(transformer.router)
+app.include_router(tokenizer.router)
+app.include_router(layer.router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
