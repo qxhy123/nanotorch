@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { DisclosureLevel, DisclosureLevelConfig } from '../../types/transformer';
-import { useTransformerStore } from '../../stores/transformerStore';
 
 /**
  * Disclosure Level Context
@@ -67,7 +66,6 @@ interface DisclosureLevelProviderProps {
  * Features:
  * - Global disclosure level management
  * - LocalStorage persistence
- * - Sync with transformer store
  * - Level change callbacks
  */
 export const DisclosureLevelProvider: React.FC<DisclosureLevelProviderProps> = ({
@@ -76,7 +74,6 @@ export const DisclosureLevelProvider: React.FC<DisclosureLevelProviderProps> = (
   persistKey = 'disclosure-level',
   onLevelChange,
 }) => {
-  const { disclosureLevel: storeLevel, setDisclosureLevel: setStoreLevel } = useTransformerStore();
   const [level, setLevelState] = useState<DisclosureLevel>(() => {
     // Try to load from localStorage first
     if (persistKey && typeof window !== 'undefined') {
@@ -85,16 +82,9 @@ export const DisclosureLevelProvider: React.FC<DisclosureLevelProviderProps> = (
         return saved as DisclosureLevel;
       }
     }
-    // Fall back to store or default
-    return storeLevel || defaultLevel;
+    // Fall back to default
+    return defaultLevel;
   });
-
-  // Sync with store
-  useEffect(() => {
-    if (storeLevel && storeLevel !== level) {
-      setLevelState(storeLevel);
-    }
-  }, [storeLevel]);
 
   // Persist to localStorage
   useEffect(() => {
@@ -105,9 +95,8 @@ export const DisclosureLevelProvider: React.FC<DisclosureLevelProviderProps> = (
 
   const setLevel = useCallback((newLevel: DisclosureLevel) => {
     setLevelState(newLevel);
-    setStoreLevel(newLevel);
     onLevelChange?.(newLevel);
-  }, [setStoreLevel, onLevelChange]);
+  }, [onLevelChange]);
 
   const canShow = useCallback((requiredLevel: DisclosureLevel): boolean => {
     const levels: DisclosureLevel[] = ['overview', 'intermediate', 'detailed', 'math'];

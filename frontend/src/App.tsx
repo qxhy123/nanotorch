@@ -13,7 +13,6 @@ import { TransformerFlow } from './components/visualization/transformer/Transfor
 import { TransformerStructure3D } from './components/visualization/transformer/TransformerStructure3D';
 import { TransformerSankey, useTransformerSankeyData } from './components/visualization/transformer/TransformerSankey';
 import { FlowDirectionGraph, useQKVFlowData } from './components/visualization/shared/FlowDirectionGraph';
-import { DisclosureLevelProvider, DisclosureLevelSelector } from './components/providers/DisclosureLevelProvider';
 import { TutorialProvider, TutorialOverlay } from './components/tutorial';
 import { allTutorials } from './tutorials';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
@@ -65,11 +64,6 @@ function AppContent() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        {/* Disclosure Level Selector */}
-        <div className="mb-4 flex justify-end">
-          <DisclosureLevelSelector showDescriptions={false} />
-        </div>
-
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
             <TabsTrigger value="overview" className="gap-2">
@@ -273,9 +267,7 @@ function SankeyVisualization({ config }: { config: any }) {
 function App() {
   return (
     <TutorialProvider tutorials={allTutorials}>
-      <DisclosureLevelProvider defaultLevel="intermediate">
-        <AppContent />
-      </DisclosureLevelProvider>
+      <AppContent />
     </TutorialProvider>
   );
 }

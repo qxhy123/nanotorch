@@ -7,7 +7,6 @@ import type {
   AnimationState,
   TutorialState,
   AnimationTimeline,
-  DisclosureLevel,
   AttentionStage,
 } from '../types/transformer';
 
@@ -48,8 +47,6 @@ const DEFAULT_TUTORIAL_STATE: TutorialState = {
   skippedTutorials: [],
 };
 
-const DEFAULT_DISCLOSURE_LEVEL: DisclosureLevel = 'intermediate';
-
 const DEFAULT_ATTENTION_STAGE: AttentionStage = 'softmax';
 
 interface TransformerState {
@@ -78,7 +75,6 @@ interface TransformerState {
   tutorialState: TutorialState;
   animationTimelines: Record<string, AnimationTimeline>;
   activeTimeline: string | null;
-  disclosureLevel: DisclosureLevel;
   attentionComputationStage: AttentionStage;
 
   // Actions
@@ -109,7 +105,6 @@ interface TransformerState {
   registerTimeline: (timeline: AnimationTimeline) => void;
   setActiveTimeline: (timelineId: string | null) => void;
   updateTimelineProgress: (timelineId: string, progress: number) => void;
-  setDisclosureLevel: (level: DisclosureLevel) => void;
   setAttentionComputationStage: (stage: AttentionStage) => void;
 }
 
@@ -133,7 +128,6 @@ export const useTransformerStore = create<TransformerState>((set) => ({
   tutorialState: DEFAULT_TUTORIAL_STATE,
   animationTimelines: {},
   activeTimeline: null,
-  disclosureLevel: DEFAULT_DISCLOSURE_LEVEL,
   attentionComputationStage: DEFAULT_ATTENTION_STAGE,
 
   // Actions
@@ -281,7 +275,6 @@ export const useTransformerStore = create<TransformerState>((set) => ({
       tutorialState: DEFAULT_TUTORIAL_STATE,
       animationTimelines: {},
       activeTimeline: null,
-      disclosureLevel: DEFAULT_DISCLOSURE_LEVEL,
       attentionComputationStage: DEFAULT_ATTENTION_STAGE,
     }),
 
@@ -356,9 +349,6 @@ export const useTransformerStore = create<TransformerState>((set) => ({
           : state.animationTimelines[timelineId],
       },
     })),
-
-  setDisclosureLevel: (level) =>
-    set({ disclosureLevel: level }),
 
   setAttentionComputationStage: (stage) =>
     set({ attentionComputationStage: stage }),
