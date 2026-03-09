@@ -4,20 +4,34 @@ import { InputPanel } from './components/controls/InputPanel';
 import { ParameterPanel } from './components/controls/ParameterPanel';
 import { TokenEmbedding } from './components/visualization/embedding/TokenEmbedding';
 import { PositionalEncoding } from './components/visualization/embedding/PositionalEncoding';
+import { PositionEncodingExplorer } from './components/visualization/embedding/PositionEncodingExplorer';
+import { EmbeddingArithmetic } from './components/visualization/embedding/EmbeddingArithmetic';
 import { AttentionMatrix } from './components/visualization/attention/AttentionMatrix';
 import { MultiHeadAttention } from './components/visualization/attention/MultiHeadAttention';
 import { StagedAttentionVisualization } from './components/visualization/attention/StagedAttentionVisualization';
-import { FeedForward } from './components/visualization/feedforward/FeedForward';
+import { HeadAnalysis } from './components/visualization/attention/HeadAnalysis';
+import { QKVDecomposition } from './components/visualization/attention/QKVDecomposition';
+import { ScaledDotProductVisualization, AttentionPlayground } from './components/visualization/attention';
+import { FeedForward, FFNActivationMap } from './components/visualization/feedforward';
 import { LayerNormalization } from './components/visualization/normalization/LayerNormalization';
+import { LayerVisualization } from './components/visualization/layer/LayerVisualization';
+import { DropoutMaskVisualization } from './components/visualization/layers/DropoutMaskVisualization';
+import { ResidualConnection } from './components/visualization/layers/ResidualConnection';
 import { TransformerFlow } from './components/visualization/transformer/TransformerFlow';
 import { TransformerStructure3D } from './components/visualization/transformer/TransformerStructure3D';
 import { TransformerSankey, useTransformerSankeyData } from './components/visualization/transformer/TransformerSankey';
+import { ArchitectureComparison } from './components/visualization/architecture/ArchitectureComparison';
 import { FlowDirectionGraph, useQKVFlowData } from './components/visualization/shared/FlowDirectionGraph';
+import { TokenizationView } from './components/visualization/tokenization/TokenizationView';
+import { VocabularyBrowser } from './components/visualization/tokenization/VocabularyBrowser';
+import { TokenizerComparison } from './components/visualization/tokenization/TokenizerComparison';
+import { ProbabilityDistribution, SamplingStrategyComparison, AutoRegressiveGeneration, TopKTopPVisualization, BeamSearchVisualization } from './components/visualization/inference';
+import { GradientFlow, TrainingDashboard, LossCurve, WeightDistribution, ModelProfiler, TensorShapeTracker } from './components/visualization/training';
 import { TutorialProvider, TutorialOverlay } from './components/tutorial';
 import { allTutorials } from './tutorials';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Button } from './components/ui/button';
-import { Brain, Settings, Sliders, Zap, Box, BookOpen, Network } from 'lucide-react';
+import { Brain, Settings, Sliders, Zap, Box, BookOpen, Network, Hash, TrendingUp, Activity } from 'lucide-react';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -65,7 +79,7 @@ function AppContent() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-10 lg:w-auto lg:inline-grid">
             <TabsTrigger value="overview" className="gap-2">
               <Sliders className="h-4 w-4" />
               Overview
@@ -93,6 +107,18 @@ function AppContent() {
             <TabsTrigger value="sankey" className="gap-2">
               <Network className="h-4 w-4" />
               Data Flow
+            </TabsTrigger>
+            <TabsTrigger value="tokenization" className="gap-2">
+              <Hash className="h-4 w-4" />
+              Tokenization
+            </TabsTrigger>
+            <TabsTrigger value="inference" className="gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Inference
+            </TabsTrigger>
+            <TabsTrigger value="training" className="gap-2">
+              <Activity className="h-4 w-4" />
+              Training
             </TabsTrigger>
           </TabsList>
 
@@ -134,6 +160,7 @@ function AppContent() {
           {/* Structure Tab */}
           <TabsContent value="structure" className="space-y-6 mt-6">
             <TransformerStructure3D />
+            <ArchitectureComparison />
           </TabsContent>
 
           {/* Embeddings Tab */}
@@ -142,6 +169,8 @@ function AppContent() {
               <TokenEmbedding />
               <PositionalEncoding />
             </div>
+            <PositionEncodingExplorer />
+            <EmbeddingArithmetic />
           </TabsContent>
 
           {/* Attention Tab */}
@@ -150,14 +179,27 @@ function AppContent() {
               <AttentionMatrix />
               <MultiHeadAttention />
             </div>
+            <HeadAnalysis />
+            <QKVDecomposition />
+            <ScaledDotProductVisualization />
+            <AttentionPlayground />
           </TabsContent>
 
           {/* Layers Tab */}
           <TabsContent value="layers" className="space-y-6 mt-6">
             <div className="grid lg:grid-cols-2 gap-6">
+              <LayerVisualization layerType="encoder" layerIndex={0} />
+              {config.num_decoder_layers > 0 && (
+                <LayerVisualization layerType="decoder" layerIndex={0} />
+              )}
+            </div>
+            <div className="grid lg:grid-cols-2 gap-6">
               <FeedForward />
               <LayerNormalization />
             </div>
+            <FFNActivationMap />
+            <DropoutMaskVisualization />
+            <ResidualConnection />
           </TabsContent>
 
           {/* Flow Tab */}
@@ -173,6 +215,45 @@ function AppContent() {
           {/* Architecture Flow Tab */}
           <TabsContent value="sankey" className="space-y-6 mt-6">
             <SankeyVisualization config={config} />
+          </TabsContent>
+
+          {/* Tokenization Tab */}
+          <TabsContent value="tokenization" className="space-y-6 mt-6">
+            <div className="grid lg:grid-cols-2 gap-6">
+              <TokenizationView />
+              <VocabularyBrowser />
+            </div>
+            <TokenizerComparison />
+          </TabsContent>
+
+          {/* Inference Tab */}
+          <TabsContent value="inference" className="space-y-6 mt-6">
+            <AutoRegressiveGeneration />
+            <div className="grid lg:grid-cols-2 gap-6">
+              <ProbabilityDistribution />
+              <SamplingStrategyComparison />
+            </div>
+            <TopKTopPVisualization />
+            <BeamSearchVisualization />
+          </TabsContent>
+
+          {/* Training Tab */}
+          <TabsContent value="training" className="space-y-6 mt-6">
+            <TrainingDashboard />
+            <LossCurve
+              trainLoss={Array.from({ length: 50 }, (_, i) => ({
+                epoch: i + 1,
+                value: 2.5 * Math.exp(-i * 0.05) + 0.2 + (Math.random() - 0.5) * 0.1,
+              }))}
+              validationLoss={Array.from({ length: 50 }, (_, i) => ({
+                epoch: i + 1,
+                value: 2.5 * Math.exp(-i * 0.05) + 0.35 + (Math.random() - 0.5) * 0.12,
+              }))}
+            />
+            <GradientFlow />
+            <WeightDistribution />
+            <ModelProfiler />
+            <TensorShapeTracker />
           </TabsContent>
         </Tabs>
 
