@@ -1,6 +1,6 @@
 # nanotorch
 
-A minimal PyTorch implementation from scratch, designed for educational purposes.
+A minimal PyTorch implementation from scratch with interactive visualization, designed for educational purposes.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
@@ -20,12 +20,59 @@ nanotorch is a lightweight implementation of core PyTorch functionality built en
 - **Data Utilities**: DataLoader, Dataset, TensorDataset, random_split
 - **Data Augmentation**: RandomCrop, RandomFlip, ColorJitter, RandomErasing, etc.
 - **Model Serialization**: save/load state dicts
+- **🆕 Interactive Web Visualization**: Explore transformer architecture interactively
+
+## Web Visualization
+
+nanotorch includes an interactive web application for visualizing and understanding transformer architecture. The visualization provides:
+
+### Features
+
+- **Overview Dashboard**: Quick stats and transformer flow visualization
+- **3D Structure View**: Interactive 3D model of transformer architecture
+- **Embedding Visualization**: Token embeddings, positional encoding, and semantic arithmetic demos
+- **Attention Exploration**: Multi-head attention, QKV decomposition, attention patterns
+- **Layer-by-Layer Breakdown**: Step-by-step computation through transformer layers
+- **Data Flow Diagrams**: Sankey diagrams showing tensor flow through the network
+- **Training Monitoring**: Loss curves, gradient flow, weight distribution, and profiling
+- **Inference Process**: Auto-regressive generation, beam search, sampling strategies
+- **Tokenization Tools**: Character/word/BPE tokenization comparison
+
+### Running the Web App
+
+```bash
+# From project root
+cd frontend
+npm install
+npm run dev
+
+# Or for production build
+npm run build
+npm run preview
+```
+
+Then open `http://localhost:5173` in your browser.
+
+### Visualization Tabs
+
+| Tab | Description |
+|-----|-------------|
+| **Overview** | Model configuration, transformer flow, quick statistics |
+| **Structure** | 3D architecture visualization, model comparisons |
+| **Embeddings** | Token embeddings, positional encoding, semantic arithmetic |
+| **Attention** | Attention matrices, multi-head analysis, QKV decomposition |
+| **Staged View** | Step-by-step attention computation with flow diagrams |
+| **Layers** | Detailed layer visualization with intermediate results |
+| **Data Flow** | Sankey diagrams of tensor transformations |
+| **Tokenization** | Token-to-text mapping, vocabulary browser |
+| **Inference** | Sampling strategies, beam search, generation visualization |
+| **Training** | Loss curves, gradients, weights, model profiling |
 
 ## Installation
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/nanotorch.git
+git clone https://github.com/qxhy123/nanotorch.git
 cd nanotorch
 
 # Install with uv (recommended)
@@ -66,50 +113,13 @@ optimizer = SGD(model.parameters(), lr=0.01)
 for epoch in range(100):
     predictions = model(X)
     loss = criterion(predictions, y)
-    
+
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-    
+
     if epoch % 10 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item():.4f}")
-```
-
-### Using DataLoader
-
-```python
-from nanotorch import DataLoader, TensorDataset
-import numpy as np
-
-# Create dataset
-X_train = np.random.randn(1000, 784).astype(np.float32)
-y_train = np.random.randint(0, 10, 1000).astype(np.int64)
-dataset = TensorDataset(X_train, y_train)
-
-# Create data loader
-loader = DataLoader(dataset, batch_size=32, shuffle=True)
-
-# Training
-for X_batch, y_batch in loader:
-    X_tensor = Tensor(X_batch)
-    y_tensor = Tensor(y_batch)
-    # ... training step
-```
-
-### RNN / LSTM / GRU
-
-```python
-from nanotorch.nn import LSTM, Linear
-from nanotorch import Tensor
-
-# Create LSTM model
-lstm = LSTM(input_size=64, hidden_size=128, num_layers=2, batch_first=True)
-fc = Linear(128, 10)
-
-# Forward pass
-x = Tensor.randn((32, 10, 64))  # (batch, seq_len, input_size)
-output, (h_n, c_n) = lstm(x)
-output = fc(output[:, -1, :])  # Use last hidden state
 ```
 
 ### Transformer
@@ -128,44 +138,6 @@ embedding = Embedding(num_embeddings=10000, embedding_dim=512)
 tokens = Tensor(np.random.randint(0, 10000, (32, 100)))  # (batch, seq_len)
 x = embedding(tokens)
 output = encoder(x)
-```
-
-### Learning Rate Warmup
-
-```python
-from nanotorch.optim import AdamW, CosineWarmupScheduler
-
-optimizer = AdamW(model.parameters(), lr=1e-3)
-scheduler = CosineWarmupScheduler(
-    optimizer, 
-    warmup_epochs=5, 
-    max_epochs=100
-)
-
-for epoch in range(100):
-    train(...)
-    scheduler.step()
-```
-
-### Data Augmentation
-
-```python
-from nanotorch.transforms import (
-    Compose, ToFloat, Normalize, 
-    RandomHorizontalFlip, RandomCrop, ColorJitter
-)
-
-transform = Compose([
-    ToFloat(),
-    RandomHorizontalFlip(p=0.5),
-    RandomCrop(size=224),
-    ColorJitter(brightness=0.2, contrast=0.2),
-    Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
-
-# Apply to image
-image = np.random.randint(0, 256, (256, 256, 3), dtype=np.uint8)
-augmented = transform(image)
 ```
 
 ## Available Components
@@ -193,29 +165,15 @@ augmented = transform(image)
 | `GroupNorm` | Group normalization |
 | `InstanceNorm1d/2d/3d` | Instance normalization |
 
-### Pooling Layers
-
-| Layer | Description |
-|-------|-------------|
-| `MaxPool1d/2d/3d` | Max pooling |
-| `AvgPool1d/2d/3d` | Average pooling |
-| `AdaptiveAvgPool2d` | Adaptive average pooling |
-| `AdaptiveMaxPool2d` | Adaptive max pooling |
-
 ### Activation Functions
 
 | Activation | Description |
 |------------|-------------|
 | `ReLU` | Rectified Linear Unit |
-| `LeakyReLU` | Leaky ReLU |
 | `GELU` | Gaussian Error Linear Unit |
 | `SiLU` | Sigmoid Linear Unit (Swish) |
-| `PReLU` | Parametric ReLU |
-| `Sigmoid` | Sigmoid activation |
-| `Tanh` | Hyperbolic tangent |
+| `LeakyReLU` | Leaky ReLU |
 | `Softmax` | Softmax activation |
-| `ELU` | Exponential Linear Unit |
-| `Softplus` | Softplus activation |
 
 ### Loss Functions
 
@@ -223,175 +181,49 @@ augmented = transform(image)
 |------|-------------|
 | `MSE` | Mean Squared Error |
 | `L1Loss` | Mean Absolute Error |
-| `SmoothL1Loss` | Huber Loss |
 | `CrossEntropyLoss` | Cross Entropy |
 | `BCELoss` | Binary Cross Entropy |
 | `BCEWithLogitsLoss` | BCE with sigmoid |
-| `NLLLoss` | Negative Log Likelihood |
 
 ### Optimizers
 
 | Optimizer | Description |
 |-----------|-------------|
-| `SGD` | Stochastic Gradient Descent (with momentum, nesterov) |
+| `SGD` | Stochastic Gradient Descent |
 | `Adam` | Adam optimizer |
 | `AdamW` | Adam with decoupled weight decay |
 | `RMSprop` | RMSprop optimizer |
-| `Adagrad` | Adagrad optimizer |
-
-### Learning Rate Schedulers
-
-| Scheduler | Description |
-|-----------|-------------|
-| `StepLR` | Decay by gamma every step_size epochs |
-| `MultiStepLR` | Decay at specific milestones |
-| `ExponentialLR` | Exponential decay |
-| `CosineAnnealingLR` | Cosine annealing |
-| `LinearWarmup` | Linear warmup only |
-| `WarmupScheduler` | Warmup + any scheduler |
-| `CosineWarmupScheduler` | Warmup + cosine annealing |
-| `ReduceLROnPlateau` | Reduce when metric stagnates |
-
-### Data Utilities
-
-| Class | Description |
-|-------|-------------|
-| `Dataset` | Base dataset class |
-| `TensorDataset` | Dataset wrapping tensors |
-| `DataLoader` | Batch data loader with shuffling |
-| `Subset` | Subset of a dataset |
-| `random_split` | Randomly split dataset |
-
-### Data Augmentation
-
-| Transform | Description |
-|-----------|-------------|
-| `Compose` | Chain multiple transforms |
-| `Normalize` | Normalize with mean/std |
-| `RandomHorizontalFlip` | Random horizontal flip |
-| `RandomVerticalFlip` | Random vertical flip |
-| `RandomCrop` | Random crop |
-| `CenterCrop` | Center crop |
-| `RandomResizedCrop` | Random crop + resize |
-| `ColorJitter` | Random brightness/contrast/saturation |
-| `RandomErasing` | Random region erasing |
-| `GaussianBlur` | Gaussian blur |
-
-### Initialization Functions
-
-| Function | Description |
-|----------|-------------|
-| `xavier_uniform_` | Xavier/Glorot uniform |
-| `xavier_normal_` | Xavier/Glorot normal |
-| `kaiming_uniform_` | Kaiming/He uniform |
-| `kaiming_normal_` | Kaiming/He normal |
-| `trunc_normal_` | Truncated normal |
-| `orthogonal_` | Orthogonal matrix |
-| `sparse_` | Sparse initialization |
-| `zeros_` / `ones_` | Constant initialization |
-
-## Tensor Operations
-
-```python
-from nanotorch import Tensor
-
-t = Tensor.randn((2, 3, 4))
-
-# Shape operations
-t.reshape((6, 4))
-t.flatten(start_dim=1)
-t.transpose(0, 1)
-t.squeeze()
-t.expand(4, 3, 4)
-t.repeat(2, 1, 1)
-
-# Math operations
-t + t
-t * t
-t.matmul(t.transpose(0, 1))
-t.sum(dim=1)
-t.mean(dim=0)
-t.softmax(dim=-1)
-
-# Splitting & sorting
-t.split(split_size=2, dim=0)
-t.chunk(chunks=2, dim=0)
-values, indices = t.topk(k=2, dim=-1)
-values, indices = t.sort(dim=-1, descending=True)
-```
-
-## Gradient Utilities
-
-```python
-from nanotorch.utils import clip_grad_norm_, clip_grad_value_, get_grad_norm_
-
-# Clip gradient norm
-total_norm = clip_grad_norm_(model.parameters(), max_norm=1.0)
-
-# Clip gradient values
-clip_grad_value_(model.parameters(), clip_value=0.5)
-
-# Get gradient norm
-norm = get_grad_norm_(model.parameters(), norm_type=2.0)
-```
-
-## Model Serialization
-
-```python
-# Save model
-state_dict = model.state_dict()
-np.savez('model.npz', **state_dict)
-
-# Load model
-state_dict = dict(np.load('model.npz'))
-model.load_state_dict(state_dict)
-```
-
-## Examples
-
-See `examples/` directory:
-
-| Example | Description |
-|---------|-------------|
-| `simple_neural_net.py` | Basic neural network |
-| `mnist_classifier.py` | CNN for MNIST |
-| `mini_gpt.py` | Character-level GPT |
-| `chat_llm.py` | Simple chatbot with Transformer |
-| `autograd_demo.py` | Autograd demonstrations |
-| `conv2d_training.py` | CNN training example |
 
 ## Project Structure
 
 ```
 nanotorch/
-├── nanotorch/
+├── nanotorch/              # Core library
 │   ├── tensor.py          # Tensor with autograd
 │   ├── autograd.py        # Autograd engine
-│   ├── utils.py           # Utilities & initialization
 │   ├── nn/                # Neural network modules
-│   │   ├── linear.py
-│   │   ├── conv.py
-│   │   ├── rnn.py         # RNN/LSTM/GRU
 │   │   ├── transformer.py # Transformer components
 │   │   ├── attention.py
-│   │   ├── embedding.py
-│   │   ├── pooling.py
-│   │   ├── normalization.py
-│   │   ├── activation.py
-│   │   ├── loss.py
-│   │   └── dropout.py
-│   ├── optim/             # Optimizers
-│   │   ├── sgd.py
-│   │   ├── adam.py
-│   │   ├── adamw.py
-│   │   ├── rmsprop.py
-│   │   ├── adagrad.py
-│   │   └── lr_scheduler.py
+│   │   └── ...
+│   ├── optim/             # Optimizers & schedulers
 │   ├── data/              # Data utilities
-│   │   └── __init__.py    # DataLoader, Dataset
-│   └── transforms/        # Data augmentation
-│       └── __init__.py
-├── tests/                 # Test suite (199 tests)
+│   └── tokenizer/         # Tokenizer implementations
+├── frontend/              # Web visualization app
+│   ├── src/
+│   │   ├── components/   # React components
+│   │   │   └── visualization/
+│   │   │       ├── attention/
+│   │   │       ├── embedding/
+│   │   │       ├── training/
+│   │   │       ├── inference/
+│   │   │       └── ...
+│   │   └── stores/       # State management
+│   └── package.json
+├── backend/               # FastAPI backend for visualization
+│   └── app/
+│       └── api/
+│           └── routes/   # API endpoints
+├── tests/                 # Test suite
 ├── examples/              # Example scripts
 ├── docs/                  # Documentation
 └── pyproject.toml
@@ -403,20 +235,28 @@ nanotorch/
 # Run all tests
 python -m pytest tests/ -v
 
-# Run specific tests
-python -m pytest tests/test_tensor.py -v
-python -m pytest tests/test_nn.py -v
-
 # Run with coverage
 python -m pytest tests/ --cov=nanotorch
 ```
+
+## Screenshots
+
+### Web Visualization
+
+![Overview](docs/screenshots/overview.png)
+*Overview dashboard with transformer flow*
+
+![Attention](docs/screenshots/attention.png)
+*Multi-head attention visualization*
+
+![Training](docs/screenshots/training.png)
+*Training metrics and loss curves*
 
 ## Limitations
 
 - CPU-only (no GPU support)
 - Limited operations compared to PyTorch
 - No distributed training
-- Groups > 1 not implemented for transposed convolutions
 
 ## Contributing
 
@@ -435,15 +275,16 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 - Inspired by PyTorch, micrograd, and tinygrad
 - Designed for educational use in understanding deep learning frameworks
+- Web visualization built with React, TypeScript, and Recharts
 
 ## Citation
 
 ```bibtex
 @software{nanotorch,
-  title = {nanotorch: A minimal PyTorch implementation from scratch},
-  author = {Your Name},
+  title = {nanotorch: A minimal PyTorch implementation from scratch with interactive visualization},
+  author = {qxhy123},
   year = {2024},
-  url = {https://github.com/your-username/nanotorch}
+  url = {https://github.com/qxhy123/nanotorch}
 }
 ```
 
