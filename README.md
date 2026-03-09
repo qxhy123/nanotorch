@@ -283,7 +283,7 @@ MIT License. See [LICENSE](LICENSE) for details.
 @software{nanotorch,
   title = {nanotorch: A minimal PyTorch implementation from scratch with interactive visualization},
   author = {qxhy123},
-  year = {2024},
+  year = {2026},
   url = {https://github.com/qxhy123/nanotorch}
 }
 ```
