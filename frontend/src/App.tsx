@@ -51,7 +51,7 @@ function AppContent() {
                 Tutorial
               </Button>
               <a
-                href="https://github.com/anthropics/nanotorch"
+                href="https://github.com/qxhy123/nanotorch"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-muted-foreground hover:text-foreground"
