@@ -9,6 +9,11 @@ import type {
   AnimationTimeline,
   AttentionStage,
 } from '../types/transformer';
+import type {
+  TokenType,
+  VocabularyData,
+  TokenizationResult,
+} from '../types/tokenizer';
 
 const DEFAULT_CONFIG: TransformerConfig = {
   d_model: 512,
@@ -49,6 +54,11 @@ const DEFAULT_TUTORIAL_STATE: TutorialState = {
 
 const DEFAULT_ATTENTION_STAGE: AttentionStage = 'softmax';
 
+// Tokenizer defaults
+const DEFAULT_TOKENIZER_TYPE: TokenType = 'char';
+const DEFAULT_VOCAB_SIZE = 10000;
+const DEFAULT_NUM_MERGES = 1000;
+
 interface TransformerState {
   // Model configuration
   config: TransformerConfig;
@@ -76,6 +86,15 @@ interface TransformerState {
   animationTimelines: Record<string, AnimationTimeline>;
   activeTimeline: string | null;
   attentionComputationStage: AttentionStage;
+
+  // Tokenizer states
+  tokenizerType: TokenType;
+  tokenizerVocabSize: number;
+  tokenizerNumMerges: number;
+  vocabularyData: VocabularyData | null;
+  tokenizationResult: TokenizationResult | null;
+  isTokenizing: boolean;
+  tokenizationError: string | null;
 
   // Actions
   setConfig: (config: Partial<TransformerConfig>) => void;
@@ -106,6 +125,16 @@ interface TransformerState {
   setActiveTimeline: (timelineId: string | null) => void;
   updateTimelineProgress: (timelineId: string, progress: number) => void;
   setAttentionComputationStage: (stage: AttentionStage) => void;
+
+  // Tokenizer actions
+  setTokenizerType: (type: TokenType) => void;
+  setTokenizerVocabSize: (size: number) => void;
+  setTokenizerNumMerges: (merges: number) => void;
+  setVocabularyData: (data: VocabularyData | null) => void;
+  setTokenizationResult: (result: TokenizationResult | null) => void;
+  setIsTokenizing: (isTokenizing: boolean) => void;
+  setTokenizationError: (error: string | null) => void;
+  resetTokenizer: () => void;
 }
 
 export const useTransformerStore = create<TransformerState>((set) => ({
@@ -129,6 +158,15 @@ export const useTransformerStore = create<TransformerState>((set) => ({
   animationTimelines: {},
   activeTimeline: null,
   attentionComputationStage: DEFAULT_ATTENTION_STAGE,
+
+  // Tokenizer states
+  tokenizerType: DEFAULT_TOKENIZER_TYPE,
+  tokenizerVocabSize: DEFAULT_VOCAB_SIZE,
+  tokenizerNumMerges: DEFAULT_NUM_MERGES,
+  vocabularyData: null,
+  tokenizationResult: null,
+  isTokenizing: false,
+  tokenizationError: null,
 
   // Actions
   setConfig: (newConfig) =>
@@ -276,6 +314,13 @@ export const useTransformerStore = create<TransformerState>((set) => ({
       animationTimelines: {},
       activeTimeline: null,
       attentionComputationStage: DEFAULT_ATTENTION_STAGE,
+      tokenizerType: DEFAULT_TOKENIZER_TYPE,
+      tokenizerVocabSize: DEFAULT_VOCAB_SIZE,
+      tokenizerNumMerges: DEFAULT_NUM_MERGES,
+      vocabularyData: null,
+      tokenizationResult: null,
+      isTokenizing: false,
+      tokenizationError: null,
     }),
 
   // New actions for Transformer Visualization 2.0
@@ -352,4 +397,38 @@ export const useTransformerStore = create<TransformerState>((set) => ({
 
   setAttentionComputationStage: (stage) =>
     set({ attentionComputationStage: stage }),
+
+  // Tokenizer actions
+
+  setTokenizerType: (type) =>
+    set({ tokenizerType: type, vocabularyData: null, tokenizationResult: null, tokenizationError: null }),
+
+  setTokenizerVocabSize: (size) =>
+    set({ tokenizerVocabSize: Math.max(100, Math.min(100000, size)) }),
+
+  setTokenizerNumMerges: (merges) =>
+    set({ tokenizerNumMerges: Math.max(10, Math.min(10000, merges)) }),
+
+  setVocabularyData: (data) =>
+    set({ vocabularyData: data }),
+
+  setTokenizationResult: (result) =>
+    set({ tokenizationResult: result }),
+
+  setIsTokenizing: (isTokenizing) =>
+    set({ isTokenizing, tokenizationError: isTokenizing ? null : undefined }),
+
+  setTokenizationError: (error) =>
+    set({ tokenizationError: error, isTokenizing: false }),
+
+  resetTokenizer: () =>
+    set({
+      tokenizerType: DEFAULT_TOKENIZER_TYPE,
+      tokenizerVocabSize: DEFAULT_VOCAB_SIZE,
+      tokenizerNumMerges: DEFAULT_NUM_MERGES,
+      vocabularyData: null,
+      tokenizationResult: null,
+      isTokenizing: false,
+      tokenizationError: null,
+    }),
 }));
