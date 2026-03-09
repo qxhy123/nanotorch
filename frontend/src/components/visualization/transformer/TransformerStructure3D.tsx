@@ -545,11 +545,47 @@ const Line: React.FC<LineProps> = ({ points, color, opacity = 1, transparent = f
   );
 };
 
+// WebGL Context Handler Component
+const WebGLContextHandler: React.FC<{
+  onError: (error: Error) => void;
+  children: React.ReactNode;
+}> = ({ onError, children }) => {
+  const { gl } = useThree();
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      console.error('WebGL context lost');
+      onError(new Error('WebGL context was lost'));
+    };
+
+    const handleContextRestored = () => {
+      console.info('WebGL context restored');
+      // Force a re-render by invalidating the renderer
+      gl.setSize(gl.domElement.width, gl.domElement.height);
+    };
+
+    canvas.addEventListener('webglcontextlost', handleContextLost);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored);
+
+    return () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+    };
+  }, [gl, onError]);
+
+  return <>{children}</>;
+};
+
 export const TransformerStructure3D: React.FC<{ className?: string }> = ({ className }) => {
   const { config } = useTransformerStore();
   const [selectedNode, setSelectedNode] = useState<TreeNodeWithPosition | null>(null);
   const [showHelp, setShowHelp] = useState(true);
   const [cameraPreset, setCameraPreset] = useState('default');
+  const [webGLError, setWebGLError] = useState<string | null>(null);
+  const [canvasKey, setCanvasKey] = useState(0);
 
   // Generate improved 3D tree layout
   const treeLayout = useMemo(() => {
@@ -687,23 +723,81 @@ export const TransformerStructure3D: React.FC<{ className?: string }> = ({ class
 
         {/* 3D Canvas */}
         <div className="relative w-full h-[550px] rounded-lg overflow-hidden border border-slate-800">
-          <Canvas
-            camera={{ position: [20, 15, 20], fov: 45 }}
-            shadows
-            gl={{ antialias: true, alpha: true }}
-          >
-            <color attach="background" args={['#0f172a']} />
-            <fog attach="fog" args={['#0f172a', 30, 80]} />
-            <Scene3D
-              treeLayout={treeLayout}
-              selectedNode={selectedNode}
-              onNodeClick={handleNodeClick}
-              cameraPreset={cameraPreset}
-            />
-          </Canvas>
+          {webGLError ? (
+            // WebGL Error Fallback
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 text-white p-8">
+              <div className="text-center space-y-4 max-w-md">
+                <div className="text-6xl">⚠️</div>
+                <h3 className="text-xl font-bold text-red-400">WebGL Error</h3>
+                <p className="text-sm text-slate-300">{webGLError}</p>
+                <div className="text-xs text-slate-400 space-y-2">
+                  <p>This may be caused by:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Too many WebGL contexts open</li>
+                    <li>GPU driver issues</li>
+                    <li>Browser hardware acceleration disabled</li>
+                  </ul>
+                </div>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    onClick={() => {
+                      setWebGLError(null);
+                      setCanvasKey(prev => prev + 1);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => window.location.reload()}
+                    className="border-slate-600 text-white"
+                  >
+                    Reload Page
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <Canvas
+              key={canvasKey}
+              camera={{ position: [20, 15, 20], fov: 45 }}
+              shadows={{ type: THREE.PCFShadowMap }}
+              gl={{
+                antialias: true,
+                alpha: true,
+                powerPreference: 'high-performance',
+                failIfMajorPerformanceCaveat: false,
+              }}
+              onError={(error) => {
+                console.error('Canvas error:', error);
+                setWebGLError('Failed to initialize WebGL. See console for details.');
+              }}
+              onCreated={({ gl }) => {
+                // Optimize for performance
+                gl.setClearColor(0x0f172a, 1);
+              }}
+            >
+              <WebGLContextHandler onError={(error) => setWebGLError(error.message)}>
+                <></>
+              </WebGLContextHandler>
+              <color attach="background" args={['#0f172a']} />
+              <fog attach="fog" args={['#0f172a', 30, 80]} />
+              <Scene3D
+                treeLayout={treeLayout}
+                selectedNode={selectedNode}
+                onNodeClick={handleNodeClick}
+                cameraPreset={cameraPreset}
+              />
+            </Canvas>
+          )}
 
-          {/* Camera control overlay */}
-          <div className="absolute top-4 left-4 flex flex-col gap-2">
+          {/* Camera control overlay and other UI - only show when no error */}
+          {!webGLError && (
+            <>
+              {/* Camera control overlay */}
+              <div className="absolute top-4 left-4 flex flex-col gap-2">
             <div className="bg-slate-900/90 backdrop-blur-sm rounded-lg p-2 border border-slate-600 shadow-xl">
               <div className="text-[10px] text-slate-300 mb-2 px-1 font-medium">Camera Views</div>
               <div className="grid grid-cols-3 gap-1">
@@ -785,6 +879,8 @@ export const TransformerStructure3D: React.FC<{ className?: string }> = ({ class
               ))}
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Selected node details */}
