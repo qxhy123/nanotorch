@@ -1,387 +1,212 @@
 # nanotorch Design Documentation
 
-This document describes the architecture and design decisions behind nanotorch, a minimal PyTorch implementation from scratch.
-
-## Table of Contents
-- [Project Goals](#project-goals)
-- [Architecture Overview](#architecture-overview)
-- [Tensor Implementation](#tensor-implementation)
-- [Automatic Differentiation](#automatic-differentiation)
-- [Neural Network Modules](#neural-network-modules)
-- [Optimizers](#optimizers)
-- [Performance Considerations](#performance-considerations)
-- [Future Extensions](#future-extensions)
+This document describes the current architecture of nanotorch after the autograd unification work. It focuses on the Python package and separately calls out the repository-level visualization app.
 
 ## Project Goals
 
-nanotorch was created with the following goals:
+nanotorch is built around a few stable goals:
 
-1. **Educational Value**: Provide a clear, readable implementation that teaches how PyTorch works internally.
-2. **Minimal Dependencies**: Use only NumPy as an external dependency.
-3. **API Compatibility**: Follow PyTorch-like APIs where it enhances educational value.
-4. **Complete Core Functionality**: Implement tensors, autograd, nn modules, and optimizers.
-5. **Test-Driven Development**: Maintain comprehensive test coverage for all core functionality.
+1. Educational clarity over framework-level complexity.
+2. PyTorch-like APIs where they help learning.
+3. NumPy as the default execution substrate, with optional CuPy-backed CUDA paths.
+4. Shared autograd mechanics instead of per-file backward entry points.
+5. Practical documentation that matches the codebase as it exists today.
 
 ## Architecture Overview
 
-nanotorch is organized into several modules:
+The repository has two major layers:
 
-```
+```text
 nanotorch/
-├── tensor.py          # Core Tensor class with operations
-├── autograd.py        # Automatic differentiation engine
-├── nn/                # Neural network modules
-│   ├── module.py      # Base Module class
-│   ├── linear.py      # Linear layer
-│   ├── activation.py  # Activation functions
-│   ├── loss.py        # Loss functions
-│   ├── conv.py        # Convolutional layers
-│   ├── batchnorm.py   # Batch normalization
-│   └── dropout.py     # Dropout regularization
-├── optim/             # Optimizers
-│   ├── optimizer.py   # Base Optimizer class
-│   ├── sgd.py         # SGD optimizer
-│   └── adam.py        # Adam optimizer
-└── utils.py           # Utility functions
+├── nanotorch/          # Python package
+│   ├── tensor.py       # Tensor object and user-facing tensor methods
+│   ├── autograd.py     # Function abstraction and shared backward engine
+│   ├── device.py       # CPU/CUDA device helpers
+│   ├── backend/        # NumPy / CuPy backend abstractions
+│   ├── nn/             # Layers, losses, attention, normalization, sequence models
+│   ├── optim/          # Optimizers and learning-rate schedulers
+│   ├── data/           # Dataset, samplers, DataLoader
+│   ├── transforms/     # Preprocessing and augmentation helpers
+│   └── tokenizer/      # Character, word, and BPE tokenizers
+├── docs/               # Design notes, API docs, tutorials
+├── tests/              # Validation and regression coverage
+├── frontend/           # Visualization frontend application
+└── backend/            # Visualization backend application
 ```
 
-### Core Design Principles
+The Python package is the published library. The repository-level `frontend/` and `backend/` directories provide the Transformer visualization app and are not part of the package metadata in `pyproject.toml`.
 
-1. **Explicit over Implicit**: Clear computational graph building and traversal.
-2. **Pythonic API**: Follow Python conventions and PyTorch patterns.
-3. **Numerical Stability**: Handle edge cases like division by zero, NaN propagation.
-4. **Memory Efficiency**: Minimize unnecessary tensor copies.
+## Tensor Model
 
-## Tensor Implementation
+`Tensor` is the central data structure. In the current implementation it stores:
 
-### Data Storage
+- `data`: NumPy array by default, or a CuPy array when running on CUDA
+- `requires_grad`: whether this tensor participates in gradient tracking
+- `grad`: accumulated gradient, stored as another `Tensor`
+- `_parents`: the arguments captured from the operation that produced this tensor
+- `_ctx`: a `FunctionContext` instance with saved tensors and values for backward
+- `_fn`: the `Function` subclass responsible for the operation
+- `_device`: a `Device` object describing CPU or CUDA placement
 
-Tensors store data as NumPy arrays with `float32` dtype:
+This is a change from the older string-dispatch design. The current graph records executable function metadata directly instead of symbolic operation names.
+
+### Forward construction
+
+Most differentiable operations are defined through `Function` subclasses in `nanotorch.autograd`:
 
 ```python
-class Tensor:
-    def __init__(self, data, requires_grad=False, _op=None, _parents=()):
-        self.data = np.asarray(data, dtype=np.float32)
-        self.requires_grad = requires_grad
-        self.grad = None
-        self._op = _op          # Operation that created this tensor
-        self._parents = _parents  # Parent tensors in computational graph
+class SomeOp(Function):
+    @staticmethod
+    def forward(ctx, x, y):
+        ctx.save_for_backward(x, y)
+        return Tensor(...)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        x, y = ctx.get_saved_tensors()
+        return grad_x, grad_y
 ```
 
-### Computational Graph
+`Function.apply(...)` is the shared entry point. It:
 
-Each tensor maintains:
-- `_op`: String identifier of the operation that created it
-- `_parents`: Tuple of parent tensors in the computational graph
-- `_ctx`: Additional context needed for gradient computation
+1. Creates a fresh `FunctionContext`.
+2. Runs `forward(...)`.
+3. Attaches `_ctx`, `_fn`, and `_parents` to tensor outputs.
+4. Leaves non-tensor outputs detached from the gradient graph.
 
-### Operations
+`Tensor.backward(...)` is a thin wrapper around `nanotorch.autograd.backward(...)`, so there is one public backward traversal path.
 
-Operations are implemented as methods on the `Tensor` class. Each operation:
-1. Computes the forward pass using NumPy
-2. Creates a new tensor with `_op` and `_parents` set
-3. Sets `requires_grad` if any parent requires gradients
+## Autograd Engine
 
-Example of addition operation:
+The shared backward engine in `nanotorch.autograd` performs reverse-mode autodiff in four steps:
 
-```python
-def __add__(self, other):
-    if not isinstance(other, Tensor):
-        other = Tensor(other, requires_grad=False)
-    
-    result_data = self.data + other.data
-    return Tensor(
-        result_data,
-        requires_grad=self.requires_grad or other.requires_grad,
-        _op="add",
-        _parents=(self, other),
-    )
-```
+1. Build a topological ordering by traversing `Tensor._parents`.
+2. Seed the root gradient with ones when the caller does not provide one.
+3. Walk the graph in reverse topological order.
+4. Call each node's `Function.backward(...)` and accumulate parent gradients.
 
-## Automatic Differentiation
+### Gradient accumulation and broadcasting
 
-### Reverse-Mode Autodiff
+Gradient accumulation is centralized in helper functions such as `accumulate_grad(...)`, `accumulate_grad_batch(...)`, and `reduce_gradient_numpy(...)`.
 
-nanotorch implements reverse-mode automatic differentiation (backpropagation):
+That centralization matters for consistency:
 
-1. **Forward Pass**: Operations build a computational graph.
-2. **Backward Pass**: Gradients are propagated from output to inputs using the chain rule.
+- broadcasting reductions are handled in one place
+- gradients are accumulated into existing `parent.grad` tensors when shapes already match
+- operation implementations can return raw arrays or tensors and let the engine normalize them
 
-### Gradient Computation
+This is the main reason the current design is easier to extend than the previous hand-dispatched backward model.
 
-The `backward()` method:
-1. Builds a topological ordering of the computational graph using DFS
-2. Initializes the gradient of the output tensor (default: ones)
-3. Propagates gradients backwards through the graph
+### Context handling
 
-```python
-def backward(self, gradient=None):
-    # Build topological order
-    topo = []
-    visited = set()
-    
-    def build_topo(v):
-        if v not in visited:
-            visited.add(v)
-            for parent in v._parents:
-                if isinstance(parent, Tensor):
-                    build_topo(parent)
-            topo.append(v)
-    
-    build_topo(self)
-    
-    # Initialize gradient
-    if gradient is None:
-        gradient = Tensor(np.ones_like(self.data), requires_grad=False)
-    
-    # Propagate gradients backwards
-    for v in reversed(topo):
-        if v._op is not None and v.requires_grad and v.grad is not None:
-            self._backward_operation(v, v._op, v._parents)
-```
+`FunctionContext` provides two storage channels:
 
-### Operation-Specific Gradients
+- `save_for_backward(...)` for tensors needed during backward
+- `save_value(...)` for lightweight metadata such as shapes, axes, or flags
 
-Each operation has a gradient defined in `_backward_operation`. For example, addition:
+Using explicit context objects keeps forward/backward coupling local to each operation and avoids global autograd state.
 
-```python
-if op == "add":
-    # Gradient for addition: dL/da = dL/dout, dL/db = dL/dout
-    if len(parents) == 2:
-        a, b = parents
-        accumulate_grad(a, tensor.grad)
-        accumulate_grad(b, tensor.grad)
-```
+## Intentional Autograd Boundaries
 
-### Broadcasting Support
+Autograd is now unified around `Function.apply(...)` plus the shared backward engine, but the codebase still contains deliberate raw-array and `.data` boundaries.
 
-The autograd system handles NumPy-style broadcasting by summing gradients over broadcast dimensions:
+These boundaries are expected in several places:
 
-```python
-def reduce_gradient(grad_contrib, target_shape):
-    """Reduce gradient to target shape by summing over broadcast dimensions."""
-    if grad_contrib.shape == target_shape:
-        return grad_contrib
-    
-    # Identify axes where broadcasting occurred
-    axes_to_sum = []
-    # ... compute axes ...
-    
-    if axes_to_sum:
-        reduced_data = grad_contrib.data.sum(axis=tuple(axes_to_sum), keepdims=False)
-        return Tensor(reduced_data.reshape(target_shape), requires_grad=False)
-```
+- optimizer state updates and parameter writes
+- low-level numeric kernels that naturally operate on raw arrays
+- detached evaluation and metrics paths
+- initialization-time mutations
+- selected detection and demo losses that intentionally stay NumPy-heavy
 
-## Neural Network Modules
+Those cases do not imply that the core autograd mechanism is split. The classification rules and examples live in [`docs/autograd_boundaries.md`](./autograd_boundaries.md), and that document should be treated as the source of truth for remaining boundary audits.
 
-### Module Base Class
+## Modules, State, and Training Workflow
 
-The `Module` class provides:
-- Parameter management via `register_parameter()`
-- Training/evaluation modes
-- State dict serialization
-- Forward pass abstraction
+`nanotorch.nn.Module` provides the model-building surface:
 
-```python
-class Module:
-    def __init__(self):
-        self._parameters = OrderedDict()
-        self._buffers = OrderedDict()
-        self.training = True
-    
-    def forward(self, x):
-        raise NotImplementedError
-    
-    def __call__(self, x):
-        return self.forward(x)
-```
+- parameter and submodule registration
+- `parameters()` traversal
+- `state_dict()` / `load_state_dict(...)`
+- `train()` / `eval()` mode switches
+- composition helpers such as `Sequential`
 
-### Parameter Management
+The current `nn` package covers the core educational path plus several extended families:
 
-Parameters are tensors with `requires_grad=True` that are registered with the module:
+- feed-forward layers, activations, and losses
+- convolutions, pooling, dropout, and normalization
+- attention, embeddings, and Transformer blocks
+- RNN / LSTM / GRU implementations
+- recommendation-oriented layers and metrics
 
-```python
-def register_parameter(self, name, param):
-    if not isinstance(param, Tensor):
-        raise TypeError(f"Parameter must be Tensor, got {type(param)}")
-    self._parameters[name] = param
-```
+The public API intentionally exposes more breadth than an introductory tensor toy project, but the maturity of each subsystem is not identical.
 
-### Sequential Container
+## Optimizers, Data, and Utilities
 
-The `Sequential` class allows stacking modules:
+`nanotorch.optim` contains the standard training loop tools:
 
-```python
-class Sequential(Module):
-    def __init__(self, *modules):
-        super().__init__()
-        for i, module in enumerate(modules):
-            self.add_module(str(i), module)
-    
-    def forward(self, x):
-        for module in self._modules.values():
-            x = module(x)
-        return x
-```
+- optimizers: `SGD`, `Adam`, `AdamW`, `RMSprop`, `Adagrad`
+- schedulers: step, milestone, exponential, cosine, linear, plateau, and warmup variants
 
-## Optimizers
+`nanotorch.data` and related helpers provide the supporting pipeline pieces:
 
-### Optimizer Base Class
+- `Dataset`, `TensorDataset`, `Subset`
+- `SequentialSampler`, `RandomSampler`, `BatchSampler`
+- `DataLoader` and collate helpers
+- preprocessing and augmentation utilities under `transforms`
+- text preprocessing utilities under `tokenizer`
 
-The `Optimizer` class manages parameter updates:
+## Device and Backend Story
 
-```python
-class Optimizer:
-    def __init__(self, params, lr):
-        self.params = list(params)
-        self.lr = lr
-    
-    def zero_grad(self):
-        for param in self.params:
-            if param.grad is not None:
-                param.zero_grad()
-    
-    def step(self):
-        raise NotImplementedError
-```
+nanotorch is CPU-first. NumPy is the default backend and the best-covered path.
 
-### SGD Implementation
+The package also includes:
 
-Stochastic Gradient Descent with momentum:
+- `Device` abstractions for CPU and CUDA selection
+- backend interfaces under `nanotorch.backend`
+- optional CuPy-backed execution when CuPy is installed and the subsystem supports it
 
-```python
-class SGD(Optimizer):
-    def __init__(self, params, lr=0.01, momentum=0, weight_decay=0):
-        super().__init__(params, lr)
-        self.momentum = momentum
-        self.weight_decay = weight_decay
-        self.velocity = [np.zeros_like(p.data) for p in self.params]
-    
-    def step(self):
-        for i, param in enumerate(self.params):
-            if param.grad is None:
-                continue
-            
-            grad = param.grad.data
-            
-            # Apply weight decay
-            if self.weight_decay != 0:
-                grad = grad + self.weight_decay * param.data
-            
-            # Apply momentum
-            if self.momentum != 0:
-                self.velocity[i] = self.momentum * self.velocity[i] + grad
-                grad = self.velocity[i]
-            
-            # Update parameter
-            param.data -= self.lr * grad
-```
+This is more accurate than saying the project has "no GPU support", but it is still not equivalent to full PyTorch CUDA parity. Coverage remains uneven across modules and tests.
 
-### Adam Implementation
+## Visualization App Boundary
 
-Adam optimizer with bias correction:
+The repository-level visualization app is intentionally documented as a companion system rather than part of the package core.
 
-```python
-class Adam(Optimizer):
-    def __init__(self, params, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0):
-        super().__init__(params, lr)
-        self.betas = betas
-        self.eps = eps
-        self.weight_decay = weight_decay
-        self.m = [np.zeros_like(p.data) for p in self.params]
-        self.v = [np.zeros_like(p.data) for p in self.params]
-        self.t = 0
-    
-    def step(self):
-        self.t += 1
-        beta1, beta2 = self.betas
-        
-        for i, param in enumerate(self.params):
-            if param.grad is None:
-                continue
-            
-            grad = param.grad.data
-            
-            # Apply weight decay
-            if self.weight_decay != 0:
-                grad = grad + self.weight_decay * param.data
-            
-            # Update biased first moment estimate
-            self.m[i] = beta1 * self.m[i] + (1 - beta1) * grad
-            
-            # Update biased second moment estimate
-            self.v[i] = beta2 * self.v[i] + (1 - beta2) * (grad * grad)
-            
-            # Compute bias-corrected moment estimates
-            m_hat = self.m[i] / (1 - beta1 ** self.t)
-            v_hat = self.v[i] / (1 - beta2 ** self.t)
-            
-            # Update parameter
-            param.data -= self.lr * m_hat / (np.sqrt(v_hat) + self.eps)
-```
+- `frontend/` contains the interactive UI
+- `backend/` contains the FastAPI service layer
+- both depend on the Python package for model behavior and tensor data
 
-## Performance Considerations
+This separation keeps the package metadata focused on the library while still documenting the broader educational workflow available in the repository.
 
-### Memory Usage
+## Limitations and Future Direction
 
-1. **Tensor Overhead**: Each tensor stores data, gradient, and graph metadata.
-2. **Gradient Accumulation**: Gradients are accumulated across backward passes.
-3. **Graph Retention**: The computational graph is retained until tensors are deleted.
+Current limitations:
 
-### Optimization Opportunities
+1. Educational simplicity still wins over full PyTorch feature parity.
+2. CPU code paths are the most reliable; CUDA/CuPy support is optional and partial.
+3. Advanced and experimental subsystems vary more in maturity than the tensor/autograd/nn/optim core.
+4. Performance optimization is secondary to readability in many implementations.
 
-1. **Operation Fusion**: Combine multiple operations to reduce memory traffic.
-2. **In-place Operations**: Use in-place operations where safe to reduce memory allocation.
-3. **Gradient Checkpointing**: Store only some activations and recompute others.
+Likely future direction:
 
-### Current Limitations
-
-1. **No GPU Support**: All operations run on CPU using NumPy.
-2. **Basic Autograd**: Gradient computation may not handle all edge cases.
-3. **Limited Operations**: Compared to PyTorch, only core operations are implemented.
-
-## Future Extensions
-
-### Planned Features
-
-1. **GPU Support**: Add CUDA backend using CuPy or similar.
-2. **More Operations**: Implement more PyTorch operations (e.g., conv2d backward, pooling).
-3. **Distributed Training**: Basic multi-GPU support.
-4. **JIT Compilation**: Simple just-in-time compilation for performance.
-5. **ONNX Export**: Export models to ONNX format.
-
-### Research Directions
-
-1. **Sparse Tensors**: Support for sparse tensor operations.
-2. **Quantization**: Post-training quantization for inference.
-3. **Pruning**: Network pruning for model compression.
-4. **AutoDiff Improvements**: More efficient autograd implementations.
+1. Expand operation coverage without re-fragmenting autograd.
+2. Improve CUDA coverage and backend consistency.
+3. Keep repository documentation aligned as experimental subsystems evolve.
+4. Add more gradient checks and subsystem-specific regression tests.
 
 ## Testing Strategy
 
-nanotorch uses a comprehensive test suite:
+The core test strategy is:
 
-1. **Unit Tests**: Test individual components in isolation.
-2. **Integration Tests**: Test interactions between components.
-3. **Gradient Checking**: Compare autograd gradients with finite differences.
-4. **Performance Tests**: Benchmark against NumPy and PyTorch.
+1. Unit tests for tensor, autograd, `nn`, and optimizer behavior.
+2. Regression tests for previously broken gradient flows.
+3. Smoke tests for importability and representative training-loop paths.
+4. Targeted tests for experimental subsystems where behavior is still evolving.
 
 ## Contributing
 
-When contributing to nanotorch:
+When changing implementation details, update the code and the design docs together. In particular:
 
-1. **Follow Existing Patterns**: Maintain consistency with the codebase.
-2. **Add Tests**: All new features must include tests.
-3. **Update Documentation**: Keep API and design docs up to date.
-4. **Performance Considerations**: Profile new features for performance impact.
-
-## References
-
-- PyTorch Documentation: https://pytorch.org/docs/
-- "Automatic Differentiation in Machine Learning: a Survey" (Baydin et al., 2018)
-- "Deep Learning" (Goodfellow, Bengio, Courville, 2016)
-- NumPy Documentation: https://numpy.org/doc/
-
-## License
-
-nanotorch is released under the MIT License. See LICENSE file for details.
+- keep architecture descriptions aligned with `tensor.py` and `autograd.py`
+- do not reintroduce stale string-dispatch documentation
+- document intentional raw-array boundaries instead of treating every `.data` use as an autograd bug
+- prefer examples that use currently exported, importable symbols

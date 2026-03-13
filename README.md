@@ -1,293 +1,163 @@
 # nanotorch
 
-A minimal PyTorch implementation from scratch with interactive visualization, designed for educational purposes.
+An educational PyTorch-inspired library built from scratch on NumPy, with a companion Transformer visualization app in the same repository.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 
 ## Overview
 
-nanotorch is a lightweight implementation of core PyTorch functionality built entirely from scratch using only NumPy. It provides:
+nanotorch has two aligned tracks in one repository:
 
-- **Tensors** with automatic differentiation and 85+ operations
-- **Neural Network Layers**: Linear, Conv1D/2D/3D, ConvTranspose2D/3D, RNN/LSTM/GRU, Transformer
-- **Normalization**: BatchNorm1d/2d/3d, LayerNorm, GroupNorm, InstanceNorm1d/2d/3d
-- **Activation Functions**: ReLU, GELU, SiLU, LeakyReLU, ELU, PReLU, Softplus, etc.
-- **Pooling**: MaxPool1d/2d/3d, AvgPool1d/2d/3d, AdaptiveAvgPool2d, AdaptiveMaxPool2d
-- **Loss Functions**: MSE, L1Loss, SmoothL1Loss, CrossEntropyLoss, BCELoss, BCEWithLogitsLoss, NLLLoss
-- **Optimizers**: SGD, Adam, AdamW, RMSprop, Adagrad
-- **LR Schedulers**: StepLR, CosineAnnealingLR, LinearWarmup, CosineWarmupScheduler, etc.
-- **Data Utilities**: DataLoader, Dataset, TensorDataset, random_split
-- **Data Augmentation**: RandomCrop, RandomFlip, ColorJitter, RandomErasing, etc.
-- **Model Serialization**: save/load state dicts
-- **🆕 Interactive Web Visualization**: Explore transformer architecture interactively
+### Core Python Library
 
-## Web Visualization
+The `nanotorch` package focuses on readable implementations of PyTorch-style building blocks for learning and experimentation.
 
-nanotorch includes an interactive web application for visualizing and understanding transformer architecture. The visualization provides:
+- `Tensor` with reverse-mode autograd
+- `Function.apply(...)`-based operation definitions with shared backward traversal
+- Neural network modules for linear layers, convolutions, pooling, normalization, attention, embeddings, RNNs, and Transformers
+- Optimizers and schedulers including SGD, Adam, AdamW, RMSprop, Adagrad, StepLR, CosineAnnealingLR, and warmup helpers
+- Data utilities such as `Dataset`, `DataLoader`, `TensorDataset`, and `random_split`
+- Tokenizers, transforms, and selected experimental subsystems in the repository
+- CPU-first execution with optional CuPy-backed CUDA/device helpers when that dependency is installed
 
-### Features
+### Visualization App
 
-- **Overview Dashboard**: Quick stats and transformer flow visualization
-- **3D Structure View**: Interactive 3D model of transformer architecture
-- **Embedding Visualization**: Token embeddings, positional encoding, and semantic arithmetic demos
-- **Attention Exploration**: Multi-head attention, QKV decomposition, attention patterns
-- **Layer-by-Layer Breakdown**: Step-by-step computation through transformer layers
-- **Data Flow Diagrams**: Sankey diagrams showing tensor flow through the network
-- **Training Monitoring**: Loss curves, gradient flow, weight distribution, and profiling
-- **Inference Process**: Auto-regressive generation, beam search, sampling strategies
-- **Tokenization Tools**: Character/word/BPE tokenization comparison
+This repository also includes a Transformer visualization application made of a frontend and backend. It is a companion app for exploring model internals, not part of the published `nanotorch` Python package metadata.
 
-### Running the Web App
+- Frontend: interactive views for embeddings, attention, layer flow, tokenization, inference, and training metrics
+- Backend: FastAPI endpoints that run nanotorch Transformer components and serve visualization data
+- Startup: both frontend and backend are required for the full app experience
 
-```bash
-# From project root
-cd frontend
-npm install
-npm run dev
-
-# Or for production build
-npm run build
-npm run preview
-```
-
-Then open `http://localhost:5173` in your browser.
-
-### Visualization Tabs
-
-| Tab | Description |
-|-----|-------------|
-| **Overview** | Model configuration, transformer flow, quick statistics |
-| **Structure** | 3D architecture visualization, model comparisons |
-| **Embeddings** | Token embeddings, positional encoding, semantic arithmetic |
-| **Attention** | Attention matrices, multi-head analysis, QKV decomposition |
-| **Staged View** | Step-by-step attention computation with flow diagrams |
-| **Layers** | Detailed layer visualization with intermediate results |
-| **Data Flow** | Sankey diagrams of tensor transformations |
-| **Tokenization** | Token-to-text mapping, vocabulary browser |
-| **Inference** | Sampling strategies, beam search, generation visualization |
-| **Training** | Loss curves, gradients, weights, model profiling |
+For visualization-specific setup, see [`QUICKSTART.md`](./QUICKSTART.md) and [`README_VISUALIZATION.md`](./README_VISUALIZATION.md).
 
 ## Installation
 
 ```bash
-# Clone repository
 git clone https://github.com/qxhy123/nanotorch.git
 cd nanotorch
 
-# Install with uv (recommended)
 uv venv
 source .venv/bin/activate
 uv sync
+```
 
-# Or with pip
+Or install the package in editable mode:
+
+```bash
 pip install -e .
 ```
 
+Optional CUDA support requires a compatible CuPy package installed separately.
+
 ## Quick Start
 
-### Basic Neural Network
+### Train a small network
 
 ```python
 import numpy as np
 from nanotorch import Tensor
-from nanotorch.nn import Linear, ReLU, Sequential, CrossEntropyLoss
+from nanotorch.nn import Sequential, Linear, ReLU, CrossEntropyLoss
 from nanotorch.optim import SGD
 
-# Create model
 model = Sequential(
-    Linear(784, 128),
+    Linear(4, 16),
     ReLU(),
-    Linear(128, 10)
+    Linear(16, 3),
 )
 
-# Sample data
-X = Tensor.randn((100, 784))
-y = Tensor(np.random.randint(0, 10, (100,)))
-
-# Training setup
+inputs = Tensor.randn((8, 4))
+targets = Tensor(np.random.randint(0, 3, size=(8,)))
 criterion = CrossEntropyLoss()
 optimizer = SGD(model.parameters(), lr=0.01)
 
-# Training loop
-for epoch in range(100):
-    predictions = model(X)
-    loss = criterion(predictions, y)
+logits = model(inputs)
+loss = criterion(logits, targets)
 
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-
-    if epoch % 10 == 0:
-        print(f"Epoch {epoch}, Loss: {loss.item():.4f}")
+optimizer.zero_grad()
+loss.backward()
+optimizer.step()
 ```
 
-### Transformer
+### Compute gradients directly
 
 ```python
-from nanotorch.nn import TransformerEncoderLayer, TransformerEncoder, Embedding
+from nanotorch import Tensor
 
-# Create transformer encoder
-encoder_layer = TransformerEncoderLayer(d_model=512, nhead=8, dim_feedforward=2048)
-encoder = TransformerEncoder(encoder_layer, num_layers=6)
+x = Tensor([2.0], requires_grad=True)
+y = x * x + 3 * x + 1
+y.backward()
 
-# Embedding layer
-embedding = Embedding(num_embeddings=10000, embedding_dim=512)
-
-# Forward pass
-tokens = Tensor(np.random.randint(0, 10000, (32, 100)))  # (batch, seq_len)
-x = embedding(tokens)
-output = encoder(x)
+print(x.grad.numpy())
 ```
 
-## Available Components
+## Visualization App
 
-### Neural Network Layers
+Start both services from the repository root:
 
-| Layer | Description |
-|-------|-------------|
-| `Linear` | Fully connected layer |
-| `Conv1D/2D/3D` | Convolution layers |
-| `ConvTranspose2D/3D` | Transposed convolution |
-| `Embedding` | Token embedding layer |
-| `RNN` | Vanilla RNN |
-| `LSTM` | Long Short-Term Memory |
-| `GRU` | Gated Recurrent Unit |
-| `TransformerEncoder` | Transformer encoder |
-| `MultiheadAttention` | Multi-head attention |
+```bash
+# terminal 1
+./start-backend.sh
 
-### Normalization Layers
+# terminal 2
+./start-frontend.sh
+```
 
-| Layer | Description |
-|-------|-------------|
-| `BatchNorm1d/2d/3d` | Batch normalization |
-| `LayerNorm` | Layer normalization |
-| `GroupNorm` | Group normalization |
-| `InstanceNorm1d/2d/3d` | Instance normalization |
+Then open `http://localhost:5173`.
 
-### Activation Functions
+If you prefer manual startup or want API request examples, use [`QUICKSTART.md`](./QUICKSTART.md). For the visualization architecture and feature inventory, use [`README_VISUALIZATION.md`](./README_VISUALIZATION.md).
 
-| Activation | Description |
-|------------|-------------|
-| `ReLU` | Rectified Linear Unit |
-| `GELU` | Gaussian Error Linear Unit |
-| `SiLU` | Sigmoid Linear Unit (Swish) |
-| `LeakyReLU` | Leaky ReLU |
-| `Softmax` | Softmax activation |
+## Package Highlights
 
-### Loss Functions
+### Core modules
 
-| Loss | Description |
-|------|-------------|
-| `MSE` | Mean Squared Error |
-| `L1Loss` | Mean Absolute Error |
-| `CrossEntropyLoss` | Cross Entropy |
-| `BCELoss` | Binary Cross Entropy |
-| `BCEWithLogitsLoss` | BCE with sigmoid |
+- `nanotorch.tensor`: tensor operations, gradient tracking, `no_grad`
+- `nanotorch.autograd`: `Function`, `FunctionContext`, shared `backward(...)`
+- `nanotorch.nn`: layers, losses, attention, Transformer and RNN building blocks
+- `nanotorch.optim`: optimizers and learning-rate schedulers
+- `nanotorch.data`: datasets, samplers, dataloaders
+- `nanotorch.transforms`: image-style preprocessing and augmentation helpers
+- `nanotorch.tokenizer`: char, word, and BPE tokenizers
+- `nanotorch.device` / `nanotorch.backend`: CPU/CUDA and backend abstractions
 
-### Optimizers
+### Repository extras
 
-| Optimizer | Description |
-|-----------|-------------|
-| `SGD` | Stochastic Gradient Descent |
-| `Adam` | Adam optimizer |
-| `AdamW` | Adam with decoupled weight decay |
-| `RMSprop` | RMSprop optimizer |
+The repository also contains documentation, examples, benchmarks, a visualization backend/frontend, and selected experimental areas such as detection and generative model work.
 
 ## Project Structure
 
-```
+```text
 nanotorch/
-├── nanotorch/              # Core library
-│   ├── tensor.py          # Tensor with autograd
-│   ├── autograd.py        # Autograd engine
-│   ├── nn/                # Neural network modules
-│   │   ├── transformer.py # Transformer components
-│   │   ├── attention.py
-│   │   └── ...
-│   ├── optim/             # Optimizers & schedulers
-│   ├── data/              # Data utilities
-│   └── tokenizer/         # Tokenizer implementations
-├── frontend/              # Web visualization app
-│   ├── src/
-│   │   ├── components/   # React components
-│   │   │   └── visualization/
-│   │   │       ├── attention/
-│   │   │       ├── embedding/
-│   │   │       ├── training/
-│   │   │       ├── inference/
-│   │   │       └── ...
-│   │   └── stores/       # State management
-│   └── package.json
-├── backend/               # FastAPI backend for visualization
-│   └── app/
-│       └── api/
-│           └── routes/   # API endpoints
-├── tests/                 # Test suite
-├── examples/              # Example scripts
-├── docs/                  # Documentation
-└── pyproject.toml
+├── nanotorch/              # Python package
+├── docs/                   # Design notes, API docs, tutorials
+├── tests/                  # Test suite
+├── examples/               # Example scripts
+├── benchmarks/             # Micro-benchmarks
+├── frontend/               # Visualization frontend
+├── backend/                # Visualization backend
+├── QUICKSTART.md           # Visualization quick start
+└── README_VISUALIZATION.md # Visualization-specific guide
 ```
+
+## Documentation
+
+- [`docs/design.md`](./docs/design.md): architecture and autograd design
+- [`docs/api.md`](./docs/api.md): public API reference and examples
+- [`docs/autograd_boundaries.md`](./docs/autograd_boundaries.md): intentional raw-array boundaries after autograd unification
+- [`QUICKSTART.md`](./QUICKSTART.md): frontend/backend startup for the visualization app
 
 ## Testing
 
 ```bash
-# Run all tests
 python -m pytest tests/ -v
-
-# Run with coverage
-python -m pytest tests/ --cov=nanotorch
 ```
-
-## Screenshots
-
-### Web Visualization
-
-![Overview](docs/screenshots/overview.png)
-*Overview dashboard with transformer flow*
-
-![Attention](docs/screenshots/attention.png)
-*Multi-head attention visualization*
-
-![Training](docs/screenshots/training.png)
-*Training metrics and loss curves*
 
 ## Limitations
 
-- CPU-only (no GPU support)
-- Limited operations compared to PyTorch
-- No distributed training
-
-## Contributing
-
-Contributions welcome! Please:
-
-1. Follow existing code style
-2. Add tests for new functionality
-3. Update documentation
-4. Ensure all tests pass
+- The project is educational first, not a drop-in replacement for PyTorch.
+- CPU execution is the default path; CUDA support depends on optional CuPy installation and coverage varies by subsystem.
+- Some advanced or experimental modules in the repository are less mature than the core tensor/autograd/nn/optim path.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
-
-## Acknowledgments
-
-- Inspired by PyTorch, micrograd, and tinygrad
-- Designed for educational use in understanding deep learning frameworks
-- Web visualization built with React, TypeScript, and Recharts
-
-## Citation
-
-```bibtex
-@software{nanotorch,
-  title = {nanotorch: A minimal PyTorch implementation from scratch with interactive visualization},
-  author = {qxhy123},
-  year = {2026},
-  url = {https://github.com/qxhy123/nanotorch}
-}
-```
-
----
-
-[中文文档 (Chinese Documentation)](README_CN.md)
+MIT.
