@@ -25,6 +25,7 @@ Reference:
 import numpy as np
 from typing import Tuple, Optional, Union
 from nanotorch.tensor import Tensor, no_grad
+from nanotorch.utils import cat
 
 
 class NoiseScheduler:
@@ -473,10 +474,7 @@ class LatentDiffusion:
         if guidance_scale > 1.0:
             unconditional_embeddings = self.encode_text("")
             # Concatenate for batch processing
-            text_embeddings = Tensor(
-                np.concatenate([unconditional_embeddings.data, text_embeddings.data], axis=0),
-                requires_grad=False
-            )
+            text_embeddings = cat([unconditional_embeddings, text_embeddings], dim=0)
         
         # Prepare latents
         latents = self.prepare_latents(1, height, width, generator)
@@ -488,12 +486,12 @@ class LatentDiffusion:
         for t in self.noise_scheduler.timesteps:
             # Prepare latent input
             if guidance_scale > 1.0:
-                latent_input = np.concatenate([latents, latents], axis=0)
+                latent_input = np.repeat(latents, 2, axis=0)
             else:
                 latent_input = latents
-            
+
             latent_tensor = Tensor(latent_input, requires_grad=False)
-            timestep = np.array([t] * latent_input.shape[0])
+            timestep = np.full((latent_input.shape[0],), t, dtype=np.int64)
             
             # Predict noise
             noise_pred = self.unet(latent_tensor, timestep, text_embeddings)

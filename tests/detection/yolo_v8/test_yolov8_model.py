@@ -27,5 +27,18 @@ class TestYOLOv8:
         loss, loss_dict = loss_fn(predictions, targets)
         assert 'total_loss' in loss_dict
 
+    def test_backward_propagates_to_parameters(self):
+        model = build_yolov8(num_classes=5, input_size=64)
+        x = Tensor(np.random.randn(1, 3, 64, 64).astype(np.float32), requires_grad=True)
+
+        model.zero_grad()
+        output = model(x)
+        loss = sum(pred.sum() for pred in output.values())
+        loss.backward()
+
+        grads = [param.grad for param in model.parameters() if param.grad is not None]
+        assert grads
+        assert any(np.any(np.abs(grad.data) > 0) for grad in grads)
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

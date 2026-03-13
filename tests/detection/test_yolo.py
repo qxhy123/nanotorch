@@ -146,6 +146,57 @@ class TestHead:
             assert cls_pred is not None
 
 
+class TestHeadDecode:
+    
+    def test_decode_predictions_shapes(self):
+        head = build_head(
+            head_type='decoupled',
+            in_channels={'p3': 32, 'p4': 64, 'p5': 128},
+            num_classes=3
+        )
+        predictions = {
+            'p3': (
+                Tensor(np.zeros((1, 4 * head.reg_max, 2, 2), dtype=np.float32)),
+                Tensor(np.full((1, 3, 2, 2), 8.0, dtype=np.float32)),
+            )
+        }
+
+        boxes, scores, class_ids = head.decode_predictions(
+            predictions,
+            input_size=(16, 16),
+            conf_threshold=0.5,
+        )
+
+        assert boxes.ndim == 2
+        assert boxes.shape[1] == 4
+        assert scores.ndim == 1
+        assert class_ids.ndim == 1
+        assert len(boxes) == len(scores) == len(class_ids)
+
+    def test_decode_predictions_empty(self):
+        head = build_head(
+            head_type='decoupled',
+            in_channels={'p3': 32, 'p4': 64, 'p5': 128},
+            num_classes=3
+        )
+        predictions = {
+            'p3': (
+                Tensor(np.zeros((1, 4 * head.reg_max, 2, 2), dtype=np.float32)),
+                Tensor(np.full((1, 3, 2, 2), -20.0, dtype=np.float32)),
+            )
+        }
+
+        boxes, scores, class_ids = head.decode_predictions(
+            predictions,
+            input_size=(16, 16),
+            conf_threshold=0.99,
+        )
+
+        assert boxes.shape == (0, 4)
+        assert scores.shape == (0,)
+        assert class_ids.shape == (0,)
+
+
 class TestLosses:
     
     def test_ciou_loss(self):

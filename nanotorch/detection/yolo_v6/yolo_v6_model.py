@@ -20,6 +20,7 @@ from nanotorch.nn.module import Module, Sequential
 from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.activation import SiLU, Sigmoid, ReLU
 from nanotorch.nn.normalization import BatchNorm2d
+from nanotorch.utils import cat
 
 
 class ConvBN(Module):
@@ -68,9 +69,9 @@ class RepVGGBlock(Module):
         
         if self.identity:
             identity = x
-            out = Tensor(out1.data + out2.data + identity.data, requires_grad=x.requires_grad)
+            out = out1 + out2 + identity
         else:
-            out = Tensor(out1.data + out2.data, requires_grad=x.requires_grad)
+            out = out1 + out2
         
         return self.act(out)
 
@@ -104,7 +105,7 @@ class SimSPPF(Module):
         y3 = self._pool(y2)
         y4 = self._pool(y3)
         
-        x = Tensor(np.concatenate([y1.data, y2.data, y3.data, y4.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([y1, y2, y3, y4], dim=1)
         return self.conv2(x)
     
     def _pool(self, x: Tensor) -> Tensor:
@@ -216,23 +217,23 @@ class Neek(Module):
         
         x = self.up1(s1)
         x = self._upsample(x, (s2.shape[2], s2.shape[3]))
-        x = Tensor(np.concatenate([x.data, s2.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, s2], dim=1)
         x = self.c3_1(x)
         p4 = x
         
         x = self.up2(p4)
         x = self._upsample(x, (s3.shape[2], s3.shape[3]))
-        x = Tensor(np.concatenate([x.data, s3.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, s3], dim=1)
         x = self.c3_2(x)
         p3 = x
         
         x = self.down1(p3)
-        x = Tensor(np.concatenate([x.data, p4.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, p4], dim=1)
         x = self.c3_3(x)
         n4 = x
         
         x = self.down2(n4)
-        x = Tensor(np.concatenate([x.data, s1.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, s1], dim=1)
         x = self.c3_4(x)
         n5 = x
         
@@ -264,15 +265,18 @@ class DecoupledHead(Module):
         reg = self.reg_pred(reg)
         reg = self.sigmoid(reg)
         
-        n, _, h, w = cls.data.shape
-        cls = cls.data.reshape(n, self.num_anchors, self.num_classes, h, w)
-        reg = reg.data.reshape(n, self.num_anchors, 4, h, w)
-        
-        conf = np.ones((n, self.num_anchors, 1, h, w), dtype=np.float32)
-        out = np.concatenate([reg, conf, cls], axis=2)
-        out = out.reshape(n, -1, h, w)
-        
-        return Tensor(out, requires_grad=x.requires_grad)
+        n, _, h, w = cls.shape
+        cls = cls.reshape((n, self.num_anchors, self.num_classes, h, w))
+        reg = reg.reshape((n, self.num_anchors, 4, h, w))
+
+        conf = Tensor(
+            np.ones((n, self.num_anchors, 1, h, w), dtype=np.float32),
+            requires_grad=False,
+        )
+        out = cat([reg, conf, cls], dim=2)
+        out = out.reshape((n, -1, h, w))
+
+        return out
 
 
 class YOLOv6(Module):

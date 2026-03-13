@@ -292,6 +292,27 @@ class TestUNet2DConditionModel:
         assert isinstance(state_dict, dict)
         assert len(state_dict) > 0
 
+    def test_backward_propagates_to_parameters(self):
+        """Test a small U-Net keeps parameter gradients connected."""
+        unet = UNet2DConditionModel(
+            sample_size=8,
+            in_channels=4,
+            out_channels=4,
+            block_out_channels=(32, 64, 64, 64),
+            cross_attention_dim=32,
+        )
+        sample = Tensor(np.random.randn(1, 4, 8, 8).astype(np.float32), requires_grad=True)
+        timestep = np.array([10])
+        context = Tensor(np.random.randn(1, 8, 32).astype(np.float32), requires_grad=True)
+
+        unet.zero_grad()
+        loss = unet(sample, timestep, context).sum()
+        loss.backward()
+
+        grads = [param.grad for param in unet.parameters() if param.grad is not None]
+        assert grads
+        assert any(np.any(np.abs(grad.data) > 0) for grad in grads)
+
 
 class TestBuildUNet:
     """Tests for U-Net builder function."""

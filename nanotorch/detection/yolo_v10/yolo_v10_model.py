@@ -14,6 +14,7 @@ from nanotorch.tensor import Tensor
 from nanotorch.nn.module import Module, Sequential
 from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.activation import SiLU, Sigmoid
+from nanotorch.utils import cat
 from nanotorch.nn.normalization import BatchNorm2d
 
 
@@ -55,7 +56,7 @@ class C2fCIB(Module):
         y = [self.cv1(x)]
         for block in self.blocks:
             y.append(block(y[-1]))
-        y = Tensor(np.concatenate([yi.data for yi in y], 1), requires_grad=x.requires_grad)
+        y = cat(y, dim=1)
         return self.cv2(y)
 
 
@@ -111,5 +112,5 @@ def build_yolov10(num_classes=80, input_size=640):
 
 class YOLOv10Loss(Module):
     def forward(self, preds, targets):
-        loss = sum(np.mean(p.data ** 2) for p in preds.values())
-        return Tensor(loss), {'total_loss': loss}
+        loss = sum((p * p).mean() for p in preds.values())
+        return loss, {'total_loss': float(loss.data)}

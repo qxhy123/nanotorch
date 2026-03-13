@@ -15,6 +15,7 @@ from nanotorch.tensor import Tensor
 from nanotorch.nn.module import Module, Sequential
 from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.activation import SiLU, Sigmoid
+from nanotorch.utils import cat
 from nanotorch.nn.normalization import BatchNorm2d
 
 
@@ -44,7 +45,7 @@ class ELAN(Module):
         y1 = self.cv1(x)
         y2 = self.cv2(x)
         y2 = self.blocks(y2)
-        y = Tensor(np.concatenate([y1.data, y2.data], axis=1), requires_grad=x.requires_grad)
+        y = cat([y1, y2], dim=1)
         return self.cv3(y)
 
 
@@ -112,14 +113,14 @@ class Neck(Module):
     def forward(self, f):
         s1, s2, s3 = f['scale1'], f['scale2'], f['scale3']
         x = self._up(self.up1(s1), (s2.shape[2], s2.shape[3]))
-        x = Tensor(np.concatenate([x.data, s2.data], 1), requires_grad=x.requires_grad)
+        x = cat([x, s2], dim=1)
         p4 = self.c3_1(x)
         x = self._up(self.up2(p4), (s3.shape[2], s3.shape[3]))
-        x = Tensor(np.concatenate([x.data, s3.data], 1), requires_grad=x.requires_grad)
+        x = cat([x, s3], dim=1)
         p3 = self.c3_2(x)
-        x = Tensor(np.concatenate([self.down1(p3).data, p4.data], 1), requires_grad=x.requires_grad)
+        x = cat([self.down1(p3), p4], dim=1)
         n4 = self.c3_3(x)
-        x = Tensor(np.concatenate([self.down2(n4).data, s1.data], 1), requires_grad=x.requires_grad)
+        x = cat([self.down2(n4), s1], dim=1)
         n5 = self.c3_4(x)
         return {'p3': p3, 'p4': n4, 'p5': n5}
 
@@ -146,5 +147,5 @@ def build_yolov7(num_classes=80, input_size=640):
 
 class YOLOv7Loss(Module):
     def forward(self, preds, targets):
-        loss = sum(np.mean(p.data ** 2) for p in preds.values())
-        return Tensor(loss), {'total_loss': loss}
+        loss = sum((p * p).mean() for p in preds.values())
+        return loss, {'total_loss': float(loss.data)}

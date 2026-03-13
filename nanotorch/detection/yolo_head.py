@@ -60,7 +60,7 @@ class DFLHead(Module):
         N, _, H, W = pred.shape
         
         # Reshape to (N, 4, reg_max, H, W)
-        pred = pred.reshape(N, 4, self.reg_max, H, W)
+        pred = pred.reshape((N, 4, self.reg_max, H, W))
         
         # Softmax over reg_max dimension
         pred = pred.softmax(dim=2)
@@ -69,7 +69,7 @@ class DFLHead(Module):
         arange = np.arange(self.reg_max, dtype=np.float32)
         arange = Tensor(arange.reshape(1, 1, self.reg_max, 1, 1))
         
-        integrated = (pred * arange).sum(dim=2)  # (N, 4, H, W)
+        integrated = (pred * arange).sum(axis=2)  # (N, 4, H, W)
         
         return integrated
 
@@ -213,7 +213,7 @@ class YOLOHead(Module):
             'p3': None, 'p4': None, 'p5': None
         }
     
-    def _make_grid(self, nx: int, ny: int, stride: int) -> Tensor:
+    def _make_grid(self, nx: int, ny: int, stride: int) -> np.ndarray:
         """Generate grid coordinates for anchor-free detection.
         
         Args:
@@ -222,17 +222,16 @@ class YOLOHead(Module):
             stride: Stride relative to input image
         
         Returns:
-            (1, 2, ny, nx) tensor with (x, y) grid coordinates
+            (1, 2, ny, nx) array with (x, y) grid coordinates
         """
+        del stride
         yv, xv = np.meshgrid(
             np.arange(ny, dtype=np.float32),
             np.arange(nx, dtype=np.float32),
             indexing='ij'
         )
-        grid = np.stack([xv, yv], axis=0)  # (2, ny, nx)
-        grid = grid[np.newaxis, :, :, :]  # (1, 2, ny, nx)
-        
-        return Tensor(grid + 0.5)  # Center of grid cell
+        grid = np.stack([xv, yv], axis=0)
+        return grid[np.newaxis, :, :, :] + 0.5
     
     def forward(self, features: Dict[str, Tensor]) -> Dict[str, Tuple[Tensor, Tensor]]:
         """Forward pass returning predictions at each scale."""
@@ -287,8 +286,8 @@ class YOLOHead(Module):
             
             # Reshape for broadcasting
             box_reg = box_reg.data  # (N, 4, ny, nx)
-            grid_x = grid.data[0, 0, :, :]  # (ny, nx)
-            grid_y = grid.data[0, 1, :, :]  # (ny, nx)
+            grid_x = grid[0, 0, :, :]  # (ny, nx)
+            grid_y = grid[0, 1, :, :]  # (ny, nx)
             
             # Decode: grid center + regression * stride
             # DFL predicts distances from center
@@ -315,6 +314,7 @@ class YOLOHead(Module):
             
             # Apply sigmoid to class predictions and get max
             cls_scores = 1.0 / (1.0 + np.exp(-cls_pred.data))  # sigmoid
+            cls_scores = cls_scores.reshape(N, self.num_classes, -1)
             scores = cls_scores.max(axis=1)  # (N, ny*nx)
             class_ids = cls_scores.argmax(axis=1)  # (N, ny*nx)
             
@@ -331,12 +331,16 @@ class YOLOHead(Module):
                     all_class_ids.append(class_ids[n, mask])
         
         if len(all_boxes) == 0:
-            return np.array([]), np.array([]), np.array([])
+            return (
+                np.empty((0, 4), dtype=np.float32),
+                np.empty((0,), dtype=np.float32),
+                np.empty((0,), dtype=np.int64),
+            )
         
-        # Concatenate all predictions
-        boxes = np.concatenate(all_boxes, axis=0)
-        scores = np.concatenate(all_scores, axis=0)
-        class_ids = np.concatenate(all_class_ids, axis=0)
+        # Aggregate all predictions
+        boxes = np.vstack(all_boxes)
+        scores = np.hstack(all_scores)
+        class_ids = np.hstack(all_class_ids)
         
         return boxes, scores, class_ids
 

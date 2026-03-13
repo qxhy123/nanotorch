@@ -17,6 +17,7 @@ from nanotorch.nn.module import Module, Sequential
 from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.activation import SiLU, Sigmoid
 from nanotorch.nn.normalization import BatchNorm2d
+from nanotorch.utils import cat
 
 
 class ConvBN(Module):
@@ -41,7 +42,7 @@ class Bottleneck(Module):
     def forward(self, x):
         y = self.cv2(self.cv1(x))
         if self.shortcut:
-            y = Tensor(y.data + x.data, requires_grad=x.requires_grad)
+            y = y + x
         return y
 
 
@@ -56,7 +57,7 @@ class C2f(Module):
     def forward(self, x):
         x = self.cv1(x)
         x1 = self.blocks(x)
-        x = Tensor(np.concatenate([x.data, x1.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, x1], dim=1)
         return self.cv2(x)
 
 
@@ -105,14 +106,14 @@ class Neck(Module):
     def forward(self, f):
         s1, s2, s3 = f['scale1'], f['scale2'], f['scale3']
         x = self._up(self.up1(s1), (s2.shape[2], s2.shape[3]))
-        x = Tensor(np.concatenate([x.data, s2.data], 1), requires_grad=x.requires_grad)
+        x = cat([x, s2], dim=1)
         p4 = self.c2f1(x)
         x = self._up(self.up2(p4), (s3.shape[2], s3.shape[3]))
-        x = Tensor(np.concatenate([x.data, s3.data], 1), requires_grad=x.requires_grad)
+        x = cat([x, s3], dim=1)
         p3 = self.c2f2(x)
-        x = Tensor(np.concatenate([self.down1(p3).data, p4.data], 1), requires_grad=x.requires_grad)
+        x = cat([self.down1(p3), p4], dim=1)
         n4 = self.c2f3(x)
-        x = Tensor(np.concatenate([self.down2(n4).data, s1.data], 1), requires_grad=x.requires_grad)
+        x = cat([self.down2(n4), s1], dim=1)
         n5 = self.c2f4(x)
         return {'p3': p3, 'p4': n4, 'p5': n5}
 
@@ -150,5 +151,5 @@ def build_yolov8(num_classes=80, input_size=640):
 
 class YOLOv8Loss(Module):
     def forward(self, preds, targets):
-        loss = sum(np.mean(p.data ** 2) for p in preds.values())
-        return Tensor(loss), {'total_loss': loss}
+        loss = sum((p * p).mean() for p in preds.values())
+        return loss, {'total_loss': float(loss.data)}

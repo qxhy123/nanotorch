@@ -118,7 +118,7 @@ class DFLoss(Module):
         # DFL format: [left, top, right, bottom] distances from anchor
         target_lt = anchor_points - target_boxes[:, :2]  # left, top
         target_rb = target_boxes[:, 2:] - anchor_points  # right, bottom
-        target = np.concatenate([target_lt, target_rb], axis=1)  # (N, 4)
+        target = np.hstack((target_lt, target_rb)).astype(np.float32)  # (N, 4)
         
         # Normalize by stride
         target = target / stride

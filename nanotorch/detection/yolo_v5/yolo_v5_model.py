@@ -21,6 +21,7 @@ from nanotorch.tensor import Tensor
 from nanotorch.nn.module import Module, Sequential
 from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.activation import SiLU, Sigmoid
+from nanotorch.utils import cat
 
 
 class ConvBN(Module):
@@ -65,7 +66,7 @@ class Bottleneck(Module):
         out = self.conv1(x)
         out = self.conv2(out)
         if self.shortcut:
-            out = Tensor(out.data + x.data, requires_grad=x.requires_grad)
+            out = out + x
         return out
 
 
@@ -100,7 +101,7 @@ class C3(Module):
         
         x1 = self.blocks(x1)
         
-        x = Tensor(np.concatenate([x1.data, x2.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x1, x2], dim=1)
         x = self.conv3(x)
         
         return x
@@ -129,7 +130,7 @@ class SPPF(Module):
         y3 = self._max_pool(y2)
         y4 = self._max_pool(y3)
         
-        x = Tensor(np.concatenate([y1.data, y2.data, y3.data, y4.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([y1, y2, y3, y4], dim=1)
         x = self.conv2(x)
         
         return x
@@ -264,25 +265,25 @@ class Neck(Module):
         x = self.up1(scale1)
         target_size = (scale2.shape[2], scale2.shape[3])
         x = self._upsample(x, target_size)
-        x = Tensor(np.concatenate([x.data, scale2.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, scale2], dim=1)
         x = self.c3_1(x)
         p4 = x
         
         x = self.up2(p4)
         target_size = (scale3.shape[2], scale3.shape[3])
         x = self._upsample(x, target_size)
-        x = Tensor(np.concatenate([x.data, scale3.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, scale3], dim=1)
         x = self.c3_2(x)
         p3 = x
         
         # Bottom-up
         x = self.down1(p3)
-        x = Tensor(np.concatenate([x.data, p4.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, p4], dim=1)
         x = self.c3_3(x)
         n4 = x
         
         x = self.down2(n4)
-        x = Tensor(np.concatenate([x.data, scale1.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, scale1], dim=1)
         x = self.c3_4(x)
         n5 = x
         

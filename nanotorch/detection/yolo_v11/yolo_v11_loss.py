@@ -11,6 +11,7 @@ from nanotorch.nn.module import Module
 
 
 class YOLOv11Loss(Module):
+    """Lightweight placeholder loss used for examples and smoke tests."""
     def __init__(self, num_classes: int = 80):
         super().__init__()
         self.num_classes = num_classes
@@ -23,6 +24,7 @@ class YOLOv11Loss(Module):
 
 
 class YOLOv11LossSimple(Module):
+    """Simplified detached MSE loss for testing utilities."""
     def __init__(self, num_classes: int = 80):
         super().__init__()
         self.num_classes = num_classes

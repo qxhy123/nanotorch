@@ -15,6 +15,7 @@ from nanotorch.nn.module import Module, Sequential
 from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.activation import SiLU, Sigmoid
 from nanotorch.nn.normalization import BatchNorm2d
+from nanotorch.utils import cat
 
 
 class ConvBN(Module):
@@ -41,7 +42,7 @@ class RepConv(Module):
     def forward(self, x):
         y1 = self.bn1(self.conv1(x))
         y2 = self.bn2(self.conv2(x))
-        return self.act(Tensor(y1.data + y2.data, requires_grad=x.requires_grad))
+        return self.act(y1 + y2)
 
 
 class GELAN(Module):
@@ -57,7 +58,7 @@ class GELAN(Module):
         y1 = self.cv1(x)
         y2 = self.cv2(x)
         y2 = self.blocks(y2)
-        y = Tensor(np.concatenate([y1.data, y2.data], 1), requires_grad=x.requires_grad)
+        y = cat([y1, y2], dim=1)
         return self.cv3(y)
 
 
@@ -119,5 +120,5 @@ def build_yolov9(num_classes=80, input_size=640):
 
 class YOLOv9Loss(Module):
     def forward(self, preds, targets):
-        loss = sum(np.mean(p.data ** 2) for p in preds.values())
-        return Tensor(loss), {'total_loss': loss}
+        loss = sum((p * p).mean() for p in preds.values())
+        return loss, {'total_loss': float(loss.data)}

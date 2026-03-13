@@ -28,6 +28,7 @@ from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.linear import Linear
 from nanotorch.nn.activation import SiLU, GELU
 from nanotorch.nn.normalization import GroupNorm
+from nanotorch.utils import cat
 
 
 def get_timestep_embedding(timesteps: np.ndarray, embedding_dim: int) -> np.ndarray:
@@ -46,13 +47,11 @@ def get_timestep_embedding(timesteps: np.ndarray, embedding_dim: int) -> np.ndar
     emb = np.log(10000.0) / (half_dim - 1)
     emb = np.exp(np.arange(half_dim, dtype=np.float32) * -emb)
     
-    emb = timesteps[:, np.newaxis] * emb[np.newaxis, :]
-    emb = np.concatenate([np.sin(emb), np.cos(emb)], axis=1)
-    
-    if embedding_dim % 2 == 1:
-        emb = np.pad(emb, ((0, 0), (0, 1)), mode='constant')
-    
-    return emb
+    phases = timesteps[:, np.newaxis] * emb[np.newaxis, :]
+    embedding = np.zeros((timesteps.shape[0], embedding_dim), dtype=np.float32)
+    embedding[:, :half_dim] = np.sin(phases)
+    embedding[:, half_dim:2 * half_dim] = np.cos(phases)
+    return embedding
 
 
 class TimestepEmbedding(Module):
@@ -123,11 +122,8 @@ class TimeEmbedResnetBlock(Module):
         
         if self.time_emb_proj is not None and temb is not None:
             temb_out = self.time_emb_proj(temb)
-            temb_out = Tensor(
-                temb_out.data[:, :, np.newaxis, np.newaxis],
-                requires_grad=temb.requires_grad
-            )
-            h = Tensor(h.data + temb_out.data, requires_grad=h.requires_grad)
+            temb_out = temb_out.reshape((temb_out.shape[0], temb_out.shape[1], 1, 1))
+            h = h + temb_out
         
         h = self.norm2(h)
         h = self.act2(h)
@@ -136,7 +132,7 @@ class TimeEmbedResnetBlock(Module):
         if self.skip is not None:
             x = self.skip(x)
         
-        return Tensor(h.data + x.data, requires_grad=x.requires_grad)
+        return h + x
 
 
 class CrossAttention(Module):
@@ -170,33 +166,26 @@ class CrossAttention(Module):
     def forward(self, x: Tensor, context: Optional[Tensor] = None) -> Tensor:
         batch_size, channels, height, width = x.shape
         
-        x_flat = x.data.transpose(0, 2, 3, 1).reshape(batch_size, height * width, channels)
-        x_flat = Tensor(x_flat, requires_grad=x.requires_grad)
+        x_flat = x.permute(0, 2, 3, 1).reshape((batch_size, height * width, channels))
         
         if context is None:
             context = x_flat
         
-        q = self.to_q(x_flat).data
-        k = self.to_k(context).data
-        v = self.to_v(context).data
-        
-        q = q.reshape(batch_size, height * width, self.heads, self.dim_head).transpose(0, 2, 1, 3)
-        k = k.reshape(batch_size, -1, self.heads, self.dim_head).transpose(0, 2, 1, 3)
-        v = v.reshape(batch_size, -1, self.heads, self.dim_head).transpose(0, 2, 1, 3)
-        
-        attn = np.matmul(q, k.transpose(0, 1, 3, 2)) * self.scale
-        
-        attn_max = attn.max(axis=-1, keepdims=True)
-        attn = np.exp(attn - attn_max)
-        attn = attn / attn.sum(axis=-1, keepdims=True)
-        
-        out = np.matmul(attn, v)
-        out = out.transpose(0, 2, 1, 3).reshape(batch_size, height * width, -1)
-        out = Tensor(out, requires_grad=x.requires_grad)
+        q = self.to_q(x_flat)
+        k = self.to_k(context)
+        v = self.to_v(context)
+
+        q = q.reshape((batch_size, height * width, self.heads, self.dim_head)).permute(0, 2, 1, 3)
+        k = k.reshape((batch_size, -1, self.heads, self.dim_head)).permute(0, 2, 1, 3)
+        v = v.reshape((batch_size, -1, self.heads, self.dim_head)).permute(0, 2, 1, 3)
+
+        attn = q.matmul(k.permute(0, 1, 3, 2)) * self.scale
+        attn = attn.softmax(dim=-1)
+
+        out = attn.matmul(v)
+        out = out.permute(0, 2, 1, 3).reshape((batch_size, height * width, self.heads * self.dim_head))
         out = self.to_out(out)
-        
-        out = out.data.reshape(batch_size, height, width, -1).transpose(0, 3, 1, 2)
-        out = Tensor(out, requires_grad=x.requires_grad)
+        out = out.reshape((batch_size, height, width, channels)).permute(0, 3, 1, 2)
         
         return out
 
@@ -237,25 +226,24 @@ class TransformerBlock(Module):
     def forward(self, x: Tensor, context: Optional[Tensor] = None) -> Tensor:
         h = self.norm1(x)
         h = self.attn1(h)
-        x = Tensor(x.data + h.data, requires_grad=x.requires_grad)
+        x = x + h
         
         h = self.norm2(x)
         if context is not None:
             h = self.attn2(h, context)
-            x = Tensor(x.data + h.data, requires_grad=x.requires_grad)
+            x = x + h
         
         h = self.norm3(x)
         
         batch_size, channels, height, width = h.shape
-        h_flat = h.data.transpose(0, 2, 3, 1).reshape(batch_size, -1, channels)
-        h_flat = Tensor(h_flat, requires_grad=h.requires_grad)
+        h_flat = h.permute(0, 2, 3, 1).reshape((batch_size, height * width, channels))
         
         h_flat = self.ff1(h_flat)
         h_flat = self.act(h_flat)
         h_flat = self.ff2(h_flat)
         
-        h = h_flat.data.reshape(batch_size, height, width, -1).transpose(0, 3, 1, 2)
-        x = Tensor(x.data + h, requires_grad=x.requires_grad)
+        h = h_flat.reshape((batch_size, height, width, channels)).permute(0, 3, 1, 2)
+        x = x + h
         
         return x
 
@@ -356,10 +344,7 @@ class UpBlock2D(Module):
     ) -> Tensor:
         for i, resnet in enumerate(self.resnets):
             res_state = res_hidden_states[-(i + 1)]
-            x = Tensor(
-                np.concatenate([x.data, res_state.data], axis=1),
-                requires_grad=x.requires_grad
-            )
+            x = cat([x, res_state], dim=1)
             x = resnet(x, temb)
             
             if i < len(self.attentions):

@@ -23,6 +23,7 @@ from nanotorch.nn.module import Module, Sequential
 from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.activation import LeakyReLU, Sigmoid, ReLU
 from nanotorch.nn.normalization import BatchNorm2d
+from nanotorch.utils import cat
 
 
 class Mish(Module):
@@ -142,7 +143,7 @@ class CSPResBlock(Module):
         path2 = self.res_blocks(path2)
         
         # Concatenate
-        merged = Tensor(np.concatenate([path1.data, path2.data], axis=1), requires_grad=x.requires_grad)
+        merged = cat([path1, path2], dim=1)
         
         # Merge
         return self.merge_conv(merged)
@@ -176,7 +177,7 @@ class SPP(Module):
             pooled = self._max_pool(x, pool_size)
             pool_outputs.append(pooled)
         
-        concat = Tensor(np.concatenate([p.data for p in pool_outputs], axis=1), requires_grad=x.requires_grad)
+        concat = cat(pool_outputs, dim=1)
         
         return self.conv2(concat)
     
@@ -344,7 +345,7 @@ class PANet(Module):
         x = self.conv5_upsample(x)
         target_size = (scale2.shape[2], scale2.shape[3])
         x_up = self._upsample(x, target_size)
-        x = Tensor(np.concatenate([x_up.data, scale2.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x_up, scale2], dim=1)
         
         x = self.conv4_1(x)
         x = self.conv4_2(x)
@@ -353,7 +354,7 @@ class PANet(Module):
         x = self.conv4_upsample(x)
         target_size = (scale3.shape[2], scale3.shape[3])
         x_up = self._upsample(x, target_size)
-        x = Tensor(np.concatenate([x_up.data, scale3.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x_up, scale3], dim=1)
         
         x = self.conv3_1(x)
         x = self.conv3_2(x)
@@ -361,15 +362,13 @@ class PANet(Module):
         
         # Bottom-up pathway
         x = self.conv3_down(p3)
-        x = Tensor(np.concatenate([x.data, self.conv4_upsample(p4).data], axis=1), 
-                   requires_grad=x.requires_grad)
+        x = cat([x, self.conv4_upsample(p4)], dim=1)
         x = self.conv4_3(x)
         x = self.conv4_4(x)
         n4 = x
         
         x = self.conv4_down(n4)
-        x = Tensor(np.concatenate([x.data, self.conv5_upsample(p5).data], axis=1),
-                   requires_grad=x.requires_grad)
+        x = cat([x, self.conv5_upsample(p5)], dim=1)
         x = self.conv5_3(x)
         x = self.conv5_4(x)
         n5 = x
@@ -533,7 +532,7 @@ class YOLOv4Tiny(Module):
         h, w = route.shape[2], route.shape[3]
         x_up = self._upsample(x, (h, w))
         route_conv = self.route_conv(route)
-        x = Tensor(np.concatenate([x_up.data, route_conv.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x_up, route_conv], dim=1)
         
         x = self.conv7(x)
         x = self.conv8(x)

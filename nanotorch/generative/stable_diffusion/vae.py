@@ -67,7 +67,7 @@ class ResnetBlock(Module):
         if self.skip is not None:
             x = self.skip(x)
         
-        return Tensor(h.data + x.data, requires_grad=x.requires_grad)
+        return h + x
 
 
 class Downsample(Module):
@@ -169,7 +169,7 @@ class SelfAttention(Module):
         out = Tensor(out, requires_grad=x.requires_grad)
         out = self.to_out(out)
         
-        return Tensor(out.data + x.data, requires_grad=x.requires_grad)
+        return out + x
 
 
 class Encoder(Module):
@@ -240,8 +240,8 @@ class Encoder(Module):
         h = self.conv_act(h)
         h = self.conv_out(h)
         
-        mean = Tensor(h.data[:, :self.out_channels], requires_grad=x.requires_grad)
-        log_var = Tensor(h.data[:, self.out_channels:], requires_grad=x.requires_grad)
+        mean = h[:, :self.out_channels]
+        log_var = h[:, self.out_channels:]
         
         return mean, log_var
 
@@ -374,8 +374,8 @@ class VAE(Module):
         """
         mean, log_var = self.encoder(x)
         
-        mean = Tensor(mean.data * self.scaling_factor, requires_grad=x.requires_grad)
-        log_var = Tensor(log_var.data + 2 * np.log(self.scaling_factor), requires_grad=x.requires_grad)
+        mean = mean * self.scaling_factor
+        log_var = log_var + (2 * np.log(self.scaling_factor))
         
         return mean, log_var
     
@@ -388,7 +388,7 @@ class VAE(Module):
         Returns:
             Reconstructed image (N, 3, H, W)
         """
-        z_scaled = Tensor(z.data / self.scaling_factor, requires_grad=z.requires_grad)
+        z_scaled = z / self.scaling_factor
         return self.decoder(z_scaled)
     
     def sample(self, mean: Tensor, log_var: Tensor) -> Tensor:
@@ -401,14 +401,14 @@ class VAE(Module):
         Returns:
             Sampled latent tensor
         """
-        std = Tensor(np.exp(0.5 * log_var.data), requires_grad=mean.requires_grad)
+        std = (log_var * 0.5).exp()
         
         noise = Tensor(
             np.random.randn(*mean.data.shape).astype(np.float32),
             requires_grad=mean.requires_grad
         )
         
-        z = Tensor(mean.data + std.data * noise.data, requires_grad=mean.requires_grad)
+        z = mean + std * noise
         
         return z
     

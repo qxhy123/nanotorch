@@ -225,6 +225,20 @@ class TestLatentDiffusion:
         
         np.testing.assert_array_equal(latents1, latents2)
     
+    def test_call_with_classifier_free_guidance(self):
+        """Test end-to-end sampling path with guidance enabled."""
+        pipeline = self._create_pipeline()
+
+        image = pipeline(
+            "test prompt",
+            num_inference_steps=2,
+            height=4,
+            width=4,
+            guidance_scale=7.5,
+        )
+
+        assert image.shape == (1, 3, 32, 32)
+
     def test_train_step_shape(self):
         """Test train_step output."""
         pipeline = self._create_pipeline()

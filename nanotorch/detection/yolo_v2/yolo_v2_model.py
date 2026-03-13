@@ -27,6 +27,7 @@ from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.pooling import MaxPool2d
 from nanotorch.nn.activation import LeakyReLU, Sigmoid
 from nanotorch.nn.normalization import BatchNorm2d
+from nanotorch.utils import cat
 
 
 class ConvBN(Module):
@@ -250,7 +251,7 @@ class YOLOv2Head(Module):
         x = self.conv1(x)
         x = self.conv2(x)
         
-        x = Tensor(np.concatenate([x.data, passthrough.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x, passthrough], dim=1)
         
         x = self.conv3(x)
         x = self.conv4(x)

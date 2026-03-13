@@ -24,6 +24,7 @@ from nanotorch.nn.conv import Conv2D
 from nanotorch.nn.pooling import MaxPool2d, AvgPool2d
 from nanotorch.nn.activation import LeakyReLU, Sigmoid
 from nanotorch.nn.normalization import BatchNorm2d
+from nanotorch.utils import cat
 
 
 class ConvBN(Module):
@@ -197,7 +198,7 @@ class FPN(Module):
         x = self.conv5_upsample(x)
         target_size = (scale2.shape[2], scale2.shape[3])
         x_up = self._upsample(x, target_size)
-        x = Tensor(np.concatenate([x_up.data, scale2.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x_up, scale2], dim=1)
         
         x = self.conv4_1(x)
         x = self.conv4_2(x)
@@ -210,7 +211,7 @@ class FPN(Module):
         x = self.conv4_upsample(x)
         target_size = (scale3.shape[2], scale3.shape[3])
         x_up = self._upsample(x, target_size)
-        x = Tensor(np.concatenate([x_up.data, scale3.data], axis=1), requires_grad=x.requires_grad)
+        x = cat([x_up, scale3], dim=1)
         
         x = self.conv3_1(x)
         x = self.conv3_2(x)
