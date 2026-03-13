@@ -1,157 +1,163 @@
-# Transformer 可视化 - 快速入门指南
+# Transformer Visualization Quick Start
 
-## ✅ 已验证：所有组件正常工作
+English quick start for the repository's visualization app. For Chinese instructions, see [`QUICKSTART_CN.md`](./QUICKSTART_CN.md).
 
-- ✅ 后端 API 所有端点测试通过
-- ✅ 前端构建成功
-- ✅ nanotorch 集成正常
+This guide is for the repository-level frontend/backend visualization system. It is separate from the published `nanotorch` Python package metadata and requires both services to run for the full experience.
 
-## 🚀 启动应用
+## What this app includes
 
-### 快速启动（推荐）
+- Frontend UI for Transformer structure, embeddings, attention, layer flow, tokenization, inference, and training-oriented views
+- FastAPI backend that exposes Transformer, tokenizer, and layer-analysis endpoints backed by nanotorch components
+- Shared Python library code from the `nanotorch` package
+
+## Prerequisites
+
+- Python `3.8+`
+- Node.js `18+` and `npm`
+- A local checkout of this repository
+
+## Setup
+
+### 1. Python environment
+
+From the repository root:
 
 ```bash
-# 终端 1 - 启动后端
-cd /Users/yangyang/ai_projs/nanotorch/backend
-PYTHONPATH=/Users/yangyang/ai_projs/nanotorch:/Users/yangyang/ai_projs/nanotorch/backend python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv venv
+source .venv/bin/activate
+uv sync
+python -m pip install -r backend/requirements.txt
+```
 
-# 终端 2 - 启动前端
-cd /Users/yangyang/ai_projs/nanotorch/frontend
+`uv sync` installs the library dependencies from `pyproject.toml`. The backend service also needs the FastAPI stack from `backend/requirements.txt`.
+
+### 2. Frontend dependencies
+
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+## Start the app
+
+### Recommended: start services manually
+
+Backend:
+
+```bash
+cd backend
+PYTHONPATH="$(pwd)/..:$(pwd)" python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Frontend, in a second terminal:
+
+```bash
+cd frontend
 npm run dev
 ```
 
-### 或使用启动脚本
+Then open:
+
+- Frontend app: `http://localhost:5173`
+- Backend health: `http://localhost:8000/health`
+- Backend docs: `http://localhost:8000/docs`
+
+### Optional helper scripts
+
+The repository also includes `./start-backend.sh` and `./start-frontend.sh`. They are convenience wrappers for this checkout; if you move the repository, verify their hard-coded paths before using them.
+
+## Quick validation
+
+### Smoke check the backend
 
 ```bash
-# 终端 1
-./start-backend.sh
-
-# 终端 2
-./start-frontend.sh
+curl http://localhost:8000/health
 ```
 
-## 📍 访问地址
+Expected result: a JSON health payload that includes the backend status and nanotorch version.
 
-- **前端应用**: http://localhost:5173
-- **后端 API**: http://localhost:8000
-- **API 文档**: http://localhost:8000/docs
+### Run the API smoke test script
 
-## 🧪 测试 API
+From the repository root:
 
 ```bash
 python test_api.py
 ```
 
-或使用 curl:
+## Key API surfaces
+
+The backend currently exposes three main groups of endpoints:
+
+- Transformer endpoints under `/api/v1/transformer`
+- Tokenizer endpoints under `/api/v1/tokenizer`
+- Layer analysis endpoints under `/api/v1/layer`
+
+Common examples:
 
 ```bash
-# 健康检查
-curl http://localhost:8000/health
-
-# 前向传播
 curl -X POST http://localhost:8000/api/v1/transformer/forward \
   -H "Content-Type: application/json" \
   -d '{
-    "config": {"d_model": 512, "nhead": 8, "num_encoder_layers": 2, "num_decoder_layers": 0, "dim_feedforward": 2048, "dropout": 0.1, "activation": "relu", "max_seq_len": 128, "vocab_size": 10000, "layer_norm_eps": 1e-5, "batch_first": true, "norm_first": false},
-    "input_data": {"text": "Hello world"},
-    "options": {"return_attention": true, "return_all_layers": true, "return_embeddings": true}
+    "config": {
+      "d_model": 128,
+      "nhead": 8,
+      "num_encoder_layers": 2,
+      "num_decoder_layers": 0,
+      "dim_feedforward": 256,
+      "dropout": 0.1,
+      "activation": "relu",
+      "max_seq_len": 64,
+      "vocab_size": 1000,
+      "layer_norm_eps": 1e-5,
+      "batch_first": true,
+      "norm_first": false
+    },
+    "input_data": {
+      "text": "Hello world"
+    },
+    "options": {
+      "return_attention": true,
+      "return_all_layers": true,
+      "return_embeddings": true
+    }
   }'
 ```
 
-## 📋 API 请求格式
-
-### Forward 端点
-
-```json
-POST /api/v1/transformer/forward
-
-{
-  "config": {
-    "d_model": 512,
-    "nhead": 8,
-    "num_encoder_layers": 6,
-    "num_decoder_layers": 6,
-    "dim_feedforward": 2048,
-    "dropout": 0.1,
-    "activation": "relu",
-    "max_seq_len": 128,
-    "vocab_size": 10000,
-    "layer_norm_eps": 1e-5,
-    "batch_first": true,
-    "norm_first": false
-  },
-  "input_data": {
-    "text": "Hello world",
-    "tokens": [72, 101, 108, 108, 111]  // optional
-  },
-  "options": {
-    "return_attention": true,
-    "return_all_layers": true,
-    "return_embeddings": true
-  }
-}
-```
-
-**响应格式：**
-
-```json
-{
-  "success": true,
-  "data": {
-    "final_output": {
-      "shape": [1, 11, 512],
-      "data": [...],
-      "dtype": "float32"
-    },
-    "embeddings": {
-      "token_embeddings": {...},
-      "positional_encodings": {...},
-      "combined": {...}
-    },
-    "attention_weights": [...],
-    "layer_outputs": [...]
-  }
-}
-```
-
-## ⚠️ 重要说明
-
-1. **参数名称**：后端使用 `input_data`（不是 `input`）
-2. **Python 路径**：需要设置 `PYTHONPATH` 包含项目根目录和 backend 目录
-3. **CORS 配置**：后端已配置允许 `localhost:5173` 的跨域请求
-
-## 🔍 故障排查
-
-### 后端启动失败
-
 ```bash
-# 检查 nanotorch 是否可用
-python -c "
-import sys
-sys.path.insert(0, '/Users/yangyang/ai_projs/nanotorch')
-from nanotorch.nn.transformer import Transformer
-print('✓ nanotorch OK')
-"
+curl -X POST http://localhost:8000/api/v1/tokenizer/tokenize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "hello nanotorch",
+    "tokenizer_type": "char"
+  }'
 ```
 
-### 前端无法连接后端
+## Important notes
 
-1. 检查后端是否运行：`curl http://localhost:8000/health`
-2. 检查 `.env` 文件中的 `VITE_API_BASE_URL`
-3. 查看浏览器控制台的网络请求
+- The Transformer routes expect `input_data`, not `input`.
+- The frontend talks to the backend at `http://localhost:8000` by default.
+- Full visualization features require both the frontend dev server and the backend API.
+- This quick start documents the visualization app only; package usage examples stay in [`README.md`](./README.md).
 
-### API 参数错误
+## Troubleshooting
 
-确保请求体使用 `input_data`（不是 `input`）：
-```json
-{
-  "input_data": {...},   // ✓ 正确
-  "input": {...}         // ✗ 错误
-}
-```
+### Backend import errors
 
-## 📚 相关文档
+Make sure the environment is activated and `backend/requirements.txt` is installed. If you start the backend manually, keep `PYTHONPATH` pointing at both the repo root and `backend/`.
 
-- [完整项目文档](./README_VISUALIZATION_CN.md)
-- [nanotorch README](./README_CN.md)
-- API 文档：http://localhost:8000/docs
+### Frontend cannot reach the backend
+
+- Confirm the backend is running: `curl http://localhost:8000/health`
+- Confirm the frontend dev server is running on `http://localhost:5173`
+- Check frontend environment variables if you changed the API base URL
+
+### API request validation fails
+
+Start with the interactive schema at `http://localhost:8000/docs` and confirm field names such as `input_data`, `config`, and `options`.
+
+## Related docs
+
+- [`README.md`](./README.md): package overview and library usage
+- [`README_VISUALIZATION.md`](./README_VISUALIZATION.md): visualization architecture and feature inventory
+- [`QUICKSTART_CN.md`](./QUICKSTART_CN.md): Chinese version of this quick start

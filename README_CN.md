@@ -29,7 +29,7 @@ nanotorch 仓库现在按两条主线组织，并在文档中保持一致：
 - 后端：用 FastAPI 封装 nanotorch 的 Transformer 组件并提供可视化数据
 - 启动方式：完整体验需要同时启动 frontend 和 backend
 
-可视化专项说明请查看 [`QUICKSTART.md`](./QUICKSTART.md) 和 [`README_VISUALIZATION.md`](./README_VISUALIZATION.md)。
+可视化专项说明请查看 [`QUICKSTART_CN.md`](./QUICKSTART_CN.md) 和 [`README_VISUALIZATION_CN.md`](./README_VISUALIZATION_CN.md)。
 
 ## 安装
 
@@ -105,7 +105,7 @@ print(x.grad.numpy())
 
 然后访问 `http://localhost:5173`。
 
-如果你更希望手动启动，或需要 API 请求示例，请查看 [`QUICKSTART.md`](./QUICKSTART.md)。如果你想看可视化模块的详细能力和架构说明，请查看 [`README_VISUALIZATION.md`](./README_VISUALIZATION.md)。
+如果你更希望手动启动，或需要 API 请求示例，请查看 [`QUICKSTART_CN.md`](./QUICKSTART_CN.md)。如果你想看可视化模块的详细能力和架构说明，请查看 [`README_VISUALIZATION_CN.md`](./README_VISUALIZATION_CN.md)。
 
 ## 包能力概览
 
@@ -135,8 +135,9 @@ nanotorch/
 ├── benchmarks/             # 微基准
 ├── frontend/               # 可视化前端
 ├── backend/                # 可视化后端
-├── QUICKSTART.md           # 可视化快速启动说明
-└── README_VISUALIZATION.md # 可视化专项文档
+├── QUICKSTART.md           # Visualization quick start (English default)
+├── QUICKSTART_CN.md        # 可视化快速启动说明（中文）
+└── README_VISUALIZATION_CN.md # 可视化专项文档（中文）
 ```
 
 ## 文档
@@ -144,7 +145,7 @@ nanotorch/
 - [`docs/design.md`](./docs/design.md)：架构与 autograd 设计
 - [`docs/api.md`](./docs/api.md)：API 参考与示例
 - [`docs/autograd_boundaries.md`](./docs/autograd_boundaries.md)：autograd 统一后仍保留的原始数组边界说明
-- [`QUICKSTART.md`](./QUICKSTART.md)：可视化应用的前后端启动说明
+- [`QUICKSTART_CN.md`](./QUICKSTART_CN.md)：可视化应用的中文快速启动说明
 
 ## 测试
 
