@@ -11,6 +11,32 @@ from nanotorch.tensor import Tensor
 from nanotorch.autograd import LayerNormFunction, GroupNormFunction, InstanceNormFunction
 
 
+def _update_running_stats(
+    running_mean: Tensor,
+    running_var: Tensor,
+    batch_mean: Tensor,
+    batch_var: Tensor,
+    momentum: Optional[float],
+    num_batches_tracked: Optional[Tensor] = None,
+) -> None:
+    """Update normalization running statistics in buffer space."""
+    mean_data = batch_mean.data
+    var_data = batch_var.data
+
+    if momentum is not None:
+        running_mean.data = (1 - momentum) * running_mean.data + momentum * mean_data
+        running_var.data = (1 - momentum) * running_var.data + momentum * var_data
+        return
+
+    if num_batches_tracked is None:
+        raise RuntimeError("num_batches_tracked is required when momentum is None")
+
+    n = num_batches_tracked.data[0] + 1
+    running_mean.data = (running_mean.data * (n - 1) + mean_data) / n
+    running_var.data = (running_var.data * (n - 1) + var_data) / n
+    num_batches_tracked.data[0] = n
+
+
 class _BatchNorm(Module):
     """Base class for BatchNorm layers (BatchNorm1d, BatchNorm2d, BatchNorm3d).
     
@@ -104,24 +130,15 @@ class _BatchNorm(Module):
             mean_squeezed = mean.squeeze(axis=axes)
             var_squeezed = var.squeeze(axis=axes)
             
-            # Update running statistics
-            if self.momentum is not None:
-                self.running_mean.data = (
-                    1 - self.momentum
-                ) * self.running_mean.data + self.momentum * mean_squeezed.data
-                self.running_var.data = (
-                    1 - self.momentum
-                ) * self.running_var.data + self.momentum * var_squeezed.data
-            else:
-                # Cumulative moving average
-                n = self.num_batches_tracked.data[0] + 1
-                self.running_mean.data = (
-                    self.running_mean.data * (n - 1) + mean_squeezed.data
-                ) / n
-                self.running_var.data = (
-                    self.running_var.data * (n - 1) + var_squeezed.data
-                ) / n
-                self.num_batches_tracked.data[0] = n
+            # Update running statistics (buffer mutation is intentional here)
+            _update_running_stats(
+                self.running_mean,
+                self.running_var,
+                mean_squeezed,
+                var_squeezed,
+                self.momentum,
+                self.num_batches_tracked,
+            )
             
             # Use batch statistics for normalization
             x_normalized = (x - mean) / (var + self.eps) ** 0.5

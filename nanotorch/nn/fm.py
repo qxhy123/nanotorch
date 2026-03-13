@@ -13,6 +13,7 @@ import numpy as np
 from typing import List
 from nanotorch.nn.module import Module
 from nanotorch.tensor import Tensor
+from nanotorch.utils import cat
 
 
 class FactorizationMachine(Module):
@@ -338,10 +339,7 @@ class Interaction(Module):
                     interactions.append(dot)
             
             # Concatenate all pairwise interactions
-            return Tensor(
-                np.concatenate([t.data for t in interactions], axis=1),
-                requires_grad=x.requires_grad
-            )
+            return cat(interactions, dim=1)
         
         elif self.interaction_type == 'concat':
             # Flatten all embeddings

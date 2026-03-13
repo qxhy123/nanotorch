@@ -12,6 +12,102 @@ from numpy.typing import NDArray
 from nanotorch.tensor import Tensor
 
 
+def reduce_gradient_numpy(
+    grad_contrib_data: NDArray[np.float32], target_shape: Tuple[int, ...]
+) -> NDArray[np.float32]:
+    """Reduce a broadcasted gradient contribution to the target tensor shape."""
+    if grad_contrib_data.shape == target_shape:
+        return grad_contrib_data
+
+    grad_shape = grad_contrib_data.shape
+    target_shape_aligned = target_shape
+
+    if len(target_shape) < len(grad_shape):
+        target_shape_aligned = (1,) * (len(grad_shape) - len(target_shape)) + target_shape
+
+    axes_to_sum = []
+    for i in range(len(grad_shape)):
+        if i >= len(target_shape_aligned):
+            axes_to_sum.append(i)
+        elif target_shape_aligned[i] == 1 and grad_shape[i] > 1:
+            axes_to_sum.append(i)
+
+    if axes_to_sum:
+        reduced_data = grad_contrib_data.sum(
+            axis=tuple(axes_to_sum), keepdims=False, dtype=np.float32
+        )
+        reduced_data = reduced_data.reshape(target_shape)
+        return reduced_data
+
+    return grad_contrib_data.reshape(target_shape)
+
+
+def accumulate_grad(parent: Tensor, grad_contrib: Union[Tensor, NDArray[Any]]) -> None:
+    """Accumulate a single gradient contribution onto a parent tensor."""
+    if not parent.requires_grad:
+        return
+
+    if isinstance(grad_contrib, Tensor):
+        grad_contrib_data = grad_contrib.data
+    else:
+        grad_contrib_data = grad_contrib
+
+    if (
+        grad_contrib_data.shape == parent.shape
+        and grad_contrib_data.dtype == np.float32
+        and parent.grad is not None
+    ):
+        parent.grad.data += grad_contrib_data
+        return
+
+    if grad_contrib_data.shape != parent.shape:
+        grad_contrib_data = reduce_gradient_numpy(grad_contrib_data, parent.shape)
+
+    if grad_contrib_data.dtype != np.float32:
+        grad_contrib_data = grad_contrib_data.astype(np.float32)
+
+    if parent.grad is None:
+        parent.grad = Tensor(grad_contrib_data, requires_grad=False)
+    else:
+        parent.grad.data += grad_contrib_data
+
+
+def accumulate_grad_batch(
+    accumulations: List[Tuple[Tensor, Union[Tensor, NDArray[Any]]]]
+) -> None:
+    """Accumulate a batch of parent-gradient pairs."""
+    if not accumulations:
+        return
+
+    for parent, grad_contrib in accumulations:
+        if not parent.requires_grad:
+            continue
+
+        if isinstance(grad_contrib, Tensor):
+            grad_contrib_data = grad_contrib.data
+        else:
+            grad_contrib_data = grad_contrib
+
+        if (
+            grad_contrib_data.shape == parent.shape
+            and grad_contrib_data.dtype == np.float32
+            and parent.grad is not None
+        ):
+            parent.grad.data += grad_contrib_data
+            continue
+
+        if grad_contrib_data.shape != parent.shape:
+            grad_contrib_data = reduce_gradient_numpy(grad_contrib_data, parent.shape)
+
+        if grad_contrib_data.dtype != np.float32:
+            grad_contrib_data = grad_contrib_data.astype(np.float32)
+
+        if parent.grad is None:
+            parent.grad = Tensor(grad_contrib_data, requires_grad=False)
+        else:
+            parent.grad.data += grad_contrib_data
+
+
 class Function:
     """Base class for creating autograd operations.
 
@@ -63,36 +159,27 @@ class Function:
     def apply(cls, *args: Any, **kwargs: Any) -> Any:
         """Apply the function to inputs.
 
-        This creates a new tensor with the function as its _op and sets up
+        This creates a new tensor, attaches the function context, and sets up
         the computational graph.
 
         Returns:
             Tensor or tuple of Tensors/non-Tensor values. If a tuple is returned,
             only Tensor elements will have gradient tracking enabled.
         """
-        # Create context object
         ctx = FunctionContext()
-
-        # Run forward pass
         output = cls.forward(ctx, *args, **kwargs)
 
-        def process_output(out):
+        def process_output(out: Any) -> Any:
             if isinstance(out, Tensor):
                 out._ctx = ctx
                 out._fn = cls
                 out._parents = args
                 return out
-            else:
-                # Non-tensor output (e.g., indices as numpy array)
-                return out
+            return out
 
         if isinstance(output, tuple):
-            # Process each element, keep tuple structure
-            processed = tuple(process_output(elem) for elem in output)
-            return processed
-        else:
-            # Single output (should be Tensor, but we allow non-Tensor for flexibility)
-            return process_output(output)
+            return tuple(process_output(elem) for elem in output)
+        return process_output(output)
 
 
 class FunctionContext:
@@ -125,68 +212,53 @@ class FunctionContext:
 def backward(tensor: Tensor, gradient: Optional[Tensor] = None) -> None:
     """Compute gradients of tensors in the computational graph.
 
-    This is the main entry point for backpropagation.
+    This is the single public entry point for backpropagation used by both
+    ``Tensor.backward()`` and ``nanotorch.autograd.backward(...)``.
 
     Args:
         tensor: Root tensor to start backpropagation from.
         gradient: Gradient with respect to the tensor (default is ones).
     """
-    if gradient is None:
-        gradient = Tensor(np.ones_like(tensor.data), requires_grad=False)
-
-    # Set gradient on the root tensor
-    if tensor.grad is None:
-        tensor.grad = gradient
-    else:
-        tensor.grad = tensor.grad + gradient
-
-    # Build topological order of the computational graph
     topo: List[Tensor] = []
     visited: Set[Tensor] = set()
 
-    def build_topo(v: Tensor) -> None:
-        if v not in visited:
-            visited.add(v)
-            if hasattr(v, "_parents"):
-                for parent in v._parents:
-                    if isinstance(parent, Tensor):
-                        build_topo(parent)
+    def build_topo(node: Tensor) -> None:
+        if node in visited:
+            return
+        visited.add(node)
+        for parent in node._parents:
+            if isinstance(parent, Tensor):
+                build_topo(parent)
+        topo.append(node)
 
     build_topo(tensor)
 
-    # Backward pass in reverse topological order
-    for v in reversed(topo):
-        if hasattr(v, "_fn") and v.grad is not None:
-            # Use Function-based backward
-            ctx = getattr(v, "_ctx", None)
-            if ctx is not None:
-                # Compute gradients using the function's backward method
-                grad_inputs = v._fn.backward(ctx, v.grad)
+    if gradient is None:
+        gradient = Tensor(np.ones_like(tensor.data), requires_grad=False)
 
-                # Distribute gradients to parent tensors
-                if v._parents:
-                    if isinstance(grad_inputs, tuple):
-                        for parent, grad in zip(v._parents, grad_inputs):
-                            if isinstance(parent, Tensor) and parent.requires_grad:
-                                if grad is not None:
-                                    if parent.grad is None:
-                                        parent.grad = grad
-                                    else:
-                                        parent.grad = parent.grad + grad
-                    elif isinstance(grad_inputs, Tensor) and len(v._parents) == 1:
-                        parent = v._parents[0]
-                        if isinstance(parent, Tensor) and parent.requires_grad:
-                            if grad_inputs is not None:
-                                if parent.grad is None:
-                                    parent.grad = grad_inputs
-                                else:
-                                    parent.grad = parent.grad + grad_inputs
-        elif hasattr(v, "_op") and v.grad is not None:
-            # Use the old string-based operation system (for compatibility)
-            v.backward(v.grad)
+    if tensor.grad is None:
+        tensor.grad = gradient
+    else:
+        tensor.grad.data += gradient.data
 
+    for node in reversed(topo):
+        if node.grad is None or not node.requires_grad:
+            continue
 
-# Example Function implementations for common operations
+        if node._fn is not None:
+            ctx = node._ctx
+            if ctx is None:
+                continue
+
+            grad_inputs = node._fn.backward(ctx, node.grad)
+            grad_values = grad_inputs if isinstance(grad_inputs, tuple) else (grad_inputs,)
+
+            for parent, grad in zip(node._parents, grad_values):
+                if not isinstance(parent, Tensor) or grad is None:
+                    continue
+                accumulate_grad(parent, grad)
+            continue
+
 
 
 class Add(Function):
@@ -200,8 +272,21 @@ class Add(Function):
     @staticmethod
     def backward(ctx: Any, *grad_outputs: Any) -> Tuple[Tensor, Tensor]:
         grad_output = grad_outputs[0]
-        a, b = ctx.saved_tensors
         return grad_output, grad_output
+
+
+class Neg(Function):
+    """Element-wise negation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor) -> Tensor:
+        ctx.save_for_backward(a)
+        return Tensor(-a.data, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        return Tensor(-grad_output.data, requires_grad=False)
 
 
 class Mul(Function):
@@ -219,12 +304,52 @@ class Mul(Function):
         grad_a: Optional[Tensor] = None
         grad_b: Optional[Tensor] = None
         if a.requires_grad:
-            grad_a_data = grad_output.data * b.data
-            grad_a = Tensor(grad_a_data, requires_grad=False)
+            grad_a = Tensor(grad_output.data * b.data, requires_grad=False)
         if b.requires_grad:
-            grad_b_data = a.data * grad_output.data
-            grad_b = Tensor(grad_b_data, requires_grad=False)
+            grad_b = Tensor(a.data * grad_output.data, requires_grad=False)
         return grad_a, grad_b
+
+
+class Div(Function):
+    """Element-wise division."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, b: Tensor) -> Tensor:
+        ctx.save_for_backward(a, b)
+        return Tensor(a.data / b.data, requires_grad=a.requires_grad or b.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tuple[Optional[Tensor], Optional[Tensor]]:
+        grad_output = grad_outputs[0]
+        a, b = ctx.saved_tensors
+        grad_a: Optional[Tensor] = None
+        grad_b: Optional[Tensor] = None
+        if a.requires_grad:
+            grad_a = Tensor(grad_output.data / b.data, requires_grad=False)
+        if b.requires_grad:
+            grad_b = Tensor(
+                -(grad_output.data * a.data) / (b.data * b.data),
+                requires_grad=False,
+            )
+        return grad_a, grad_b
+
+
+class Pow(Function):
+    """Element-wise power with scalar exponent."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, exponent: Union[int, float]) -> Tensor:
+        ctx.save_for_backward(a)
+        ctx.save_value("exponent", exponent)
+        return Tensor(a.data ** exponent, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        (a,) = ctx.saved_tensors
+        exponent = ctx.get_value("exponent")
+        grad = grad_output.data * exponent * (a.data ** (exponent - 1))
+        return Tensor(grad, requires_grad=False)
 
 
 class MatMul(Function):
@@ -233,7 +358,6 @@ class MatMul(Function):
     @staticmethod
     def forward(ctx: Any, a: Tensor, b: Tensor) -> Tensor:
         ctx.save_for_backward(a, b)
-        # Cache transposes for efficient backward pass
         ctx.save_value("b_T", b.data.T)
         ctx.save_value("a_T", a.data.T)
         return Tensor(a.data @ b.data, requires_grad=a.requires_grad or b.requires_grad)
@@ -244,7 +368,6 @@ class MatMul(Function):
         a, b = ctx.saved_tensors
         grad_a: Optional[Tensor] = None
         grad_b: Optional[Tensor] = None
-        # Use cached transposes if available, otherwise compute
         b_T = ctx.get_value("b_T")
         if b_T is None:
             b_T = b.data.T
@@ -252,12 +375,594 @@ class MatMul(Function):
         if a_T is None:
             a_T = a.data.T
         if a.requires_grad:
-            grad_a_data = grad_output.data @ b_T
-            grad_a = Tensor(grad_a_data, requires_grad=False)
+            grad_a = Tensor(grad_output.data @ b_T, requires_grad=False)
         if b.requires_grad:
-            grad_b_data = a_T @ grad_output.data
-            grad_b = Tensor(grad_b_data, requires_grad=False)
+            grad_b = Tensor(a_T @ grad_output.data, requires_grad=False)
         return grad_a, grad_b
+
+
+class BatchMatMul(Function):
+    """General matrix multiplication supporting batched and vector inputs."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, b: Tensor) -> Tensor:
+        ctx.save_for_backward(a, b)
+        ctx.save_value("a_was_1d", a.ndim == 1)
+        ctx.save_value("b_was_1d", b.ndim == 1)
+        return Tensor(np.matmul(a.data, b.data), requires_grad=a.requires_grad or b.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tuple[Optional[Tensor], Optional[Tensor]]:
+        grad_output = grad_outputs[0]
+        a, b = ctx.saved_tensors
+        a_was_1d = ctx.get_value("a_was_1d", False)
+        b_was_1d = ctx.get_value("b_was_1d", False)
+
+        a_data = a.data
+        b_data = b.data
+        grad_data = grad_output.data
+
+        a_promoted = np.expand_dims(a_data, axis=-2) if a_was_1d else a_data
+        b_promoted = np.expand_dims(b_data, axis=-1) if b_was_1d else b_data
+
+        if a_was_1d and b_was_1d:
+            grad_promoted = np.asarray(grad_data, dtype=np.float32).reshape(1, 1)
+        elif a_was_1d:
+            grad_promoted = np.expand_dims(grad_data, axis=-2)
+        elif b_was_1d:
+            grad_promoted = np.expand_dims(grad_data, axis=-1)
+        else:
+            grad_promoted = grad_data
+
+        grad_a: Optional[Tensor] = None
+        grad_b: Optional[Tensor] = None
+
+        if a.requires_grad:
+            grad_a_data = np.matmul(grad_promoted, np.swapaxes(b_promoted, -1, -2))
+            if a_was_1d:
+                grad_a_data = np.squeeze(grad_a_data, axis=-2)
+            if grad_a_data.shape != a.shape:
+                grad_a_data = reduce_gradient_numpy(grad_a_data, a.shape)
+            grad_a = Tensor(grad_a_data.astype(np.float32), requires_grad=False)
+
+        if b.requires_grad:
+            grad_b_data = np.matmul(np.swapaxes(a_promoted, -1, -2), grad_promoted)
+            if b_was_1d:
+                grad_b_data = np.squeeze(grad_b_data, axis=-1)
+            if grad_b_data.shape != b.shape:
+                grad_b_data = reduce_gradient_numpy(grad_b_data, b.shape)
+            grad_b = Tensor(grad_b_data.astype(np.float32), requires_grad=False)
+
+        return grad_a, grad_b
+
+
+class Reshape(Function):
+    """Reshape operation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, new_shape: Tuple[int, ...]) -> Tensor:
+        ctx.save_value("input_shape", a.shape)
+        return Tensor(a.data.reshape(new_shape), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        input_shape = ctx.get_value("input_shape")
+        return Tensor(grad_output.data.reshape(input_shape), requires_grad=False)
+
+
+class Squeeze(Function):
+    """Squeeze operation."""
+
+    @staticmethod
+    def forward(
+        ctx: Any, a: Tensor, axis: Optional[Union[int, Tuple[int, ...]]] = None
+    ) -> Tensor:
+        ctx.save_value("input_shape", a.shape)
+        ctx.save_value("axis", axis)
+        return Tensor(a.data.squeeze(axis=axis), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        input_shape = ctx.get_value("input_shape")
+        return Tensor(grad_output.data.reshape(input_shape), requires_grad=False)
+
+
+class Permute(Function):
+    """Permute operation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, *dims: int) -> Tensor:
+        inverse_perm = [0] * len(dims)
+        for i, dim in enumerate(dims):
+            inverse_perm[dim] = i
+        ctx.save_value("inverse_perm", tuple(inverse_perm))
+        return Tensor(a.data.transpose(dims), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        inverse_perm = ctx.get_value("inverse_perm")
+        return Tensor(grad_output.data.transpose(inverse_perm), requires_grad=False)
+
+
+class Sum(Function):
+    """Reduction sum operation."""
+
+    @staticmethod
+    def _normalize_axes(
+        axis: Optional[Union[int, Tuple[int, ...]]], ndim: int
+    ) -> Optional[Tuple[int, ...]]:
+        if axis is None:
+            return None
+        if isinstance(axis, int):
+            axis = (axis,)
+        normalized = []
+        for ax in axis:
+            normalized.append(ax if ax >= 0 else ndim + ax)
+        return tuple(normalized)
+
+    @staticmethod
+    def _expand_grad(
+        grad_data: NDArray[np.float32],
+        axis: Optional[Tuple[int, ...]],
+        keepdims: bool,
+        input_shape: Tuple[int, ...],
+    ) -> NDArray[np.float32]:
+        if axis is None:
+            return np.broadcast_to(grad_data, input_shape)
+        if keepdims:
+            return np.broadcast_to(grad_data, input_shape)
+        expanded_shape = list(grad_data.shape)
+        for ax in sorted(axis):
+            expanded_shape.insert(ax, 1)
+        expanded = grad_data.reshape(expanded_shape)
+        return np.broadcast_to(expanded, input_shape)
+
+    @staticmethod
+    def forward(
+        ctx: Any,
+        a: Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Tensor:
+        normalized_axis = Sum._normalize_axes(axis, a.ndim)
+        ctx.save_value("axis", normalized_axis)
+        ctx.save_value("keepdims", keepdims)
+        ctx.save_value("input_shape", a.shape)
+        return Tensor(a.data.sum(axis=axis, keepdims=keepdims), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        axis = ctx.get_value("axis")
+        keepdims = ctx.get_value("keepdims", False)
+        input_shape = ctx.get_value("input_shape")
+        grad = Sum._expand_grad(grad_output.data, axis, keepdims, input_shape)
+        return Tensor(grad, requires_grad=False)
+
+
+class Mean(Function):
+    """Reduction mean operation."""
+
+    @staticmethod
+    def forward(
+        ctx: Any,
+        a: Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Tensor:
+        normalized_axis = Sum._normalize_axes(axis, a.ndim)
+        if normalized_axis is None:
+            divisor = a.data.size
+        else:
+            divisor = 1
+            for ax in normalized_axis:
+                divisor *= a.shape[ax]
+        ctx.save_value("axis", normalized_axis)
+        ctx.save_value("keepdims", keepdims)
+        ctx.save_value("input_shape", a.shape)
+        ctx.save_value("divisor", divisor)
+        return Tensor(a.data.mean(axis=axis, keepdims=keepdims), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        axis = ctx.get_value("axis")
+        keepdims = ctx.get_value("keepdims", False)
+        input_shape = ctx.get_value("input_shape")
+        divisor = ctx.get_value("divisor")
+        grad = Sum._expand_grad(grad_output.data / divisor, axis, keepdims, input_shape)
+        return Tensor(grad, requires_grad=False)
+
+
+class Prod(Function):
+    """Reduction product operation."""
+
+    @staticmethod
+    def forward(
+        ctx: Any,
+        a: Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Tensor:
+        normalized_axis = Sum._normalize_axes(axis, a.ndim)
+        zero_count = np.sum(a.data == 0, axis=axis, keepdims=True)
+        nonzero_prod = np.prod(np.where(a.data == 0, 1.0, a.data), axis=axis, keepdims=True)
+        ctx.save_for_backward(a)
+        ctx.save_value("axis", normalized_axis)
+        ctx.save_value("keepdims", keepdims)
+        ctx.save_value("input_shape", a.shape)
+        ctx.save_value("zero_count", zero_count.astype(np.int64))
+        ctx.save_value("nonzero_prod", nonzero_prod.astype(np.float32))
+        return Tensor(a.data.prod(axis=axis, keepdims=keepdims), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        (a,) = ctx.saved_tensors
+        axis = ctx.get_value("axis")
+        keepdims = ctx.get_value("keepdims", False)
+        input_shape = ctx.get_value("input_shape")
+        zero_count = ctx.get_value("zero_count")
+        nonzero_prod = ctx.get_value("nonzero_prod")
+        grad = Sum._expand_grad(grad_output.data, axis, keepdims, input_shape).astype(np.float32)
+
+        local_grad = np.zeros_like(a.data, dtype=np.float32)
+        no_zero = zero_count == 0
+        one_zero = zero_count == 1
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            no_zero_grad = nonzero_prod / a.data
+        local_grad = np.where(no_zero, no_zero_grad, local_grad)
+
+        single_zero_grad = np.where(a.data == 0, nonzero_prod, 0.0)
+        local_grad = np.where(one_zero, single_zero_grad, local_grad)
+        return Tensor(grad * local_grad, requires_grad=False)
+
+
+class Max(Function):
+    """Reduction max operation."""
+
+    @staticmethod
+    def forward(
+        ctx: Any,
+        a: Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Tensor:
+        normalized_axis = Sum._normalize_axes(axis, a.ndim)
+        reduced_keepdims = np.max(a.data, axis=axis, keepdims=True)
+        ctx.save_for_backward(a)
+        ctx.save_value("axis", normalized_axis)
+        ctx.save_value("keepdims", keepdims)
+        ctx.save_value("input_shape", a.shape)
+        ctx.save_value("reduced_keepdims", reduced_keepdims.astype(np.float32))
+        return Tensor(np.max(a.data, axis=axis, keepdims=keepdims), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        (a,) = ctx.saved_tensors
+        axis = ctx.get_value("axis")
+        keepdims = ctx.get_value("keepdims", False)
+        input_shape = ctx.get_value("input_shape")
+        reduced_keepdims = ctx.get_value("reduced_keepdims")
+        grad = Sum._expand_grad(grad_output.data, axis, keepdims, input_shape).astype(np.float32)
+        mask = (a.data == reduced_keepdims).astype(np.float32)
+        if axis is None:
+            counts = np.array(mask.sum(), dtype=np.float32).reshape((1,) * a.ndim)
+        else:
+            counts = mask.sum(axis=axis, keepdims=True, dtype=np.float32)
+        return Tensor(grad * mask / counts, requires_grad=False)
+
+
+class Min(Function):
+    """Reduction min operation."""
+
+    @staticmethod
+    def forward(
+        ctx: Any,
+        a: Tensor,
+        axis: Optional[Union[int, Tuple[int, ...]]] = None,
+        keepdims: bool = False,
+    ) -> Tensor:
+        normalized_axis = Sum._normalize_axes(axis, a.ndim)
+        reduced_keepdims = np.min(a.data, axis=axis, keepdims=True)
+        ctx.save_for_backward(a)
+        ctx.save_value("axis", normalized_axis)
+        ctx.save_value("keepdims", keepdims)
+        ctx.save_value("input_shape", a.shape)
+        ctx.save_value("reduced_keepdims", reduced_keepdims.astype(np.float32))
+        return Tensor(np.min(a.data, axis=axis, keepdims=keepdims), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        (a,) = ctx.saved_tensors
+        axis = ctx.get_value("axis")
+        keepdims = ctx.get_value("keepdims", False)
+        input_shape = ctx.get_value("input_shape")
+        reduced_keepdims = ctx.get_value("reduced_keepdims")
+        grad = Sum._expand_grad(grad_output.data, axis, keepdims, input_shape).astype(np.float32)
+        mask = (a.data == reduced_keepdims).astype(np.float32)
+        if axis is None:
+            counts = np.array(mask.sum(), dtype=np.float32).reshape((1,) * a.ndim)
+        else:
+            counts = mask.sum(axis=axis, keepdims=True, dtype=np.float32)
+        return Tensor(grad * mask / counts, requires_grad=False)
+
+
+class GetItem(Function):
+    """Tensor indexing operation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, key: Any) -> Tensor:
+        ctx.save_value("input_shape", a.shape)
+        ctx.save_value("key", key)
+        return Tensor(a.data[key], requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        input_shape = ctx.get_value("input_shape")
+        key = ctx.get_value("key")
+        grad_input = np.zeros(input_shape, dtype=np.float32)
+        grad_input[key] = grad_output.data
+        return Tensor(grad_input, requires_grad=False)
+
+
+class Gather(Function):
+    """Gather operation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, dim: int, index: Tensor) -> Tensor:
+        ctx.save_value("dim", dim)
+        ctx.save_value("input_shape", a.shape)
+        ctx.save_value("index_data", index.data.astype(np.int64))
+        result = np.take_along_axis(a.data, index.data.astype(np.int64), axis=dim)
+        return Tensor(result, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tuple[Optional[Tensor], None]:
+        grad_output = grad_outputs[0]
+        dim = ctx.get_value("dim")
+        input_shape = ctx.get_value("input_shape")
+        index_data = ctx.get_value("index_data")
+        grad_input = np.zeros(input_shape, dtype=np.float32)
+        coords = list(np.indices(index_data.shape))
+        coords[dim] = index_data
+        np.add.at(grad_input, tuple(coords), grad_output.data)
+        return Tensor(grad_input, requires_grad=False), None
+
+
+class Scatter(Function):
+    """Scatter operation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, dim: int, index: Tensor, src: Tensor) -> Tensor:
+        ctx.save_value("dim", dim)
+        ctx.save_value("index_data", index.data.astype(np.int64))
+        result = a.data.copy()
+        np.put_along_axis(result, index.data.astype(np.int64), src.data, axis=dim)
+        return Tensor(result, requires_grad=a.requires_grad or src.requires_grad)
+
+    @staticmethod
+    def backward(
+        ctx: Any, *grad_outputs: Any
+    ) -> Tuple[Optional[Tensor], None, None, Optional[Tensor]]:
+        grad_output = grad_outputs[0]
+        dim = ctx.get_value("dim")
+        index_data = ctx.get_value("index_data")
+        grad_input = grad_output.data.copy()
+        np.put_along_axis(grad_input, index_data, 0, axis=dim)
+        grad_src = np.take_along_axis(grad_output.data, index_data, axis=dim)
+        return (
+            Tensor(grad_input, requires_grad=False),
+            None,
+            None,
+            Tensor(grad_src, requires_grad=False),
+        )
+
+
+class ReLU(Function):
+    """ReLU activation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor) -> Tensor:
+        ctx.save_for_backward(a)
+        return Tensor(np.maximum(0, a.data), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        (a,) = ctx.saved_tensors
+        grad = grad_output.data * (a.data > 0).astype(np.float32)
+        return Tensor(grad, requires_grad=False)
+
+
+class Sigmoid(Function):
+    """Sigmoid activation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor) -> Tensor:
+        output = 1 / (1 + np.exp(-np.clip(a.data, -15, 15)))
+        ctx.save_value("output", output)
+        return Tensor(output, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        output = ctx.get_value("output")
+        grad = grad_output.data * output * (1 - output)
+        return Tensor(grad, requires_grad=False)
+
+
+class Tanh(Function):
+    """Tanh activation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor) -> Tensor:
+        output = np.tanh(a.data)
+        ctx.save_value("output", output)
+        return Tensor(output, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        output = ctx.get_value("output")
+        grad = grad_output.data * (1 - output * output)
+        return Tensor(grad, requires_grad=False)
+
+
+class Exp(Function):
+    """Exponential operation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor) -> Tensor:
+        output = np.exp(a.data)
+        ctx.save_value("output", output)
+        return Tensor(output, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        output = ctx.get_value("output")
+        grad = grad_output.data * output
+        return Tensor(grad, requires_grad=False)
+
+
+class Log(Function):
+    """Natural logarithm."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor) -> Tensor:
+        ctx.save_for_backward(a)
+        return Tensor(np.log(a.data), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        (a,) = ctx.saved_tensors
+        epsilon = 1e-8
+        grad = grad_output.data / (a.data + np.sign(a.data) * epsilon)
+        grad = np.clip(grad, -1e8, 1e8)
+        return Tensor(grad, requires_grad=False)
+
+
+class Abs(Function):
+    """Absolute value."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor) -> Tensor:
+        ctx.save_for_backward(a)
+        return Tensor(np.abs(a.data), requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        (a,) = ctx.saved_tensors
+        grad = grad_output.data * np.sign(a.data)
+        return Tensor(grad, requires_grad=False)
+
+
+class Sqrt(Function):
+    """Square root."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor) -> Tensor:
+        output = np.sqrt(np.maximum(a.data, 0.0))
+        ctx.save_value("output", output)
+        return Tensor(output, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        output = ctx.get_value("output")
+        epsilon = 1e-8
+        grad = grad_output.data / (2 * np.maximum(output, epsilon))
+        return Tensor(grad, requires_grad=False)
+
+
+class Clamp(Function):
+    """Clamp operation."""
+
+    @staticmethod
+    def forward(
+        ctx: Any,
+        a: Tensor,
+        min_val: Optional[float] = None,
+        max_val: Optional[float] = None,
+    ) -> Tensor:
+        ctx.save_for_backward(a)
+        ctx.save_value("min_val", min_val)
+        ctx.save_value("max_val", max_val)
+        result = a.data.copy()
+        if min_val is not None:
+            result = np.maximum(result, min_val)
+        if max_val is not None:
+            result = np.minimum(result, max_val)
+        return Tensor(result, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        (a,) = ctx.saved_tensors
+        min_val = ctx.get_value("min_val")
+        max_val = ctx.get_value("max_val")
+        mask = np.ones_like(a.data, dtype=np.float32)
+        if min_val is not None:
+            mask = mask * (a.data > min_val).astype(np.float32)
+        if max_val is not None:
+            mask = mask * (a.data < max_val).astype(np.float32)
+        grad = grad_output.data * mask
+        return Tensor(grad, requires_grad=False)
+
+
+class Softmax(Function):
+    """Softmax operation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, dim: int = -1) -> Tensor:
+        shifted = a.data - np.max(a.data, axis=dim, keepdims=True)
+        exp = np.exp(shifted)
+        output = exp / np.sum(exp, axis=dim, keepdims=True)
+        ctx.save_value("dim", dim)
+        ctx.save_value("output", output)
+        return Tensor(output, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        dim = ctx.get_value("dim")
+        output = ctx.get_value("output")
+        sum_grad = np.sum(grad_output.data * output, axis=dim, keepdims=True)
+        grad = output * (grad_output.data - sum_grad)
+        return Tensor(grad, requires_grad=False)
+
+
+class LogSoftmax(Function):
+    """LogSoftmax operation."""
+
+    @staticmethod
+    def forward(ctx: Any, a: Tensor, dim: int = -1) -> Tensor:
+        shifted = a.data - np.max(a.data, axis=dim, keepdims=True)
+        exp = np.exp(shifted)
+        log_sum_exp = np.log(np.sum(exp, axis=dim, keepdims=True))
+        output = shifted - log_sum_exp
+        ctx.save_value("dim", dim)
+        ctx.save_value("softmax", np.exp(output))
+        return Tensor(output, requires_grad=a.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tensor:
+        grad_output = grad_outputs[0]
+        dim = ctx.get_value("dim")
+        softmax = ctx.get_value("softmax")
+        sum_grad = np.sum(grad_output.data, axis=dim, keepdims=True)
+        grad = grad_output.data - softmax * sum_grad
+        return Tensor(grad, requires_grad=False)
 
 
 class Conv2DFunction(Function):
@@ -1798,6 +2503,152 @@ class StackFunction(Function):
         return tuple(grad_inputs)
 
 
+class EmbeddingLookup(Function):
+    """Embedding lookup operation."""
+
+    @staticmethod
+    def forward(
+        ctx: Any,
+        weight: Tensor,
+        input: Tensor,
+        padding_idx: Optional[int] = None,
+        max_norm: Optional[float] = None,
+        norm_type: float = 2.0,
+        scale_grad_by_freq: bool = False,
+    ) -> Tensor:
+        indices = input.data.astype(np.int64)
+        output_data = weight.data[indices]
+
+        if max_norm is not None:
+            norms = np.linalg.norm(output_data, ord=norm_type, axis=-1, keepdims=True)
+            mask = norms > max_norm
+            if np.any(mask):
+                output_data = np.where(
+                    mask,
+                    output_data * (max_norm / (norms + 1e-7)),
+                    output_data,
+                )
+
+        ctx.save_for_backward(weight)
+        ctx.save_value("indices", indices)
+        ctx.save_value("padding_idx", padding_idx)
+        ctx.save_value("scale_grad_by_freq", scale_grad_by_freq)
+        return Tensor(output_data, requires_grad=weight.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tuple[Optional[Tensor], None]:
+        grad_output = grad_outputs[0]
+        (weight,) = ctx.saved_tensors
+        grad_weight: Optional[Tensor] = None
+
+        if weight.requires_grad:
+            indices = ctx.get_value("indices")
+            padding_idx = ctx.get_value("padding_idx")
+            scale_grad_by_freq = ctx.get_value("scale_grad_by_freq", False)
+            grad_weight_data = np.zeros_like(weight.data)
+            flat_indices = indices.reshape(-1)
+            grad_data = grad_output.data.reshape(-1, weight.shape[1]).astype(np.float32)
+
+            if padding_idx is not None:
+                valid = flat_indices != padding_idx
+                flat_indices = flat_indices[valid]
+                grad_data = grad_data[valid]
+
+            if scale_grad_by_freq and flat_indices.size > 0:
+                counts = np.bincount(flat_indices, minlength=weight.shape[0]).astype(np.float32)
+                grad_data = grad_data / np.maximum(counts[flat_indices][:, None], 1.0)
+
+            if flat_indices.size > 0:
+                np.add.at(grad_weight_data, flat_indices, grad_data)
+            grad_weight = Tensor(grad_weight_data, requires_grad=False)
+
+        return grad_weight, None
+
+
+class EmbeddingBagLookup(Function):
+    """Embedding bag lookup operation."""
+
+    @staticmethod
+    def forward(
+        ctx: Any,
+        weight: Tensor,
+        input: Tensor,
+        mode: str = "mean",
+        padding_idx: Optional[int] = None,
+    ) -> Tensor:
+        indices = input.data.astype(np.int64)
+
+        if input.data.ndim == 1:
+            output_data = weight.data[indices]
+        else:
+            embedded = weight.data[indices]
+            if mode == "sum":
+                output_data = np.sum(embedded, axis=1)
+            elif mode == "mean":
+                output_data = np.mean(embedded, axis=1)
+            elif mode == "max":
+                output_data = np.max(embedded, axis=1)
+                ctx.save_value("max_positions", np.argmax(embedded, axis=1))
+            else:
+                raise ValueError(f"Unsupported embedding bag mode: {mode}")
+
+        ctx.save_for_backward(weight)
+        ctx.save_value("indices", indices)
+        ctx.save_value("mode", mode)
+        ctx.save_value("padding_idx", padding_idx)
+        ctx.save_value("input_ndim", input.data.ndim)
+        return Tensor(output_data, requires_grad=weight.requires_grad)
+
+    @staticmethod
+    def backward(ctx: Any, *grad_outputs: Any) -> Tuple[Optional[Tensor], None]:
+        grad_output = grad_outputs[0]
+        (weight,) = ctx.saved_tensors
+        grad_weight: Optional[Tensor] = None
+
+        if weight.requires_grad:
+            indices = ctx.get_value("indices")
+            mode = ctx.get_value("mode")
+            padding_idx = ctx.get_value("padding_idx")
+            input_ndim = ctx.get_value("input_ndim")
+            grad_weight_data = np.zeros_like(weight.data)
+
+            if input_ndim == 1:
+                flat_indices = indices.reshape(-1)
+                grad_data = grad_output.data.reshape(-1, weight.shape[1]).astype(np.float32)
+                if padding_idx is not None:
+                    valid = flat_indices != padding_idx
+                    flat_indices = flat_indices[valid]
+                    grad_data = grad_data[valid]
+                if flat_indices.size > 0:
+                    np.add.at(grad_weight_data, flat_indices, grad_data)
+            elif mode in ("sum", "mean"):
+                bag_size = indices.shape[1]
+                expanded_grad = np.repeat(grad_output.data[:, np.newaxis, :], bag_size, axis=1)
+                if mode == "mean":
+                    expanded_grad = expanded_grad / bag_size
+                flat_indices = indices.reshape(-1)
+                grad_data = expanded_grad.reshape(-1, weight.shape[1]).astype(np.float32)
+                if padding_idx is not None:
+                    valid = flat_indices != padding_idx
+                    flat_indices = flat_indices[valid]
+                    grad_data = grad_data[valid]
+                if flat_indices.size > 0:
+                    np.add.at(grad_weight_data, flat_indices, grad_data)
+            else:
+                max_positions = ctx.get_value("max_positions")
+                for n in range(indices.shape[0]):
+                    for d in range(weight.shape[1]):
+                        max_pos = int(max_positions[n, d])
+                        index = int(indices[n, max_pos])
+                        if padding_idx is not None and index == padding_idx:
+                            continue
+                        grad_weight_data[index, d] += grad_output.data[n, d]
+
+            grad_weight = Tensor(grad_weight_data, requires_grad=False)
+
+        return grad_weight, None
+
+
 class MaxPool2dFunction(Function):
     """2D max pooling operation.
 
@@ -3031,12 +3882,136 @@ def add(a: Tensor, b: Tensor) -> Tensor:
     return Add.apply(a, b)
 
 
+def neg(a: Tensor) -> Tensor:
+    return Neg.apply(a)
+
+
 def mul(a: Tensor, b: Tensor) -> Tensor:
     return Mul.apply(a, b)
 
 
+def div(a: Tensor, b: Tensor) -> Tensor:
+    return Div.apply(a, b)
+
+
+def pow(a: Tensor, exponent: Union[int, float]) -> Tensor:
+    return Pow.apply(a, exponent)
+
+
 def matmul(a: Tensor, b: Tensor) -> Tensor:
     return MatMul.apply(a, b)
+
+
+def batch_matmul(a: Tensor, b: Tensor) -> Tensor:
+    return BatchMatMul.apply(a, b)
+
+
+def reshape_tensor(a: Tensor, new_shape: Tuple[int, ...]) -> Tensor:
+    return Reshape.apply(a, new_shape)
+
+
+def squeeze_tensor(
+    a: Tensor, axis: Optional[Union[int, Tuple[int, ...]]] = None
+) -> Tensor:
+    return Squeeze.apply(a, axis)
+
+
+def permute_tensor(a: Tensor, *dims: int) -> Tensor:
+    return Permute.apply(a, *dims)
+
+
+def getitem_tensor(a: Tensor, key: Any) -> Tensor:
+    return GetItem.apply(a, key)
+
+
+def gather_tensor(a: Tensor, dim: int, index: Tensor) -> Tensor:
+    return Gather.apply(a, dim, index)
+
+
+def scatter_tensor(a: Tensor, dim: int, index: Tensor, src: Tensor) -> Tensor:
+    return Scatter.apply(a, dim, index, src)
+
+
+def sum_tensor(
+    a: Tensor,
+    axis: Optional[Union[int, Tuple[int, ...]]] = None,
+    keepdims: bool = False,
+) -> Tensor:
+    return Sum.apply(a, axis, keepdims)
+
+
+def mean_tensor(
+    a: Tensor,
+    axis: Optional[Union[int, Tuple[int, ...]]] = None,
+    keepdims: bool = False,
+) -> Tensor:
+    return Mean.apply(a, axis, keepdims)
+
+
+def prod_tensor(
+    a: Tensor,
+    axis: Optional[Union[int, Tuple[int, ...]]] = None,
+    keepdims: bool = False,
+) -> Tensor:
+    return Prod.apply(a, axis, keepdims)
+
+
+def max_tensor(
+    a: Tensor,
+    axis: Optional[Union[int, Tuple[int, ...]]] = None,
+    keepdims: bool = False,
+) -> Tensor:
+    return Max.apply(a, axis, keepdims)
+
+
+def min_tensor(
+    a: Tensor,
+    axis: Optional[Union[int, Tuple[int, ...]]] = None,
+    keepdims: bool = False,
+) -> Tensor:
+    return Min.apply(a, axis, keepdims)
+
+
+def relu_tensor(a: Tensor) -> Tensor:
+    return ReLU.apply(a)
+
+
+def sigmoid_tensor(a: Tensor) -> Tensor:
+    return Sigmoid.apply(a)
+
+
+def tanh_tensor(a: Tensor) -> Tensor:
+    return Tanh.apply(a)
+
+
+def exp_tensor(a: Tensor) -> Tensor:
+    return Exp.apply(a)
+
+
+def log_tensor(a: Tensor) -> Tensor:
+    return Log.apply(a)
+
+
+def abs_tensor(a: Tensor) -> Tensor:
+    return Abs.apply(a)
+
+
+def sqrt_tensor(a: Tensor) -> Tensor:
+    return Sqrt.apply(a)
+
+
+def clamp_tensor(
+    a: Tensor, min_val: Optional[float] = None, max_val: Optional[float] = None
+) -> Tensor:
+    return Clamp.apply(a, min_val, max_val)
+
+
+def softmax_tensor(a: Tensor, dim: int = -1) -> Tensor:
+    return Softmax.apply(a, dim)
+
+
+def log_softmax_tensor(a: Tensor, dim: int = -1) -> Tensor:
+    return LogSoftmax.apply(a, dim)
 
 
 def cat(tensors: List[Tensor], dim: int = 0) -> Tensor:
@@ -3045,3 +4020,30 @@ def cat(tensors: List[Tensor], dim: int = 0) -> Tensor:
 
 def stack(tensors: List[Tensor], dim: int = 0) -> Tensor:
     return StackFunction.apply(*tensors, dim=dim)
+
+
+def embedding_lookup(
+    weight: Tensor,
+    input: Tensor,
+    padding_idx: Optional[int] = None,
+    max_norm: Optional[float] = None,
+    norm_type: float = 2.0,
+    scale_grad_by_freq: bool = False,
+) -> Tensor:
+    return EmbeddingLookup.apply(
+        weight,
+        input,
+        padding_idx,
+        max_norm,
+        norm_type,
+        scale_grad_by_freq,
+    )
+
+
+def embedding_bag(
+    weight: Tensor,
+    input: Tensor,
+    mode: str = "mean",
+    padding_idx: Optional[int] = None,
+) -> Tensor:
+    return EmbeddingBagLookup.apply(weight, input, mode, padding_idx)

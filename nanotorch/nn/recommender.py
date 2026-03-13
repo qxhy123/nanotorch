@@ -24,6 +24,7 @@ from nanotorch.nn.normalization import LayerNorm
 from nanotorch.nn.embedding import Embedding
 from nanotorch.nn.fm import FactorizationMachine, CrossNetwork
 from nanotorch.tensor import Tensor
+from nanotorch.utils import cat, stack
 
 
 @dataclass
@@ -95,14 +96,9 @@ class FeatureEmbedding(Module):
         for i, feat in enumerate(self.sparse_features):
             indices = Tensor(x_np[:, i])
             emb = self.embeddings[feat.name](indices)  # (batch, embed_dim)
-            embedded_list.append(emb.data)
+            embedded_list.append(emb)
         
-        return Tensor(
-            np.stack(embedded_list, axis=1),
-            requires_grad=True,
-            _op='feature_embedding',
-            _parents=tuple(self.embeddings.values())
-        )
+        return stack(embedded_list, dim=1)
 
 
 class FMLayer(Module):
@@ -311,48 +307,35 @@ class DeepFM(Module):
         for i, feat in enumerate(self.sparse_features):
             indices = Tensor(x_sparse_np[:, i])
             emb = self.embeddings[feat.name](indices)
-            embedded_list.append(emb.data)
+            embedded_list.append(emb)
         
         # Stack embeddings: (batch, num_sparse, embed_dim)
-        embedded = Tensor(
-            np.stack(embedded_list, axis=1).astype(np.float32),
-            requires_grad=True
-        )
+        embedded = stack(embedded_list, dim=1)
         
         # FM component: second-order interactions
         fm_output = self.fm(embedded)  # (batch, 1)
         
         # Prepare DNN input: flatten embeddings + dense features
-        embedded_flat = embedded.data.reshape(batch_size, -1)  # (batch, num_sparse * embed_dim)
+        embedded_flat = embedded.reshape((batch_size, -1))  # (batch, num_sparse * embed_dim)
         
         if dense_input is not None and self.num_dense > 0:
-            dnn_input = np.concatenate([embedded_flat, dense_input.data], axis=1)
+            dnn_input_tensor = cat([embedded_flat, dense_input], dim=1)
         else:
-            dnn_input = embedded_flat
-        
-        dnn_input_tensor = Tensor(dnn_input.astype(np.float32), requires_grad=True)
+            dnn_input_tensor = embedded_flat
         dnn_output = self.dnn(dnn_input_tensor)  # (batch, 1)
         
         # Linear component: first-order interactions
+        sparse_linear_input = Tensor(x_sparse_np.astype(np.float32), requires_grad=False)
         if dense_input is not None and self.num_dense > 0:
-            linear_input = np.concatenate([x_sparse_np, dense_input.data], axis=1)
+            linear_input_tensor = cat([sparse_linear_input, dense_input], dim=1)
         else:
-            linear_input = x_sparse_np
-        linear_input_tensor = Tensor(linear_input.astype(np.float32), requires_grad=True)
+            linear_input_tensor = sparse_linear_input
         linear_output = self.linear(linear_input_tensor)  # (batch, 1)
         
         # Combine: FM + DNN + Linear
-        combined = fm_output.data + dnn_output.data + linear_output.data
+        combined = fm_output + dnn_output + linear_output
         
-        # Sigmoid for probability
-        output = Tensor(
-            1.0 / (1.0 + np.exp(-np.clip(combined, -15, 15))),
-            requires_grad=True,
-            _op='deepfm_output',
-            _parents=(fm_output, dnn_output, linear_output)
-        )
-        
-        return output
+        return combined.sigmoid()
 
 
 class WideDeep(Module):
@@ -431,34 +414,27 @@ class WideDeep(Module):
         for i, feat in enumerate(self.sparse_features):
             indices = Tensor(x_sparse_np[:, i])
             emb = self.embeddings[feat.name](indices)
-            embedded_list.append(emb.data)
+            embedded_list.append(emb)
         
-        embedded_flat = np.concatenate(embedded_list, axis=1)
+        embedded_flat = cat(embedded_list, dim=1)
         
         # Wide component
+        sparse_wide_input = Tensor(x_sparse_np.astype(np.float32), requires_grad=False)
         if dense_input is not None and self.num_dense > 0:
-            wide_input = np.concatenate([x_sparse_np, dense_input.data], axis=1)
+            wide_input_tensor = cat([sparse_wide_input, dense_input], dim=1)
         else:
-            wide_input = x_sparse_np
-        wide_input_tensor = Tensor(wide_input.astype(np.float32), requires_grad=True)
+            wide_input_tensor = sparse_wide_input
         wide_output = self.wide(wide_input_tensor)
         
         # Deep component
         if dense_input is not None and self.num_dense > 0:
-            deep_input = np.concatenate([embedded_flat, dense_input.data], axis=1)
+            deep_input_tensor = cat([embedded_flat, dense_input], dim=1)
         else:
-            deep_input = embedded_flat
-        deep_input_tensor = Tensor(deep_input.astype(np.float32), requires_grad=True)
+            deep_input_tensor = embedded_flat
         deep_output = self.deep(deep_input_tensor)
-        
-        # Combine
-        combined = wide_output.data + deep_output.data
-        output = Tensor(
-            1.0 / (1.0 + np.exp(-np.clip(combined, -15, 15))),
-            requires_grad=True
-        )
-        
-        return output
+
+        combined = wide_output + deep_output
+        return combined.sigmoid()
 
 
 class TwoTowerModel(Module):
@@ -543,15 +519,15 @@ class TwoTowerModel(Module):
         sparse_input: Tensor,
         sparse_features: List[SparseFeat],
         embeddings: Dict[str, Embedding]
-    ) -> np.ndarray:
-        """Embed sparse features and return concatenated array."""
+    ) -> Tensor:
+        """Embed sparse features and return concatenated tensor."""
         x_np = sparse_input.data.astype(np.int64)
         embedded_list = []
         for i, feat in enumerate(sparse_features):
             indices = Tensor(x_np[:, i])
             emb = embeddings[feat.name](indices)
-            embedded_list.append(emb.data)
-        return np.concatenate(embedded_list, axis=1)
+            embedded_list.append(emb)
+        return cat(embedded_list, dim=1)
     
     def encode_user(
         self,
@@ -570,11 +546,10 @@ class TwoTowerModel(Module):
         embedded = self._embed_features(user_sparse, self.user_sparse, self.user_embeddings)
         
         if user_dense is not None:
-            tower_input = np.concatenate([embedded, user_dense.data], axis=1)
+            tower_input_tensor = cat([embedded, user_dense], dim=1)
         else:
-            tower_input = embedded
-        
-        tower_input_tensor = Tensor(tower_input.astype(np.float32), requires_grad=True)
+            tower_input_tensor = embedded
+
         return self.user_tower(tower_input_tensor)
     
     def encode_item(
@@ -594,11 +569,10 @@ class TwoTowerModel(Module):
         embedded = self._embed_features(item_sparse, self.item_sparse, self.item_embeddings)
         
         if item_dense is not None:
-            tower_input = np.concatenate([embedded, item_dense.data], axis=1)
+            tower_input_tensor = cat([embedded, item_dense], dim=1)
         else:
-            tower_input = embedded
-        
-        tower_input_tensor = Tensor(tower_input.astype(np.float32), requires_grad=True)
+            tower_input_tensor = embedded
+
         return self.item_tower(tower_input_tensor)
     
     def forward(
@@ -624,12 +598,7 @@ class TwoTowerModel(Module):
         
         similarity = (user_emb * item_emb).sum(axis=1, keepdims=True)
         
-        output = Tensor(
-            1.0 / (1.0 + np.exp(-np.clip(similarity.data, -15, 15))),
-            requires_grad=True
-        )
-        
-        return output
+        return similarity.sigmoid()
 
 
 class NeuralCF(Module):
@@ -707,24 +676,13 @@ class NeuralCF(Module):
         
         user_mlp = self.user_embedding_mlp(user_idx)
         item_mlp = self.item_embedding_mlp(item_idx)
-        mlp_input = Tensor(
-            np.concatenate([user_mlp.data, item_mlp.data], axis=1).astype(np.float32),
-            requires_grad=True
-        )
+        mlp_input = cat([user_mlp, item_mlp], dim=1)
         mlp_output = self.mlp(mlp_input)  # (batch, embed_dim)
-        
-        combined = Tensor(
-            np.concatenate([gmf_output.data, mlp_output.data], axis=1).astype(np.float32),
-            requires_grad=True
-        )
+
+        combined = cat([gmf_output, mlp_output], dim=1)
         logits = self.output_layer(combined)  # (batch, 1)
-        
-        output = Tensor(
-            1.0 / (1.0 + np.exp(-np.clip(logits.data, -15, 15))),
-            requires_grad=True
-        )
-        
-        return output
+
+        return logits.sigmoid()
 
 
 class DCN(DeepFM):
@@ -767,25 +725,18 @@ class DCN(DeepFM):
         for i, feat in enumerate(self.sparse_features):
             indices = Tensor(x_sparse_np[:, i])
             emb = self.embeddings[feat.name](indices)
-            embedded_list.append(emb.data)
+            embedded_list.append(emb)
         
-        embedded_flat = np.concatenate(embedded_list, axis=1)
+        embedded_flat = cat(embedded_list, dim=1)
         
         if dense_input is not None and self.num_dense > 0:
-            combined_input = np.concatenate([embedded_flat, dense_input.data], axis=1)
+            combined_tensor = cat([embedded_flat, dense_input], dim=1)
         else:
-            combined_input = embedded_flat
-        
-        combined_tensor = Tensor(combined_input.astype(np.float32), requires_grad=True)
+            combined_tensor = embedded_flat
         
         cross_output = self.cross_network(combined_tensor)
         dnn_output = self.dnn(combined_tensor)
         
-        combined = cross_output.data + dnn_output.data
+        combined = cross_output + dnn_output
         
-        output = Tensor(
-            1.0 / (1.0 + np.exp(-np.clip(combined[:, :1], -15, 15))),
-            requires_grad=True
-        )
-        
-        return output
+        return combined[:, :1].sigmoid()

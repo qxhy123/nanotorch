@@ -17,6 +17,16 @@ def _to_numpy(data: Union[Tensor, np.ndarray]) -> np.ndarray:
     return np.asarray(data)
 
 
+def _snapshot_numpy(data: Union[Tensor, np.ndarray]) -> np.ndarray:
+    """Convert input to a detached NumPy snapshot for metric aggregation."""
+    return np.array(_to_numpy(data), copy=True)
+
+
+def _concatenate_batches(batches: List[np.ndarray]) -> np.ndarray:
+    """Concatenate accumulated metric batches."""
+    return np.concatenate(batches, axis=0)
+
+
 def auc_score(
     predictions: Union[Tensor, np.ndarray],
     targets: Union[Tensor, np.ndarray]
@@ -561,12 +571,12 @@ class RecommenderMetrics:
             targets: Batch of targets.
             batch_size: Optional batch size (inferred if not provided).
         """
-        predictions = _to_numpy(predictions)
-        targets = _to_numpy(targets)
-        
-        self._predictions.append(predictions)
-        self._targets.append(targets)
-        self._count += batch_size if batch_size else len(predictions)
+        predictions_np = _snapshot_numpy(predictions)
+        targets_np = _snapshot_numpy(targets)
+
+        self._predictions.append(predictions_np)
+        self._targets.append(targets_np)
+        self._count += batch_size if batch_size else len(predictions_np)
     
     def compute(self) -> Dict[str, float]:
         """Compute metrics on accumulated data.
@@ -578,8 +588,8 @@ class RecommenderMetrics:
             return {}
         
         # Concatenate all batches
-        all_predictions = np.concatenate(self._predictions, axis=0)
-        all_targets = np.concatenate(self._targets, axis=0)
+        all_predictions = _concatenate_batches(self._predictions)
+        all_targets = _concatenate_batches(self._targets)
         
         return compute_all_ranking_metrics(all_predictions, all_targets, self.ks)
     

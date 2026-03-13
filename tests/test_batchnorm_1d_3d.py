@@ -96,6 +96,21 @@ def test_batchnorm1d_forward_3d():
     print("✓ test_batchnorm1d_forward_3d passed")
 
 
+def test_batchnorm1d_cumulative_running_stats():
+    """Test cumulative running stats for BatchNorm1d when momentum=None."""
+    bn = BatchNorm1d(3, momentum=None, track_running_stats=True, affine=False)
+    x = nt.Tensor(np.arange(2 * 3 * 4, dtype=np.float32).reshape(2, 3, 4))
+
+    bn(x)
+
+    expected_mean = x.data.mean(axis=(0, 2))
+    expected_var = x.data.var(axis=(0, 2))
+    assert bn.num_batches_tracked is not None
+    assert bn.num_batches_tracked.data[0] == 1
+    assert np.allclose(bn.running_mean.data, expected_mean)
+    assert np.allclose(bn.running_var.data, expected_var)
+
+
 def test_batchnorm1d_forward_eval():
     """Test forward pass in evaluation mode."""
     bn = BatchNorm1d(16, track_running_stats=True)

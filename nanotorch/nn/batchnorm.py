@@ -9,6 +9,20 @@ from nanotorch.tensor import Tensor
 from .normalization import _BatchNorm
 
 
+def _update_running_stats_2d(
+    running_mean: Tensor,
+    running_var: Tensor,
+    batch_mean: Tensor,
+    batch_var: Tensor,
+    momentum: float,
+) -> None:
+    """Update BatchNorm2d running statistics in buffer space."""
+    mean_data = batch_mean.data.squeeze(axis=(0, 2, 3))
+    var_data = batch_var.data.squeeze(axis=(0, 2, 3))
+    running_mean.data = (1 - momentum) * running_mean.data + momentum * mean_data
+    running_var.data = (1 - momentum) * running_var.data + momentum * var_data
+
+
 class BatchNorm2d(_BatchNorm):
     """Batch Normalization layer for 2D inputs (4D tensors).
 
@@ -108,13 +122,7 @@ def batch_norm(
 
         # Update running statistics if provided
         if running_mean is not None and running_var is not None:
-            # Squeeze dimensions (0, 2, 3) to get shape (C,)
-            mean_squeezed = mean.data.squeeze(axis=(0, 2, 3))
-            var_squeezed = var.data.squeeze(axis=(0, 2, 3))
-            running_mean.data = (
-                1 - momentum
-            ) * running_mean.data + momentum * mean_squeezed
-            running_var.data = (1 - momentum) * running_var.data + momentum * var_squeezed
+            _update_running_stats_2d(running_mean, running_var, mean, var, momentum)
     else:
         if running_mean is None or running_var is None:
             raise ValueError(

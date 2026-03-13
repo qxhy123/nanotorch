@@ -7,6 +7,7 @@ finite difference gradient checking.
 
 import numpy as np
 import nanotorch as nt
+from nanotorch.autograd import backward as autograd_backward
 
 
 def finite_difference_gradient(func, tensor, eps=1e-5):
@@ -221,6 +222,30 @@ def test_gradient_matmul():
     print("  ✓ 3x2 @ 2x4 matrix multiplication")
 
     print("✓ All matmul gradient tests passed")
+
+
+def test_gradient_batch_matmul():
+    """Test gradient for batched matrix multiplication."""
+    print("Testing gradient for batched matrix multiplication...")
+
+    a = nt.Tensor.randn((2, 3, 4), requires_grad=True)
+    b = nt.Tensor.randn((2, 4, 5), requires_grad=True)
+
+    def batch_matmul_func(x, y):
+        return x.matmul(y)
+
+    pass_check, results = gradient_check(batch_matmul_func, [a, b])
+    assert pass_check, f"Batch matmul gradient failed: {results}"
+    print("  ✓ 3D batched matrix multiplication")
+
+    a = nt.Tensor.randn((4,), requires_grad=True)
+    b = nt.Tensor.randn((2, 4, 3), requires_grad=True)
+
+    pass_check, results = gradient_check(batch_matmul_func, [a, b])
+    assert pass_check, f"Broadcasted batch matmul gradient failed: {results}"
+    print("  ✓ broadcasted vector-matrix batch multiplication")
+
+    print("✓ All batched matmul gradient tests passed")
 
 
 def test_gradient_division():
@@ -461,6 +486,40 @@ def test_gradient_shape_operations():
     print("✓ All shape operation gradient tests passed")
 
 
+def test_gradient_reduction_ops():
+    """Test gradient for prod, max, and min reductions."""
+    print("Testing gradient for reduction ops...")
+
+    a = nt.Tensor([[1.3, 0.8], [2.1, 1.7]], requires_grad=True)
+
+    def prod_func(x):
+        return x.prod(axis=1)
+
+    pass_check, results = gradient_check(prod_func, [a], eps=1e-4, rtol=3e-2, atol=2e-3)
+    assert pass_check, f"Prod gradient failed: {results}"
+    print("  ✓ Prod reduction")
+
+    a = nt.Tensor([[1.0, 3.0], [2.0, 0.5]], requires_grad=True)
+
+    def max_func(x):
+        return x.max(axis=1)
+
+    pass_check, results = gradient_check(max_func, [a], eps=1e-4, rtol=2e-2, atol=1e-3)
+    assert pass_check, f"Max gradient failed: {results}"
+    print("  ✓ Max reduction")
+
+    a = nt.Tensor([[1.0, 3.0], [2.0, 0.5]], requires_grad=True)
+
+    def min_func(x):
+        return x.min(axis=1)
+
+    pass_check, results = gradient_check(min_func, [a], eps=1e-4, rtol=2e-2, atol=1e-3)
+    assert pass_check, f"Min gradient failed: {results}"
+    print("  ✓ Min reduction")
+
+    print("✓ All reduction gradient tests passed")
+
+
 def test_gradient_subtraction():
     """Test gradient for subtraction (implemented as addition with negation)."""
     print("Testing gradient for subtraction...")
@@ -529,6 +588,39 @@ def test_gradient_chained_operations():
     print("  ✓ exp(log(x^2+1))")
 
     print("✓ All chained operations gradient tests passed")
+
+
+def test_autograd_backward_matches_tensor_backward():
+    """Test that the module-level backward API matches Tensor.backward."""
+    x = nt.Tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+    y = nt.Tensor([[0.5, 1.5], [2.0, -1.0]], requires_grad=True)
+
+    loss = ((x @ y).sum() + (x * y).mean())
+    autograd_backward(loss)
+
+    x_grad_autograd = x.grad.data.copy()
+    y_grad_autograd = y.grad.data.copy()
+
+    x.zero_grad()
+    y.zero_grad()
+
+    loss = ((x @ y).sum() + (x * y).mean())
+    loss.backward()
+
+    np.testing.assert_allclose(x.grad.data, x_grad_autograd)
+    np.testing.assert_allclose(y.grad.data, y_grad_autograd)
+
+
+def test_autograd_backward_supports_explicit_gradient():
+    """Test that the module-level backward API respects explicit gradients."""
+    x = nt.Tensor([1.0, 2.0, 3.0], requires_grad=True)
+    y = x * x
+    grad_output = nt.Tensor([1.0, 0.5, -2.0], requires_grad=False)
+
+    autograd_backward(y, grad_output)
+
+    expected = 2.0 * x.data * grad_output.data
+    np.testing.assert_allclose(x.grad.data, expected)
 
 
 def test_no_grad_context():

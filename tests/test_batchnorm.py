@@ -149,6 +149,21 @@ def test_batchnorm2d_affine_false():
     print("✓ test_batchnorm2d_affine_false passed")
 
 
+def test_batchnorm2d_cumulative_running_stats():
+    """Test cumulative running stats when momentum=None."""
+    bn = BatchNorm2d(3, momentum=None, track_running_stats=True, affine=False)
+    x = nt.Tensor(np.arange(2 * 3 * 2 * 2, dtype=np.float32).reshape(2, 3, 2, 2))
+
+    bn(x)
+
+    expected_mean = x.data.mean(axis=(0, 2, 3))
+    expected_var = x.data.var(axis=(0, 2, 3))
+    assert bn.num_batches_tracked is not None
+    assert bn.num_batches_tracked.data[0] == 1
+    assert np.allclose(bn.running_mean.data, expected_mean)
+    assert np.allclose(bn.running_var.data, expected_var)
+
+
 def test_batchnorm2d_gradient_flow():
     """Test gradient computation through BatchNorm2d."""
     bn = BatchNorm2d(8, affine=True)

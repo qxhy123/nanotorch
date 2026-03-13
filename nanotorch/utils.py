@@ -526,33 +526,15 @@ def split(
                 f"dimension size ({dim_size})"
             )
     
-    # Generate split indices
-    split_indices = np.cumsum(split_sizes)[:-1]
-    
-    # Split the numpy array
-    arrays = np.split(tensor.data, split_indices, axis=dim)
-    
-    # Create tensor objects
     results = []
-    for i, arr in enumerate(arrays):
-        if tensor.requires_grad:
-            # Create tensor with autograd info
-            result = Tensor(
-                arr,
-                requires_grad=True,
-                _op="split",
-                _parents=(tensor,),
-                _ctx={
-                    "dim": dim,
-                    "split_sizes": split_sizes,
-                    "split_index": i,
-                    "total_splits": len(arrays)
-                }
-            )
-        else:
-            result = Tensor(arr, requires_grad=False)
-        results.append(result)
-    
+    start = 0
+    for split_size in split_sizes:
+        end = start + split_size
+        idx = [slice(None)] * tensor.ndim
+        idx[dim] = slice(start, end)
+        results.append(tensor[tuple(idx)])
+        start = end
+
     return tuple(results)
 
 

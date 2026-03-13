@@ -76,41 +76,16 @@ class Embedding(Module):
         Returns:
             Tensor of embeddings with shape (*, embedding_dim).
         """
-        indices = input.data.astype(np.int64)
-        output_data = self.weight.data[indices]
+        from nanotorch.autograd import embedding_lookup as autograd_embedding_lookup
 
-        if self.max_norm is not None:
-            norms = np.linalg.norm(output_data, ord=self.norm_type, axis=-1, keepdims=True)
-            mask = norms > self.max_norm
-            if np.any(mask):
-                output_data = np.where(
-                    mask,
-                    output_data * (self.max_norm / (norms + 1e-7)),
-                    output_data
-                )
-
-        result = Tensor(
-            output_data,
-            requires_grad=self.weight.requires_grad,
-            _op="embedding",
-            _parents=(self.weight, input),
+        return autograd_embedding_lookup(
+            self.weight,
+            input,
+            self.padding_idx,
+            self.max_norm,
+            self.norm_type,
+            self.scale_grad_by_freq,
         )
-
-        if self.weight.requires_grad:
-            result._fn = self._backward
-
-        return result
-
-    def _backward(self, grad: np.ndarray, parents: tuple) -> None:
-        weight, input = parents
-        if weight.requires_grad:
-            indices = input.data.astype(np.int64)
-            grad_weight = np.zeros_like(weight.data)
-            np.add.at(grad_weight, indices, grad)
-            if weight.grad is None:
-                weight.grad = grad_weight
-            else:
-                weight.grad += grad_weight
 
     def extra_repr(self) -> str:
         s = f"{self.num_embeddings}, {self.embedding_dim}"
@@ -182,84 +157,9 @@ class EmbeddingBag(Module):
         Returns:
             Tensor with shape (N, embedding_dim).
         """
-        indices = input.data.astype(np.int64)
+        from nanotorch.autograd import embedding_bag as autograd_embedding_bag
 
-        if input.data.ndim == 1:
-            embedded = self.weight.data[indices]
-            output_data = embedded
-        else:
-            embedded = self.weight.data[indices]
-
-            if self.mode == "sum":
-                output_data = np.sum(embedded, axis=1)
-            elif self.mode == "mean":
-                output_data = np.mean(embedded, axis=1)
-            elif self.mode == "max":
-                output_data = np.max(embedded, axis=1)
-
-        # Store info needed for backward pass
-        result = Tensor(
-            output_data,
-            requires_grad=self.weight.requires_grad,
-            _op="embedding_bag",
-            _parents=(self.weight, input),
-        )
-
-        if self.weight.requires_grad:
-            # Store additional info for backward
-            result._ctx = {
-                "indices": indices,
-                "mode": self.mode,
-                "input_shape": input.data.shape,
-            }
-            result._fn = self._backward
-
-        return result
-
-    def _backward(self, grad: np.ndarray, parents: tuple) -> None:
-        """Backward pass for EmbeddingBag."""
-        weight, input = parents
-        if not weight.requires_grad:
-            return
-
-        # For now, we need to recalculate indices
-        indices = input.data.astype(np.int64)
-        grad_weight = np.zeros_like(weight.data)
-
-        if input.data.ndim == 1:
-            # Direct indexing case
-            np.add.at(grad_weight, indices, grad)
-        else:
-            # Bag case - need to scatter gradient back
-            if self.mode == "sum":
-                # Each element in the bag gets the full gradient
-                # grad shape: (N, embedding_dim)
-                # indices shape: (N, L)
-                # We need to add grad[n] to all positions indices[n, :]
-                bag_size = indices.shape[1]
-                expanded_grad = np.repeat(grad[:, np.newaxis, :], bag_size, axis=1)
-                np.add.at(grad_weight, indices, expanded_grad)
-            elif self.mode == "mean":
-                # Each element gets gradient / bag_size
-                bag_size = indices.shape[1]
-                expanded_grad = np.repeat(grad[:, np.newaxis, :], bag_size, axis=1) / bag_size
-                np.add.at(grad_weight, indices, expanded_grad)
-            elif self.mode == "max":
-                # Only the max element gets the gradient
-                # Need to find which element was the max
-                embedded = weight.data[indices]  # (N, L, D)
-                max_indices = np.argmax(embedded, axis=1)  # (N, D)
-                # For each batch and dimension, scatter gradient to the max position
-                for n in range(indices.shape[0]):
-                    for d in range(weight.data.shape[1]):
-                        max_pos = max_indices[n, d]
-                        idx = indices[n, max_pos]
-                        grad_weight[idx, d] += grad[n, d]
-
-        if weight.grad is None:
-            weight.grad = grad_weight
-        else:
-            weight.grad += grad_weight
+        return autograd_embedding_bag(self.weight, input, self.mode, self.padding_idx)
 
     def extra_repr(self) -> str:
         s = f"{self.num_embeddings}, {self.embedding_dim}, mode='{self.mode}'"

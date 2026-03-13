@@ -202,8 +202,10 @@ class MultiheadAttention(Module):
             attn_weights = attn_weights + Tensor(causal_mask)
 
         if key_padding_mask is not None:
-            mask = key_padding_mask.data[:, None, None, :]
-            attn_weights = attn_weights + Tensor(mask * -1e9)
+            mask = key_padding_mask.reshape(
+                (key_padding_mask.shape[0], 1, 1, key_padding_mask.shape[1])
+            )
+            attn_weights = attn_weights + (mask * -1e9)
 
         if attn_mask is not None:
             attn_weights = attn_weights + attn_mask
