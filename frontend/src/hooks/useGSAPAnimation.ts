@@ -160,6 +160,8 @@ export const useGSAPAnimation = () => {
     return timelineRef.current?.time() || 0;
   }, []);
 
+  const getTimeline = useCallback(() => timelineRef.current, []);
+
   /**
    * Clean up timeline on unmount
    */
@@ -173,7 +175,7 @@ export const useGSAPAnimation = () => {
 
   return {
     // Timeline
-    timeline: timelineRef.current,
+    getTimeline,
     createTimeline,
 
     // Playback controls
@@ -187,8 +189,8 @@ export const useGSAPAnimation = () => {
     // State
     isPlaying,
     progress,
-    duration: duration(),
-    currentTime: currentTime(),
+    duration,
+    currentTime,
 
     // Store
     animationTimelines,
@@ -276,13 +278,15 @@ export const useGSAPElement = <T extends HTMLElement>() => {
     };
   }, [kill]);
 
+  const getAnimation = useCallback(() => animationRef.current, []);
+
   return {
     ref: elementRef,
     animate,
     animateFrom,
     animateFromTo,
     kill,
-    animation: animationRef.current,
+    getAnimation,
   };
 };
 
@@ -304,7 +308,7 @@ export const useAttentionStageAnimation = () => {
     });
 
     // Add animations for each stage transition
-    allStages.forEach((_stage, _index) => {
+    allStages.forEach(() => {
       tl.to({}, {
         duration: 0.5,
         onStart: () => {

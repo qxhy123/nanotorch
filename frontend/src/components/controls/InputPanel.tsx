@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useTransformerStore } from '../../stores/transformerStore';
+import { DisclosureSection } from '../layout/DisclosureSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
@@ -7,30 +8,104 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Play } from 'lucide-react';
 import { transformerApi } from '../../services/api';
-import { Latex } from '../ui/Latex';
+import type { TransformerInput } from '../../types/transformer';
+import {
+  buildTokenizerTrainingTexts,
+  getEffectiveTokenizerVocabSize,
+  tokenizeForTransformer,
+} from '../../services/transformerTokenizer';
 
 export const InputPanel: React.FC = () => {
-  // 使用 selector 来确保状态正确更新
   const inputText = useTransformerStore((state) => state.inputText);
   const targetText = useTransformerStore((state) => state.targetText);
+  const config = useTransformerStore((state) => state.config);
   const isLoading = useTransformerStore((state) => state.isLoading);
   const error = useTransformerStore((state) => state.error);
-  const config = useTransformerStore((state) => state.config);
+  const tokenizerType = useTransformerStore((state) => state.tokenizerType);
+  const tokenizerVocabSize = useTransformerStore((state) => state.tokenizerVocabSize);
+  const tokenizerNumMerges = useTransformerStore((state) => state.tokenizerNumMerges);
+  const tokenizationResult = useTransformerStore((state) => state.tokenizationResult);
+  const isTokenizing = useTransformerStore((state) => state.isTokenizing);
 
   const setInputText = useTransformerStore((state) => state.setInputText);
   const setTargetText = useTransformerStore((state) => state.setTargetText);
+  const setTokens = useTransformerStore((state) => state.setTokens);
   const setTargetTokens = useTransformerStore((state) => state.setTargetTokens);
   const setOutput = useTransformerStore((state) => state.setOutput);
   const setLoading = useTransformerStore((state) => state.setLoading);
   const setError = useTransformerStore((state) => state.setError);
+  const setIsTokenizing = useTransformerStore((state) => state.setIsTokenizing);
+  const setTokenizationResult = useTransformerStore((state) => state.setTokenizationResult);
+  const setTokenizationError = useTransformerStore((state) => state.setTokenizationError);
 
-  // 实时 tokenization
-  const currentTokens = React.useMemo(() => {
-    if (!inputText) return [];
-    return Array.from(inputText).map((char) =>
-      (char.charCodeAt(0) % config.vocab_size)
-    );
-  }, [inputText, config.vocab_size]);
+  const trainingTexts = useMemo(
+    () => buildTokenizerTrainingTexts(inputText, targetText),
+    [inputText, targetText]
+  );
+  const effectiveTokenizerVocabSize = useMemo(
+    () => getEffectiveTokenizerVocabSize(tokenizerVocabSize, config.vocab_size),
+    [tokenizerVocabSize, config.vocab_size]
+  );
+  const previewTokenIds = tokenizationResult?.tokenIds.slice(0, config.max_seq_len) ?? [];
+  const previewTokens = tokenizationResult?.tokens.slice(0, config.max_seq_len) ?? [];
+  const totalTokenCount = tokenizationResult?.tokenIds.length ?? 0;
+  const isInputTruncated = totalTokenCount > config.max_seq_len;
+
+  useEffect(() => {
+    if (!inputText.trim()) {
+      setTokenizationResult(null);
+      setTokenizationError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      setIsTokenizing(true);
+
+      try {
+        const result = await tokenizeForTransformer({
+          text: inputText,
+          tokenizerType,
+          tokenizerVocabSize,
+          tokenizerNumMerges,
+          modelVocabSize: config.vocab_size,
+          maxSeqLen: config.max_seq_len,
+          trainingTexts,
+        });
+
+        if (!cancelled) {
+          setTokenizationResult(result.tokenization);
+        }
+      } catch (tokenizeError: unknown) {
+        if (!cancelled) {
+          const message = tokenizeError instanceof Error
+            ? tokenizeError.message
+            : 'Failed to tokenize input';
+          setTokenizationError(message);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsTokenizing(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    inputText,
+    tokenizerType,
+    tokenizerVocabSize,
+    tokenizerNumMerges,
+    config.vocab_size,
+    config.max_seq_len,
+    trainingTexts,
+    setIsTokenizing,
+    setTokenizationResult,
+    setTokenizationError,
+  ]);
 
   const handleRun = async () => {
     if (!inputText.trim()) {
@@ -41,46 +116,63 @@ export const InputPanel: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    // 强制延迟以确保 UI 更新
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     try {
-      // Simple tokenization: character to token ID mapping
-      const tokenIds = currentTokens;
-
-      // Prepare input data
-      const inputData: any = {
+      const sourceTokenization = await tokenizeForTransformer({
         text: inputText,
-        tokens: tokenIds,
+        tokenizerType,
+        tokenizerVocabSize,
+        tokenizerNumMerges,
+        modelVocabSize: config.vocab_size,
+        maxSeqLen: config.max_seq_len,
+        trainingTexts,
+      });
+
+      setTokenizationResult(sourceTokenization.tokenization);
+      setTokens(sourceTokenization.truncatedTokenIds);
+
+      const inputData: TransformerInput = {
+        text: inputText,
+        tokens: sourceTokenization.truncatedTokenIds,
       };
 
-      // Add target text if decoder layers are configured and target text is provided
-      if (config.num_decoder_layers > 0 && targetText.trim()) {
-        const targetTokenIds = Array.from(targetText).map((char) =>
-          (char.charCodeAt(0) % config.vocab_size)
-        );
-        inputData.targetText = targetText;
-        inputData.targetTokens = targetTokenIds;
-        setTargetTokens(targetTokenIds);
+      if (config.num_decoder_layers > 0) {
+        if (targetText.trim()) {
+          const targetTokenization = await tokenizeForTransformer({
+            text: targetText,
+            tokenizerType,
+            tokenizerVocabSize,
+            tokenizerNumMerges,
+            modelVocabSize: config.vocab_size,
+            maxSeqLen: config.max_seq_len,
+            trainingTexts,
+          });
+
+          inputData.targetText = targetText;
+          inputData.targetTokens = targetTokenization.truncatedTokenIds;
+          setTargetTokens(targetTokenization.truncatedTokenIds);
+        } else {
+          setTargetTokens(sourceTokenization.truncatedTokenIds);
+        }
+      } else {
+        setTargetTokens([]);
       }
 
-      const result = await transformerApi.forward(
-        config,
-        inputData,
-        {
-          returnAttention: true,
-          returnAllLayers: true,
-          returnEmbeddings: true,
-        }
-      );
+      const result = await transformerApi.forward(config, inputData, {
+        returnAttention: true,
+        returnAllLayers: false,
+        returnEmbeddings: true,
+      });
 
       if (result.success && result.data) {
         setOutput(result);
       } else {
         setError(result.error || 'Failed to run forward pass');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to run forward pass');
+    } catch (runError: unknown) {
+      const message = runError instanceof Error ? runError.message : 'Failed to run forward pass';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -94,10 +186,12 @@ export const InputPanel: React.FC = () => {
     <Card>
       <CardHeader>
         <CardTitle>Input</CardTitle>
-        <CardDescription>Enter text to process through the Transformer</CardDescription>
+        <CardDescription>
+          Enter text to process through the Transformer using the shared tokenizer pipeline.
+          Higher disclosure levels unlock token previews and decoder-side controls.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Input Text */}
         <div className="space-y-2">
           <Label htmlFor="input-text">Input Text</Label>
           <Textarea
@@ -109,90 +203,105 @@ export const InputPanel: React.FC = () => {
             className="resize-none"
           />
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Length: {inputText.length} characters</span>
-            {inputText.length > config.max_seq_len && (
-              <Badge variant="destructive">Exceeds max length</Badge>
+            <span>Length: {Array.from(inputText).length} characters</span>
+            {isInputTruncated && (
+              <Badge variant="destructive">
+                Will truncate to {config.max_seq_len} tokens
+              </Badge>
             )}
           </div>
         </div>
 
-        {/* Token IDs Visualization */}
-        {currentTokens.length > 0 && (
-          <div className="space-y-2">
-            <Label>Token IDs</Label>
-            <div className="p-3 bg-muted rounded-md space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Vocabulary Size:</span>
-                <Badge variant="secondary">{config.vocab_size.toLocaleString()}</Badge>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Embedding Layer:</span>
-                <Badge variant="secondary">({config.vocab_size.toLocaleString()}, {config.d_model})</Badge>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Each character is mapped to a token ID using: <Latex>{`\\text{charCodeAt}(0) \\bmod \\text{vocab\\_size}`}</Latex>
-              </div>
-              <div className="mt-2">
-                <div className="text-xs text-muted-foreground mb-1">
-                  Tokenization ({currentTokens.length} tokens):
+        {(previewTokenIds.length > 0 || isTokenizing) && (
+          <DisclosureSection
+            level="intermediate"
+            title="Runtime token preview"
+            description="Token IDs and tokenizer-cap details unlock at the Intermediate level."
+          >
+            <div className="space-y-2">
+              <Label>Runtime Tokens</Label>
+              <div className="p-3 bg-muted rounded-md space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <Badge variant="secondary">Tokenizer: {tokenizerType}</Badge>
+                  <Badge variant="secondary">
+                    Effective vocab: {effectiveTokenizerVocabSize.toLocaleString()}
+                  </Badge>
+                  {tokenizerVocabSize > config.vocab_size && (
+                    <Badge variant="outline">
+                      Capped by model vocab ({config.vocab_size.toLocaleString()})
+                    </Badge>
+                  )}
+                  {isTokenizing && (
+                    <Badge variant="outline">Updating preview...</Badge>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {currentTokens.slice(0, 32).map((tokenId, idx) => {
-                    const char = inputText[idx];
-                    return (
-                      <div key={idx} className="flex flex-col items-center">
-                        <div className="w-8 h-8 flex items-center justify-center bg-background border rounded text-xs font-mono">
-                          {char}
+                <div className="text-xs text-muted-foreground">
+                  This preview uses the same tokenizer API and vocab cap as the actual forward pass.
+                </div>
+                <div className="mt-2">
+                  <div className="text-xs text-muted-foreground mb-1">
+                    Tokenization ({previewTokenIds.length} tokens used
+                    {totalTokenCount > 0 ? ` / ${totalTokenCount} total` : ''}):
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {previewTokenIds.slice(0, 24).map((tokenId, idx) => (
+                      <div key={`${tokenId}-${idx}`} className="flex max-w-[6rem] flex-col items-center">
+                        <div className="min-h-8 min-w-8 max-w-[6rem] truncate rounded border bg-background px-2 py-1 text-xs font-mono">
+                          {previewTokens[idx] ?? `<${idx}>`}
                         </div>
                         <div className="text-[10px] text-muted-foreground font-mono">
                           {tokenId}
                         </div>
                       </div>
-                    );
-                  })}
-                  {currentTokens.length > 32 && (
-                    <div className="flex items-center text-xs text-muted-foreground">
-                      +{currentTokens.length - 32} more
-                    </div>
-                  )}
+                    ))}
+                    {previewTokenIds.length > 24 && (
+                      <div className="flex items-center text-xs text-muted-foreground">
+                        +{previewTokenIds.length - 24} more
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </DisclosureSection>
         )}
 
-        {/* Decoder Input (Optional) */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="target-text">Decoder Input (Optional)</Label>
-            <div className="flex gap-2">
-              {config.num_decoder_layers > 0 && (
-                <Badge variant="secondary">Decoder enabled</Badge>
-              )}
-              <Badge variant="outline">Length: {targetText.length}</Badge>
+        <DisclosureSection
+          level="detailed"
+          title="Optional decoder input"
+          description="Separate decoder-side text input unlocks at the Detailed level."
+        >
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="target-text">Decoder Input (Optional)</Label>
+              <div className="flex gap-2">
+                {config.num_decoder_layers > 0 && (
+                  <Badge variant="secondary">Decoder enabled</Badge>
+                )}
+                <Badge variant="outline">Length: {Array.from(targetText).length}</Badge>
+              </div>
             </div>
+            <Textarea
+              id="target-text"
+              placeholder={
+                config.num_decoder_layers > 0
+                  ? 'Optional: Provide target sequence for decoder visualization. Leave empty to reuse the source sequence.'
+                  : 'Decoder input only available when decoder layers are configured'
+              }
+              value={targetText}
+              onChange={(e) => setTargetText(e.target.value)}
+              rows={2}
+              className="resize-none"
+              disabled={config.num_decoder_layers === 0}
+            />
+            {config.num_decoder_layers > 0 && (
+              <p className="text-xs text-muted-foreground">
+                If left empty, the source runtime tokens are reused as the decoder input.
+              </p>
+            )}
           </div>
-          <Textarea
-            id="target-text"
-            placeholder={
-              config.num_decoder_layers > 0
-                ? "Optional: Provide target sequence for decoder (for visualization). Leave empty to use source as target."
-                : "Decoder input only available when decoder layers are configured"
-            }
-            value={targetText}
-            onChange={(e) => setTargetText(e.target.value)}
-            rows={2}
-            className="resize-none"
-            disabled={config.num_decoder_layers === 0}
-          />
-          {config.num_decoder_layers > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Optional: For seq2seq visualization. If empty, the source sequence will be used as decoder input.
-            </p>
-          )}
-        </div>
+        </DisclosureSection>
 
-        {/* Decoder Output */}
         {config.num_decoder_layers > 0 && isLoading && (
           <div className="space-y-2">
             <Label>Decoder Output</Label>
@@ -205,7 +314,6 @@ export const InputPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Encoder Output (for encoder-only mode) */}
         {config.num_decoder_layers === 0 && isLoading && (
           <div className="space-y-2">
             <Label>Encoder Output</Label>
@@ -218,7 +326,6 @@ export const InputPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Quick Examples */}
         <div className="space-y-2">
           <Label>Quick Examples</Label>
           <div className="flex flex-wrap gap-2">
@@ -249,7 +356,6 @@ export const InputPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Run Button */}
         <Button
           onClick={handleRun}
           disabled={isLoading || !inputText.trim()}
@@ -262,7 +368,6 @@ export const InputPanel: React.FC = () => {
           Run Forward Pass
         </Button>
 
-        {/* Error Display */}
         {error && (
           <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
             {error}

@@ -91,7 +91,7 @@ export const ResidualConnection: React.FC<{ className?: string }> = ({ className
     }
 
     return { layers, initialInput };
-  }, [networkDepth, showResidual]);
+  }, [networkDepth]);
 
   // Interactive demo data
   const [inputValues, setInputValues] = useState<number[]>([1.0, 2.0, 1.5, 0.5]);

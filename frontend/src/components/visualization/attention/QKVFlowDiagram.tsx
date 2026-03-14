@@ -42,8 +42,10 @@ export const QKVFlowDiagram: React.FC<QKVFlowDiagramProps> = ({ attentionData, t
   const { queries, keys, values, scale } = attentionData;
 
   // Get matrix dimensions
-  const getShape = (tensor: any) => {
-    if (!tensor || !tensor.shape) return [0, 0];
+  const getShape = (tensor?: { shape?: number[] } | null): number[] => {
+    if (!Array.isArray(tensor?.shape)) {
+      return [];
+    }
     return tensor.shape;
   };
 
@@ -59,7 +61,7 @@ export const QKVFlowDiagram: React.FC<QKVFlowDiagramProps> = ({ attentionData, t
       description: `Sequence of tokens [${tokens.join(', ') || 'tokens'}]`,
       formula: 'X',
       color: '#22c55e',
-      shape: [qShape[0] || 128],
+      shape: [qShape[0] ?? 128],
       icon: '📝',
     },
     {
@@ -95,7 +97,7 @@ export const QKVFlowDiagram: React.FC<QKVFlowDiagramProps> = ({ attentionData, t
       description: 'Measure similarity between queries and keys',
       formula: 'Q · K^T',
       color: '#8b5cf6',
-      shape: [qShape[0] || 128, kShape[0] || 128],
+      shape: [qShape[0] ?? 128, kShape[0] ?? 128],
       icon: '✖️',
     },
     {
@@ -104,7 +106,7 @@ export const QKVFlowDiagram: React.FC<QKVFlowDiagramProps> = ({ attentionData, t
       description: `Divide by √dₖ to prevent large values\nScale factor: 1/√dₖ = ${(1 / scale).toFixed(4)}`,
       formula: '\\frac{QK^T}{\\sqrt{d_k}}',
       color: '#a855f7',
-      shape: [qShape[0] || 128, kShape[0] || 128],
+      shape: [qShape[0] ?? 128, kShape[0] ?? 128],
       icon: '⚖️',
     },
     {
@@ -113,7 +115,7 @@ export const QKVFlowDiagram: React.FC<QKVFlowDiagramProps> = ({ attentionData, t
       description: 'Convert to probabilities (sum to 1)',
       formula: '\\text{softmax}(\\frac{QK^T}{\\sqrt{d_k}})',
       color: '#ec4899',
-      shape: [qShape[0] || 128, kShape[0] || 128],
+      shape: [qShape[0] ?? 128, kShape[0] ?? 128],
       icon: '📊',
     },
     {
@@ -122,7 +124,7 @@ export const QKVFlowDiagram: React.FC<QKVFlowDiagramProps> = ({ attentionData, t
       description: 'Final output = attention weights × values',
       formula: '\\text{softmax}(...) · V',
       color: '#f59e0b',
-      shape: [qShape[0] || 128, vShape[1] || 512],
+      shape: [qShape[0] ?? 128, vShape[1] ?? 512],
       icon: '⚖️',
     },
   ];

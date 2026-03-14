@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { DisclosureLevel, DisclosureLevelConfig } from '../../types/transformer';
 
@@ -238,12 +239,14 @@ export const DisclosureLevelSelector: React.FC<{
       {levels.map((l) => (
         <button
           key={l}
+          type="button"
           onClick={() => setLevel(l)}
+          aria-pressed={level === l}
           className={`
             px-4 py-2 rounded-lg font-medium transition-all
             ${level === l
-              ? 'bg-blue-500 text-white shadow-lg'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'bg-muted text-foreground hover:bg-muted/80'
             }
           `}
         >
@@ -252,7 +255,7 @@ export const DisclosureLevelSelector: React.FC<{
         </button>
       ))}
       {showDescriptions && (
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 basis-full text-sm text-muted-foreground">
           {DISCLOSURE_LEVEL_DESCRIPTIONS[level].description}
         </p>
       )}

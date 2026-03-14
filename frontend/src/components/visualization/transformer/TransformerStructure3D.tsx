@@ -1,13 +1,16 @@
-import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
+import React, { memo, useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { useTransformerStore } from '../../../stores/transformerStore';
 import { Box, Info, RefreshCw, Camera, Home, RotateCw, ArrowUpDown, Move3D } from 'lucide-react';
-import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Html, Float, Sparkles, Environment } from '@react-three/drei';
-import * as d3 from 'd3-hierarchy';
-import * as THREE from 'three';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
+import { hierarchy } from 'd3-hierarchy';
+import type { HierarchyNode, HierarchyPointNode } from 'd3-hierarchy';
+import { BoxGeometry, BufferAttribute, Vector3 } from 'three';
+import type { TransformerConfig } from '../../../types/transformer';
+import { OrbitControls as OrbitControlsImpl } from 'three/examples/jsm/controls/OrbitControls.js';
 
 // Camera preset positions
 const CAMERA_PRESETS: Record<string, { position: [number, number, number]; target: [number, number, number]; name: string }> = {
@@ -25,10 +28,10 @@ interface TreeNode {
   type: string;
   description: string;
   children?: TreeNode[];
-  config?: Record<string, any>;
+  config?: Record<string, boolean | number | string | undefined>;
 }
 
-interface TreeNodeWithPosition extends d3.HierarchyPointNode<TreeNode> {
+interface TreeNodeWithPosition extends HierarchyPointNode<TreeNode> {
   x: number;
   y: number;
   z: number;
@@ -81,7 +84,14 @@ const getNodeDimensions = (type: string): [number, number, number] => {
   }
 };
 
-const getTransformerTree = (config: any): TreeNode => {
+const BOX_GEOMETRIES: Record<string, any> = Object.fromEntries(
+  Object.keys(COLOR_PALETTE).map((type) => [type, new BoxGeometry(...getNodeDimensions(type))])
+);
+const FALLBACK_BOX_GEOMETRY = new BoxGeometry(...getNodeDimensions('input'));
+
+const getBoxGeometry = (type: string) => BOX_GEOMETRIES[type] || FALLBACK_BOX_GEOMETRY;
+
+const getTransformerTree = (config: TransformerConfig): TreeNode => {
   const { d_model, nhead, num_encoder_layers, num_decoder_layers, dim_feedforward, activation, vocab_size } = config;
 
   const tree: TreeNode = {
@@ -234,108 +244,51 @@ interface BoxNode3DProps {
   onClick: (node: TreeNodeWithPosition) => void;
 }
 
-const BoxNode3D: React.FC<BoxNode3DProps> = ({ node, isSelected, onClick }) => {
+const BoxNode3D = memo(function BoxNode3D({
+  node,
+  isSelected,
+  onClick,
+}: BoxNode3DProps) {
   const data = node.data;
   const colors = getNodeColor(data.type);
   const dimensions = getNodeDimensions(data.type);
-  const meshRef = useRef<THREE.Mesh>(null);
 
   return (
-    <Float
-      speed={1.5}
-      rotationIntensity={0.2}
-      floatIntensity={0.3}
-      floatingRange={[-0.1, 0.1]}
-    >
-      <group position={[node.x, node.y, node.z]}>
-        {/* Outer glow */}
-        {isSelected && (
-          <mesh>
-            <boxGeometry args={[dimensions[0] * 1.2, dimensions[1] * 1.2, dimensions[2] * 1.2]} />
-            <meshBasicMaterial
-              color={colors.glow}
-              transparent
-              opacity={0.15}
-            />
-          </mesh>
-        )}
-
-        {/* Main box */}
-        <mesh
-          ref={meshRef}
-          onClick={(e) => {
-            e.stopPropagation();
-            onClick(node);
-          }}
-          castShadow
-          receiveShadow
-        >
-          <boxGeometry args={dimensions as [number, number, number]} />
-          <meshStandardMaterial
-            color={colors.primary}
-            roughness={0.2}
-            metalness={0.8}
-            emissive={colors.secondary}
-            emissiveIntensity={isSelected ? 0.6 : 0.2}
+    <group position={[node.x, node.y, node.z]}>
+      {isSelected && (
+        <mesh>
+          <boxGeometry args={[dimensions[0] * 1.16, dimensions[1] * 1.16, dimensions[2] * 1.16]} />
+          <meshBasicMaterial
+            color={colors.glow}
+            transparent
+            opacity={0.12}
           />
         </mesh>
+      )}
 
-        {/* Edges */}
-        <lineSegments>
-          <edgesGeometry args={[new THREE.BoxGeometry(...(dimensions as [number, number, number]))]} />
-          <lineBasicMaterial color={colors.glow} opacity={0.8} transparent linewidth={2} />
-        </lineSegments>
+        <mesh
+        onClick={(event: ThreeEvent<MouseEvent>) => {
+          event.stopPropagation();
+          onClick(node);
+        }}
+      >
+        <primitive object={getBoxGeometry(data.type)} attach="geometry" />
+        <meshStandardMaterial
+          color={colors.primary}
+          roughness={0.35}
+          metalness={0.35}
+          emissive={colors.secondary}
+          emissiveIntensity={isSelected ? 0.38 : 0.12}
+        />
+      </mesh>
 
-        {/* Sparkles for selected nodes */}
-        {isSelected && (
-          <Sparkles
-            count={20}
-            scale={dimensions[0] * 2}
-            size={4}
-            speed={0.4}
-            opacity={0.6}
-            color={colors.glow}
-          />
-        )}
-
-        {/* Label */}
-        <Text
-          position={[0, dimensions[1] / 2 + 0.8, 0]}
-          fontSize={0.25}
-          color="white"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.03}
-          outlineColor="#000000"
-        >
-          {data.name.length > 15 ? data.name.substring(0, 12) + '...' : data.name}
-        </Text>
-
-        {/* Info tooltip */}
-        {isSelected && (
-          <Html position={[dimensions[0] / 2 + 0.5, 0, 0]} distanceFactor={8}>
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-3 rounded-lg text-xs max-w-[220px] border border-slate-700 shadow-xl">
-              <div className="font-bold text-sm mb-1" style={{ color: colors.glow }}>
-                {data.name}
-              </div>
-              <div className="text-slate-300 text-[11px]">{data.description}</div>
-              {data.config && (
-                <div className="mt-2 space-y-1">
-                  {Object.entries(data.config).map(([k, v]) => (
-                    <div key={k} className="flex justify-between text-[10px]">
-                      <span className="text-slate-400">{k}:</span>
-                      <span className="text-slate-200">{String(v)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Html>
-        )}
-      </group>
-    </Float>
+      <lineSegments>
+        <edgesGeometry args={[getBoxGeometry(data.type)]} />
+        <lineBasicMaterial color={colors.glow} opacity={0.7} transparent />
+      </lineSegments>
+    </group>
   );
-};
+});
 
 // 3D Scene Component
 interface Scene3DProps {
@@ -347,9 +300,40 @@ interface Scene3DProps {
 
 // Camera Controller Component
 const CameraController: React.FC<{ preset: string }> = ({ preset }) => {
-  const { camera } = useThree();
+  const { camera, gl, invalidate } = useThree();
   const controlsRef = useRef<any>(null);
   const animationRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const controls = new OrbitControlsImpl(camera, gl.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 5;
+    controls.maxDistance = 80;
+    controls.enablePan = true;
+    controls.panSpeed = 1;
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = Math.PI;
+    controls.enableZoom = true;
+    controls.zoomSpeed = 1;
+    controls.autoRotateSpeed = 0.3;
+
+    const handleChange = () => invalidate();
+    controls.addEventListener('change', handleChange);
+    controlsRef.current = controls;
+
+    return () => {
+      controls.removeEventListener('change', handleChange);
+      controls.dispose();
+      controlsRef.current = null;
+    };
+  }, [camera, gl, invalidate]);
+
+  useFrame(() => {
+    if (controlsRef.current) {
+      controlsRef.current.update();
+    }
+  });
 
   const animateCamera = useCallback((targetPosition: [number, number, number], targetLookAt: [number, number, number]) => {
     // Cancel any existing animation
@@ -358,9 +342,9 @@ const CameraController: React.FC<{ preset: string }> = ({ preset }) => {
     }
 
     const startPosition = camera.position.clone();
-    const endPosition = new THREE.Vector3(...targetPosition);
-    const startTarget = controlsRef.current?.target.clone() || new THREE.Vector3(0, 5, 0);
-    const endTarget = new THREE.Vector3(...targetLookAt);
+    const endPosition = new Vector3(...targetPosition);
+    const startTarget = controlsRef.current?.target.clone() || new Vector3(0, 5, 0);
+    const endTarget = new Vector3(...targetLookAt);
 
     let progress = 0;
     const duration = 1000; // ms
@@ -376,11 +360,12 @@ const CameraController: React.FC<{ preset: string }> = ({ preset }) => {
       camera.position.lerpVectors(startPosition, endPosition, eased);
 
       if (controlsRef.current) {
-        const currentTarget = new THREE.Vector3();
+        const currentTarget = new Vector3();
         currentTarget.lerpVectors(startTarget, endTarget, eased);
         controlsRef.current.target.copy(currentTarget);
         controlsRef.current.update();
       }
+      invalidate();
 
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
@@ -391,16 +376,20 @@ const CameraController: React.FC<{ preset: string }> = ({ preset }) => {
           controlsRef.current.target.copy(endTarget);
           controlsRef.current.update();
         }
+        invalidate();
         animationRef.current = null;
       }
     };
 
     animate();
-  }, [camera]);
+  }, [camera, invalidate]);
 
   // Handle preset changes
   useEffect(() => {
     const config = CAMERA_PRESETS[preset as keyof typeof CAMERA_PRESETS];
+    if (controlsRef.current) {
+      controlsRef.current.autoRotate = preset === 'auto';
+    }
     if (config) {
       animateCamera(config.position, config.target);
     }
@@ -413,26 +402,15 @@ const CameraController: React.FC<{ preset: string }> = ({ preset }) => {
     };
   }, [preset, animateCamera]);
 
-  return (
-    <OrbitControls
-      ref={controlsRef}
-      enableDamping
-      dampingFactor={0.05}
-      minDistance={5}
-      maxDistance={80}
-      autoRotate={preset === 'auto'}
-      autoRotateSpeed={0.3}
-      enablePan={true}
-      panSpeed={1}
-      minPolarAngle={0}
-      maxPolarAngle={Math.PI}
-      enableZoom={true}
-      zoomSpeed={1}
-    />
-  );
+  return null;
 };
 
-const Scene3D: React.FC<Scene3DProps> = ({ treeLayout, selectedNode, onNodeClick, cameraPreset }) => {
+const Scene3D = memo(function Scene3D({
+  treeLayout,
+  selectedNode,
+  onNodeClick,
+  cameraPreset,
+}: Scene3DProps) {
   // Calculate connections with curves
   const connections = useMemo(() => {
     const lines: Array<{
@@ -459,26 +437,19 @@ const Scene3D: React.FC<Scene3DProps> = ({ treeLayout, selectedNode, onNodeClick
 
   return (
     <>
-      {/* Enhanced lighting */}
       <ambientLight intensity={0.4} />
-      <directionalLight position={[10, 10, 5]} intensity={0.8} castShadow />
-      <directionalLight position={[-10, -10, -5]} intensity={0.3} />
-      <pointLight position={[0, 10, 0]} intensity={0.5} color="#6366f1" />
+      <directionalLight position={[10, 10, 5]} intensity={0.75} />
+      <directionalLight position={[-10, -10, -5]} intensity={0.25} />
+      <pointLight position={[0, 10, 0]} intensity={0.35} color="#6366f1" />
 
-      {/* Environment for reflections */}
-      <Environment preset="city" />
-
-      {/* Camera Controls */}
       <CameraController preset={cameraPreset} />
 
-      {/* Ground plane with grid */}
       <gridHelper args={[100, 100, '#1e293b', '#0f172a']} position={[0, -10, 0]} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -10.1, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -10.1, 0]}>
         <planeGeometry args={[100, 100]} />
         <meshStandardMaterial color="#0f172a" roughness={0.9} />
       </mesh>
 
-      {/* Nodes */}
       {treeLayout.map((node) => (
         <BoxNode3D
           key={node.data.id}
@@ -488,7 +459,6 @@ const Scene3D: React.FC<Scene3DProps> = ({ treeLayout, selectedNode, onNodeClick
         />
       ))}
 
-      {/* Connections */}
       {connections.map((line, i) => (
         <group key={`connection-${i}`}>
           <Line
@@ -498,7 +468,6 @@ const Scene3D: React.FC<Scene3DProps> = ({ treeLayout, selectedNode, onNodeClick
             transparent
             lineWidth={2}
           />
-          {/* Connection points */}
           <mesh position={line.start}>
             <sphereGeometry args={[0.1, 8, 8]} />
             <meshBasicMaterial color={line.color} opacity={0.5} transparent />
@@ -511,7 +480,7 @@ const Scene3D: React.FC<Scene3DProps> = ({ treeLayout, selectedNode, onNodeClick
       ))}
     </>
   );
-};
+});
 
 // Custom Line component that works with R3F
 interface LineProps {
@@ -523,13 +492,15 @@ interface LineProps {
 }
 
 const Line: React.FC<LineProps> = ({ points, color, opacity = 1, transparent = false, lineWidth = 1 }) => {
-  const pointsRef = useRef<THREE.BufferGeometry>(null);
+  const pointsRef = useRef<any>(null);
 
-  useMemo(() => {
-    if (pointsRef.current) {
-      const positions = new Float32Array(points.flat());
-      pointsRef.current.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  useEffect(() => {
+    if (!pointsRef.current) {
+      return;
     }
+
+    const positions = new Float32Array(points.flat());
+    pointsRef.current.setAttribute('position', new BufferAttribute(positions, 3));
   }, [points]);
 
   return (
@@ -590,16 +561,16 @@ export const TransformerStructure3D: React.FC<{ className?: string }> = ({ class
   // Generate improved 3D tree layout
   const treeLayout = useMemo(() => {
     const treeData = getTransformerTree(config);
-    const root = d3.hierarchy(treeData);
+    const root = hierarchy(treeData);
 
     // Collect all nodes with their depth
-    const nodesWithDepth: Array<{ node: d3.HierarchyNode<TreeNode>; depth: number }> = [];
+    const nodesWithDepth: Array<{ node: HierarchyNode<TreeNode>; depth: number }> = [];
     root.descendants().forEach(node => {
       nodesWithDepth.push({ node, depth: node.depth });
     });
 
     // Group nodes by depth
-    const nodesByDepth: Map<number, d3.HierarchyNode<TreeNode>[]> = new Map();
+    const nodesByDepth: Map<number, HierarchyNode<TreeNode>[]> = new Map();
     nodesWithDepth.forEach(({ node, depth }) => {
       if (!nodesByDepth.has(depth)) {
         nodesByDepth.set(depth, []);
@@ -613,7 +584,7 @@ export const TransformerStructure3D: React.FC<{ className?: string }> = ({ class
     const nodeSpacing = 5;
 
     // Sort nodes within each depth level for better organization
-    const sortNodes = (nodes: d3.HierarchyNode<TreeNode>[]) => {
+    const sortNodes = (nodes: HierarchyNode<TreeNode>[]) => {
       return nodes.sort((a, b) => {
         // Keep Input and Output at the edges
         if (a.data.type === 'input') return -1;
@@ -686,7 +657,8 @@ export const TransformerStructure3D: React.FC<{ className?: string }> = ({ class
               3D Transformer Architecture
             </CardTitle>
             <CardDescription>
-              Interactive 3D visualization with cubic nodes
+              Interactive 3D visualization with cubic nodes. Labels are moved into the detail panel
+              to keep the scene lighter on low-power devices.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -762,8 +734,10 @@ export const TransformerStructure3D: React.FC<{ className?: string }> = ({ class
           ) : (
             <Canvas
               key={canvasKey}
+              dpr={[1, 1.5]}
+              frameloop={cameraPreset === 'auto' ? 'always' : 'demand'}
               camera={{ position: [20, 15, 20], fov: 45 }}
-              shadows={{ type: THREE.PCFShadowMap }}
+              shadows={false}
               gl={{
                 antialias: true,
                 alpha: true,
@@ -775,7 +749,6 @@ export const TransformerStructure3D: React.FC<{ className?: string }> = ({ class
                 setWebGLError('Failed to initialize WebGL. See console for details.');
               }}
               onCreated={({ gl }) => {
-                // Optimize for performance
                 gl.setClearColor(0x0f172a, 1);
               }}
             >

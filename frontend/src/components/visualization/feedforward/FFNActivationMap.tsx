@@ -79,16 +79,18 @@ function generateMockActivations(
             deadNeurons++;
           }
           break;
-        case 'gelu':
+        case 'gelu': {
           // GELU: x * Φ(x) where Φ is CDF of standard normal
           const gelu = baseValue * (1 + Math.tanh(Math.sqrt(2 / Math.PI) * (baseValue + 0.044715 * Math.pow(baseValue, 3))));
           activation = gelu * (1 + layer * 0.05);
           break;
-        case 'swish':
+        }
+        case 'swish': {
           // Swish: x * sigmoid(βx)
           const swish = baseValue * (1 / (1 + Math.exp(-baseValue)));
           activation = swish * (1 + layer * 0.05);
           break;
+        }
         default:
           activation = baseValue;
       }
@@ -119,12 +121,12 @@ function generateMockActivations(
 }
 
 function generateLayerSummary(
-  activationFn: string,
+  activationFn: 'relu' | 'gelu' | 'swish',
   layerIndex: number,
   sequenceLength: number,
   dimFeedforward: number
 ): LayerActivationSummary {
-  const mockData = generateMockActivations(sequenceLength, dimFeedforward, layerIndex, activationFn as any);
+  const mockData = generateMockActivations(sequenceLength, dimFeedforward, layerIndex, activationFn);
 
   const meanActivation = mockData.reduce((sum, d) => sum + d.statistics.mean, 0) / mockData.length;
   const avgSparsity = mockData.reduce((sum, d) => sum + d.statistics.sparsity, 0) / mockData.length;
@@ -176,7 +178,7 @@ export const FFNActivationMap: React.FC<FFNActivationMapProps> = ({
 
       // Generate layer summaries for all activation functions
       const summaries: Record<string, LayerActivationSummary[]> = {};
-      ['relu', 'gelu', 'swish'].forEach(fn => {
+      (['relu', 'gelu', 'swish'] as const).forEach((fn) => {
         summaries[fn] = Array.from({ length: Math.min(numLayers, 6) }, (_, i) =>
           generateLayerSummary(fn, i, sequenceLength, dimFeedforward)
         );
@@ -394,7 +396,7 @@ export const FFNActivationMap: React.FC<FFNActivationMapProps> = ({
                 <h3 className="text-sm font-medium">Activation Heatmap</h3>
                 <select
                   value={colorScale}
-                  onChange={(e) => setColorScale(e.target.value as any)}
+                  onChange={(e) => setColorScale(e.target.value as 'viridis' | 'plasma' | 'coolwarm')}
                   className="text-xs border rounded px-2 py-1 bg-white dark:bg-gray-700"
                 >
                   <option value="viridis">Viridis</option>

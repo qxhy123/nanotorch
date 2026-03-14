@@ -166,12 +166,13 @@ export function generateLRSchedule(
         lr = learningRate;
         reason = 'Constant learning rate';
         break;
-      case 'step':
+      case 'step': {
         const dropPeriod = Math.floor(totalSteps / 3);
         const drops = Math.floor(step / dropPeriod);
         lr = learningRate * Math.pow(0.5, drops);
         reason = `Step decay: ${drops} drop(s)`;
         break;
+      }
       case 'cosine':
         lr = learningRate * 0.5 * (1 + Math.cos((Math.PI * step) / totalSteps));
         reason = 'Cosine annealing';
@@ -180,7 +181,7 @@ export function generateLRSchedule(
         lr = learningRate * Math.pow(0.95, step / 100);
         reason = 'Exponential decay';
         break;
-      case 'warmup':
+      case 'warmup': {
         const warmupSteps = Math.floor(totalSteps * 0.1);
         if (step < warmupSteps) {
           lr = learningRate * (step / warmupSteps);
@@ -190,6 +191,7 @@ export function generateLRSchedule(
           reason = 'Cosine decay after warmup';
         }
         break;
+      }
     }
 
     schedule.push({ step, learningRate: lr, reason });
@@ -220,7 +222,7 @@ export function calculateLossCurve(metrics: TrainingMetrics[]): LossCurveData {
     .sort((a, b) => a.epoch - b.epoch);
 
   const validationLoss = Array.from(epochMap.entries())
-    .filter(([_, data]) => data.sumValLoss > 0)
+    .filter(([, data]) => data.sumValLoss > 0)
     .map(([epoch, data]) => ({
       epoch,
       value: data.sumValLoss / data.count,

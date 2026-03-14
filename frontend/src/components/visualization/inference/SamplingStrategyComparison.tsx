@@ -20,6 +20,7 @@ import {
   Info,
   RefreshCw,
 } from 'lucide-react';
+import { inferenceDemoApi } from '../../../services/inferenceDemoApi';
 import type {
   StrategyComparison,
   SamplingStrategy,
@@ -56,39 +57,9 @@ export const SamplingStrategyComparison: React.FC<SamplingStrategyComparisonProp
   const runComparison = useCallback(async () => {
     setLoading(true);
     try {
-      // Generate mock comparison data for now
-      const mockComparisons: StrategyComparison[] = selectedStrategies.map(strategy => {
-        const strategyOptions = { ...options, strategy } as SamplingOptions;
-
-        // Generate mock result based on strategy
-        let result = sequence;
-        let timeMs = Math.random() * 200 + 100;
-
-        switch (strategy) {
-          case 'greedy':
-            result = 'The future of AI is bright and promising';
-            break;
-          case 'multinomial':
-            result = 'The future of AI holds endless possibilities';
-            break;
-          case 'top-k':
-            result = 'The future of AI will transform society';
-            break;
-          case 'top-p':
-            result = 'The future of AI looks incredibly exciting';
-            break;
-        }
-
-        return {
-          strategy,
-          options: strategyOptions,
-          result,
-          steps: [], // Mock steps
-          timeMs,
-        };
-      });
-
-      setComparisons(mockComparisons);
+      setComparisons(
+        inferenceDemoApi.generateStrategyComparisons(sequence, selectedStrategies, options)
+      );
     } catch (error) {
       console.error('Failed to run comparison:', error);
     } finally {
@@ -99,7 +70,7 @@ export const SamplingStrategyComparison: React.FC<SamplingStrategyComparisonProp
   // Initial run
   React.useEffect(() => {
     runComparison();
-  }, []);
+  }, [runComparison]);
 
   // Toggle strategy selection
   const toggleStrategy = useCallback((strategy: SamplingStrategy) => {

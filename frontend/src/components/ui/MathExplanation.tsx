@@ -217,7 +217,7 @@ export const MathExplanationAccordion: React.FC<{
 /**
  * Preset math explanations for common Transformer operations
  */
-export const ATTENTION_EXPLANATIONS: Record<string, Record<MathExplanationLevel, MathExplanation>> = {
+const ATTENTION_EXPLANATIONS: Record<string, Record<MathExplanationLevel, MathExplanation>> = {
   scaled_dot_product: {
     intuitive: {
       level: 'intuitive',

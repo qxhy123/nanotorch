@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import katex from 'katex';
 import type { ColorCodedMathProps } from '../../types/transformer';
 import { useSemanticColors } from '../../hooks/useSemanticColors';
@@ -21,6 +21,23 @@ export const ColorCodedMath: React.FC<ColorCodedMathProps> = ({
 }) => {
   const { getColors } = useSemanticColors();
   const [hoveredVariable] = useState<string | null>(null);
+
+  const getVariableColor = useCallback((variable: string): string => {
+    const semanticMap: Record<string, string> = {
+      Q: getColors('query').primary,
+      K: getColors('key').primary,
+      V: getColors('value').primary,
+      X: getColors('embedding').primary,
+      W: getColors('mlp').primary,
+      A: getColors('attention').primary,
+      q: getColors('query').light,
+      k: getColors('key').light,
+      v: getColors('value').light,
+      x: getColors('embedding').light,
+    };
+
+    return semanticMap[variable] || '#6366f1';
+  }, [getColors]);
 
   // Extract variables from the LaTeX expression
   const variables = useMemo(() => {
@@ -56,7 +73,7 @@ export const ColorCodedMath: React.FC<ColorCodedMathProps> = ({
     });
 
     return colored;
-  }, [latex, variables, colorMap, highlightVariables, hoveredVariable]);
+  }, [latex, variables, colorMap, highlightVariables, hoveredVariable, getVariableColor]);
 
   // Render LaTeX
   const renderLatex = (latexStr: string, displayMode: boolean = false): string => {
@@ -71,24 +88,6 @@ export const ColorCodedMath: React.FC<ColorCodedMathProps> = ({
       console.error('KaTeX render error:', error);
       return latexStr;
     }
-  };
-
-  const getVariableColor = (variable: string): string => {
-    // Map common variables to semantic colors
-    const semanticMap: Record<string, string> = {
-      'Q': getColors('query').primary,
-      'K': getColors('key').primary,
-      'V': getColors('value').primary,
-      'X': getColors('embedding').primary,
-      'W': getColors('mlp').primary,
-      'A': getColors('attention').primary,
-      'q': getColors('query').light,
-      'k': getColors('key').light,
-      'v': getColors('value').light,
-      'x': getColors('embedding').light,
-    };
-
-    return semanticMap[variable] || '#6366f1';
   };
 
   return (
@@ -199,16 +198,15 @@ export const MathVariableHighlight: React.FC<{
   const [highlightedVar, setHighlightedVar] = useState<string | null>(null);
   const { getColors } = useSemanticColors();
 
-  const colors: Record<string, string> = {
-    'Q': getColors('query').primary,
-    'K': getColors('key').primary,
-    'V': getColors('value').primary,
-    'X': getColors('embedding').primary,
-  };
-
   const latexWithColors = useMemo(() => {
+    const colors: Record<string, string> = {
+      Q: getColors('query').primary,
+      K: getColors('key').primary,
+      V: getColors('value').primary,
+      X: getColors('embedding').primary,
+    };
     let result = latex;
-    Object.entries(variableDescriptions).forEach(([variable, _]) => {
+    Object.entries(variableDescriptions).forEach(([variable]) => {
       const color = colors[variable] || '#6366f1';
       if (highlightedVar === variable) {
         result = result.replace(
@@ -218,7 +216,7 @@ export const MathVariableHighlight: React.FC<{
       }
     });
     return result;
-  }, [latex, variableDescriptions, highlightedVar, colors]);
+  }, [latex, variableDescriptions, highlightedVar, getColors]);
 
   return (
     <div className="math-variable-highlight">

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import type { DisclosureLevel } from '../../types/transformer';
-import { useSemanticColorsWithDisclosure } from '../../hooks/useSemanticColors';
+import { useDisclosureLevel } from '../providers';
 
 interface RevealSectionProps {
   /**
@@ -92,9 +92,8 @@ export const RevealSection: React.FC<RevealSectionProps> = ({
   onToggle,
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const { isVisible, getOpacity } = useSemanticColorsWithDisclosure(minLevel);
-
-  const visible = isVisible(minLevel);
+  const { canShow, getOpacity } = useDisclosureLevel();
+  const visible = canShow(minLevel);
 
   const handleToggle = () => {
     if (disabled || !showToggle) return;

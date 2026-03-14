@@ -542,7 +542,7 @@ export const TensorShapeTracker: React.FC<{ className?: string }> = ({ className
 
         {/* Layer Shapes */}
         <div className="space-y-2">
-          {filteredLayers.map((layer, _idx) => {
+          {filteredLayers.map((layer) => {
             const originalIndex = layerShapes.indexOf(layer);
             const isExpanded = expandedLayers.has(originalIndex);
 

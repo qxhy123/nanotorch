@@ -53,10 +53,19 @@ export const StagedAttentionVisualization: React.FC<StagedAttentionVisualization
         goToNextStage();
       }, autoPlaySpeed);
       return () => clearTimeout(timer);
-    } else if (isPlaying && !hasNextStage) {
-      setIsPlaying(false);
     }
   }, [isPlaying, currentStage, hasNextStage, goToNextStage, autoPlaySpeed]);
+
+  useEffect(() => {
+    if (!isPlaying || hasNextStage) {
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      setIsPlaying(false);
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [hasNextStage, isPlaying]);
 
   const handlePlayPause = () => {
     if (isPlaying) {

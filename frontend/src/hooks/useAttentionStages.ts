@@ -256,7 +256,7 @@ export const useAttentionStages = (attentionData?: AttentionData) => {
           metadata: { maskValue: -1e9 },
         };
 
-      case 'softmax':
+      case 'softmax': {
         const softmaxData = computeSoftmax(maskedData!);
         return {
           stage: 'softmax',
@@ -266,8 +266,9 @@ export const useAttentionStages = (attentionData?: AttentionData) => {
           data: softmaxData,
           metadata: { temperature: 1.0 },
         };
+      }
 
-      case 'weighted_sum':
+      case 'weighted_sum': {
         const finalSoftmax = computeSoftmax(maskedData!);
         const weightedSum = computeWeightedSum(finalSoftmax, values);
         return {
@@ -277,6 +278,7 @@ export const useAttentionStages = (attentionData?: AttentionData) => {
           formula: STAGE_INFO.weighted_sum.formula,
           data: weightedSum,
         };
+      }
 
       default:
         return null;

@@ -114,6 +114,7 @@ export const transformerBasicsTutorial: Tutorial = {
         Use the Next/Previous buttons to step through the computation!
       `,
       target: '#staged-attention-view',
+      requiredDisclosureLevel: 'intermediate',
       position: 'left',
       action: {
         type: 'click',
@@ -130,6 +131,7 @@ export const transformerBasicsTutorial: Tutorial = {
         Think of it as each token "thinking about" what it learned from attention.
       `,
       target: '#feed-forward-visualization',
+      requiredDisclosureLevel: 'intermediate',
       position: 'right',
     },
     {
@@ -221,6 +223,7 @@ export const advancedAttentionTutorial: Tutorial = {
         regions with extremely small gradients. The scaling counteracts this.
       `,
       target: '#attention-formula',
+      requiredDisclosureLevel: 'intermediate',
       position: 'bottom',
     },
     {
@@ -260,6 +263,7 @@ export const advancedAttentionTutorial: Tutorial = {
         weights zero.
       `,
       target: '#mask-visualization',
+      requiredDisclosureLevel: 'intermediate',
       position: 'bottom',
     },
   ],
@@ -286,7 +290,8 @@ export const transformerMathTutorial: Tutorial = {
 
         Where X is the one-hot encoded token and W_E is the embedding matrix.
       `,
-      target: '#embedding-math',
+      target: '#embedding-reference',
+      requiredDisclosureLevel: 'math',
       position: 'bottom',
     },
     {
@@ -300,7 +305,8 @@ export const transformerMathTutorial: Tutorial = {
 
         This choice allows the model to easily learn to attend by relative positions.
       `,
-      target: '#positional-math',
+      target: '#embedding-reference',
+      requiredDisclosureLevel: 'math',
       position: 'bottom',
     },
     {
@@ -313,7 +319,8 @@ export const transformerMathTutorial: Tutorial = {
 
         Where μ and σ are computed per feature across the sequence dimension.
       `,
-      target: '#layer-norm-math',
+      target: '#layer-reference',
+      requiredDisclosureLevel: 'math',
       position: 'right',
     },
   ],

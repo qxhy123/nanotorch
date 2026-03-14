@@ -68,6 +68,10 @@ interface HistogramBin {
   expected: number;
 }
 
+type EvolutionPoint = {
+  epoch: number;
+} & Record<string, number | { mean: number; std: number }>;
+
 // Generate mock weight data for a layer
 function generateWeightData(
   layerName: string,
@@ -240,7 +244,7 @@ export const WeightDistribution: React.FC<WeightDistributionProps> = ({ classNam
   const evolutionData = useMemo(() => {
     const epochs = [0, 1, 2, 3, 5, 10, 20];
     return epochs.map((epoch) => {
-      const data: any = { epoch };
+      const data: EvolutionPoint = { epoch };
       allLayerData.forEach((layer) => {
         const name = layer.stats.layerName.split(' ')[0];
         // Simulate weight statistics changing over training

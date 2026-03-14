@@ -5,6 +5,7 @@ import { Button } from '../../ui/button';
 import { useTransformerStore } from '../../../stores/transformerStore';
 import { Box, Layers, ArrowRight, ArrowDown, Play, Pause, RotateCw, Eye } from 'lucide-react';
 import { Latex } from '../../ui/Latex';
+import type { TransformerConfig } from '../../../types/transformer';
 
 interface TransformerStructureProps {
   className?: string;
@@ -19,10 +20,10 @@ interface LayerNode {
   description: string;
   shape: string[];
   formula?: string;
-  config?: Record<string, any>;
+  config?: Record<string, boolean | number | string | undefined>;
 }
 
-const getTransformerLayers = (config: any, hasDecoder: boolean): LayerNode[] => {
+const getTransformerLayers = (config: TransformerConfig, hasDecoder: boolean): LayerNode[] => {
   const { d_model, nhead, num_encoder_layers, num_decoder_layers, dim_feedforward } = config;
 
   const layers: LayerNode[] = [

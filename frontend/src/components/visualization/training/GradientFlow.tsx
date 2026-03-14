@@ -23,6 +23,7 @@ import {
   Info,
   Zap,
   RefreshCw,
+  type LucideIcon,
 } from 'lucide-react';
 
 // Types
@@ -183,7 +184,7 @@ function generateComparisonData(numLayers: number): ArchitectureComparison[] {
   ];
 }
 
-const ISSUE_COLORS: Record<string, { bg: string; text: string; border: string; icon: any }> = {
+const ISSUE_COLORS: Record<string, { bg: string; text: string; border: string; icon: LucideIcon }> = {
   vanishing: {
     bg: 'bg-yellow-50 dark:bg-yellow-900/20',
     text: 'text-yellow-800 dark:text-yellow-200',

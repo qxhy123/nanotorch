@@ -3,85 +3,59 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { useTransformerStore } from '../../../stores/transformerStore';
+import type { TensorData } from '../../../types/transformer';
 
 interface TokenEmbeddingProps {
   className?: string;
+}
+
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'number');
+}
+
+function isNumberMatrix(value: unknown): value is number[][] {
+  return Array.isArray(value) && value.every((entry) => isNumberArray(entry));
+}
+
+function isNumberTensor3D(value: unknown): value is number[][][] {
+  return Array.isArray(value) && value.every((entry) => isNumberMatrix(entry));
+}
+
+function extractEmbeddingMatrix(tensor: TensorData | null | undefined): number[][] | null {
+  if (!tensor) {
+    return null;
+  }
+
+  if (tensor.shape.length === 3 && isNumberTensor3D(tensor.data) && tensor.data.length > 0) {
+    return tensor.data[0];
+  }
+
+  if (tensor.shape.length === 2 && isNumberMatrix(tensor.data)) {
+    return tensor.data;
+  }
+
+  if (isNumberMatrix(tensor.data)) {
+    return tensor.data;
+  }
+
+  return null;
 }
 
 export const TokenEmbedding: React.FC<TokenEmbeddingProps> = ({ className }) => {
   const { embeddings, visualizationState } = useTransformerStore();
   const { showValues, colorScheme } = visualizationState;
 
-  // Debug: log embeddings when it changes
-  React.useEffect(() => {
-    if (embeddings) {
-      console.log('Embeddings loaded:', {
-        hasOutput: !!embeddings.output,
-        output: embeddings.output,
-        outputType: typeof embeddings.output,
-        outputKeys: embeddings.output && typeof embeddings.output === 'object' ? Object.keys(embeddings.output) : [],
-      });
-    }
-  }, [embeddings]);
-
-  const embeddingsData = useMemo(() => {
-    if (!embeddings?.output) {
-      console.log('No embeddings output');
-      return null;
-    }
-
-    console.log('Processing embeddings output:', embeddings.output);
-
-    // Handle tensor structure: {shape: [batch, seq_len, d_model], data: [...], dtype: 'float32'}
-    if (embeddings.output.data && embeddings.output.shape) {
-      const shape = embeddings.output.shape;
-      const data = embeddings.output.data;
-
-      console.log('Tensor structure - shape:', shape, 'data length:', data?.length);
-
-      // If shape is [batch, seq_len, d_model], extract the first batch
-      if (shape.length === 3 && Array.isArray(data) && data.length > 0) {
-        const batchData = data[0]; // First batch
-        console.log('Extracted first batch:', batchData);
-        console.log('Batch type:', typeof batchData, 'is array:', Array.isArray(batchData));
-
-        // batchData should be [seq_len, d_model]
-        if (Array.isArray(batchData) && batchData.length > 0) {
-          const firstItem = batchData[0];
-          if (Array.isArray(firstItem)) {
-            console.log('Final embeddings shape:', [batchData.length, firstItem.length]);
-            return batchData as unknown as number[][];
-          }
-        }
-      }
-
-      // If shape is [seq_len, d_model], use data directly
-      if (shape.length === 2 && Array.isArray(data)) {
-        return data as number[][];
-      }
-    }
-
-    // Fallback to old logic
-    let data: any;
-    if (embeddings.output.data) {
-      data = embeddings.output.data;
-    } else if (embeddings.output && typeof embeddings.output === 'object') {
-      if ('data' in embeddings.output && 'shape' in embeddings.output) {
-        data = embeddings.output.data;
-      } else {
-        data = embeddings.output;
-      }
-    }
-
-    if (Array.isArray(data) && data.length > 0) {
-      return data as number[][];
-    }
-    return null;
-  }, [embeddings]);
+  const embeddingsData = useMemo(
+    () => extractEmbeddingMatrix(embeddings?.output),
+    [embeddings]
+  );
 
   const tokens = useMemo(() => {
-    if (!embeddingsData) return [];
-    return embeddingsData.map((_, i) => `Token ${i}`);
+    if (!embeddingsData) {
+      return [];
+    }
+
+    return embeddingsData.map((_, index) => `Token ${index}`);
   }, [embeddingsData]);
 
   const getColor = (value: number, min: number, max: number): string => {
@@ -89,24 +63,29 @@ export const TokenEmbedding: React.FC<TokenEmbeddingProps> = ({ className }) => 
     const normalized = (value - min) / (max - min);
 
     switch (colorScheme) {
-      case 'blues':
+      case 'blues': {
         const blue = Math.round(255 * normalized);
         return `rgb(200, 200, ${255 - blue})`;
-      case 'reds':
+      }
+      case 'reds': {
         const red = Math.round(255 * normalized);
         return `rgb(${255 - red}, 200, 200)`;
+      }
       case 'viridis':
         if (normalized < 0.25) {
-          return `rgb(68, 1, ${Math.round(84 + normalized * 4 * 100)})`;
-        } else if (normalized < 0.5) {
-          return `rgb(${Math.round(33 + (normalized - 0.25) * 4 * 200)}, ${Math.round(144 + (normalized - 0.25) * 4 * 50)}, 140)`;
-        } else if (normalized < 0.75) {
-          return `rgb(${Math.round(233 - (normalized - 0.5) * 4 * 100)}, ${Math.round(196 - (normalized - 0.5) * 4 * 50)}, ${Math.round(106 + (normalized - 0.5) * 4 * 80)})`;
-        } else {
-          return `rgb(${Math.round(253 - (normalized - 0.75) * 4 * 100)}, ${Math.round(231 - (normalized - 0.75) * 4 * 100)}, ${Math.round(37 + (normalized - 0.75) * 4 * 40)})`;
+          return `rgb(68, 1, ${Math.round(84 + normalized * 400)})`;
         }
-      default:
-        return `rgb(${Math.round(255 * (1 - normalized))}, ${Math.round(255 * (1 - normalized))}, ${Math.round(255 * (1 - normalized))})`;
+        if (normalized < 0.5) {
+          return `rgb(${Math.round(33 + (normalized - 0.25) * 800)}, ${Math.round(144 + (normalized - 0.25) * 200)}, 140)`;
+        }
+        if (normalized < 0.75) {
+          return `rgb(${Math.round(233 - (normalized - 0.5) * 400)}, ${Math.round(196 - (normalized - 0.5) * 200)}, ${Math.round(106 + (normalized - 0.5) * 320)})`;
+        }
+        return `rgb(${Math.round(253 - (normalized - 0.75) * 400)}, ${Math.round(231 - (normalized - 0.75) * 400)}, ${Math.round(37 + (normalized - 0.75) * 160)})`;
+      default: {
+        const shade = Math.round(255 * (1 - normalized));
+        return `rgb(${shade}, ${shade}, ${shade})`;
+      }
     }
   };
 
@@ -116,7 +95,7 @@ export const TokenEmbedding: React.FC<TokenEmbeddingProps> = ({ className }) => 
     const allValues = embeddingsData.flat();
     const min = Math.min(...allValues);
     const max = Math.max(...allValues);
-    const mean = allValues.reduce((a, b) => a + b, 0) / allValues.length;
+    const mean = allValues.reduce((sum, value) => sum + value, 0) / allValues.length;
 
     return { min, max, mean };
   }, [embeddingsData]);
@@ -126,7 +105,7 @@ export const TokenEmbedding: React.FC<TokenEmbeddingProps> = ({ className }) => 
       <Card className={className}>
         <CardHeader>
           <CardTitle>Token Embeddings</CardTitle>
-          <CardDescription>Run a forward pass to see token embeddings</CardDescription>
+          <CardDescription>Run a forward pass to see token embeddings.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -145,7 +124,6 @@ export const TokenEmbedding: React.FC<TokenEmbeddingProps> = ({ className }) => 
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Statistics */}
         {stats && (
           <div className="flex gap-4 text-sm">
             <Badge variant="secondary">Min: {stats.min.toFixed(4)}</Badge>
@@ -154,7 +132,6 @@ export const TokenEmbedding: React.FC<TokenEmbeddingProps> = ({ className }) => 
           </div>
         )}
 
-        {/* Embedding Heatmap */}
         <div className="overflow-x-auto">
           <div className="inline-block min-w-full">
             {embeddingsData.map((tokenEmbedding, tokenIdx) => (
@@ -175,11 +152,9 @@ export const TokenEmbedding: React.FC<TokenEmbeddingProps> = ({ className }) => 
                         ),
                       }}
                     >
-                      {/* Always show tooltip on hover */}
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-background border rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 shadow-lg">
                         [{tokenIdx}, {dimIdx}]: {value.toFixed(4)}
                       </div>
-                      {/* Show value inline when enabled */}
                       {showValues && (
                         <div className="absolute inset-0 flex items-center justify-center text-[8px] font-mono text-white mix-blend-difference overflow-hidden">
                           {value.toFixed(2)}
@@ -198,20 +173,21 @@ export const TokenEmbedding: React.FC<TokenEmbeddingProps> = ({ className }) => 
           </div>
         </div>
 
-        {/* Color Scale Legend */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Min</span>
-          <div className="flex-1 h-3 rounded" style={{
-            background: `linear-gradient(to right, ${
-              getColor(stats?.min || 0, stats?.min || 0, stats?.max || 1)
-            }, ${
-              getColor(stats?.max || 1, stats?.min || 0, stats?.max || 1)
-            })`
-          }} />
+          <div
+            className="flex-1 h-3 rounded"
+            style={{
+              background: `linear-gradient(to right, ${
+                getColor(stats?.min || 0, stats?.min || 0, stats?.max || 1)
+              }, ${
+                getColor(stats?.max || 1, stats?.min || 0, stats?.max || 1)
+              })`,
+            }}
+          />
           <span className="text-xs text-muted-foreground">Max</span>
         </div>
 
-        {/* View Options */}
         <div className="flex gap-2">
           <Button
             variant={showValues ? 'default' : 'outline'}
@@ -239,9 +215,8 @@ export const TokenEmbedding: React.FC<TokenEmbeddingProps> = ({ className }) => 
         </div>
         <p className="text-xs text-muted-foreground">
           {showValues
-            ? 'Values are displayed inline on each cell. Hover any cell for detailed tooltip.'
-            : 'Hover over any cell to see its value in a tooltip.'
-          }
+            ? 'Values are displayed inline on each cell. Hover any cell for a more precise tooltip.'
+            : 'Hover over any cell to see its value in a tooltip.'}
         </p>
       </CardContent>
     </Card>

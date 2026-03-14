@@ -127,8 +127,10 @@ const DataFlowParticle: React.FC<{ active: boolean; delay: number }> = ({ active
 
   useEffect(() => {
     if (!active) {
-      setPosition(0);
-      return;
+      const frameId = requestAnimationFrame(() => {
+        setPosition(0);
+      });
+      return () => cancelAnimationFrame(frameId);
     }
 
     const timeout = setTimeout(() => {
@@ -192,6 +194,11 @@ export const TransformerFlow: React.FC<TransformerFlowProps> = ({ className }) =
     return () => clearInterval(interval);
   }, [isPlaying, speed, setCurrentStep]);
 
+  const handleStepClick = useCallback((index: number) => {
+    setSelectedStep(index);
+    setCurrentStep(index);
+  }, [setCurrentStep]);
+
   // 键盘快捷键
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -235,12 +242,7 @@ export const TransformerFlow: React.FC<TransformerFlowProps> = ({ className }) =
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, setIsPlaying, setCurrentStep]);
-
-  const handleStepClick = (index: number) => {
-    setSelectedStep(index);
-    setCurrentStep(index);
-  };
+  }, [handleStepClick, isPlaying, setIsPlaying, setCurrentStep]);
 
   const getStepColor = (type: FlowStep['type'], isSelected: boolean, isHovered: boolean) => {
     const colors = {

@@ -16,6 +16,7 @@ import type {
   EncoderLayerResult,
   DecoderLayerResult,
   LayerStep,
+  SublayerComputation,
 } from '../../../types/layer';
 import { ChevronLeft, ChevronRight, Play, Pause, RotateCw, BarChart3 } from 'lucide-react';
 import { InputStep } from './steps/InputStep';
@@ -32,6 +33,27 @@ interface LayerVisualizationProps {
   className?: string;
 }
 
+type LayerComputationResult = EncoderLayerResult | DecoderLayerResult;
+
+function getSublayerData(
+  result: LayerComputationResult,
+  sublayerIndex: number
+): SublayerComputation {
+  if (sublayerIndex <= 0) {
+    return result.sublayer1;
+  }
+
+  if (sublayerIndex === 1) {
+    return result.sublayer2;
+  }
+
+  if ('sublayer3' in result) {
+    return result.sublayer3;
+  }
+
+  return result.sublayer2;
+}
+
 export const LayerVisualization: React.FC<LayerVisualizationProps> = ({
   layerType,
   layerIndex = 0,
@@ -40,7 +62,7 @@ export const LayerVisualization: React.FC<LayerVisualizationProps> = ({
   const { config } = useTransformerStore();
 
   // State
-  const [computationResult, setComputationResult] = useState<EncoderLayerResult | DecoderLayerResult | null>(null);
+  const [computationResult, setComputationResult] = useState<LayerComputationResult | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(2000);
@@ -162,7 +184,7 @@ export const LayerVisualization: React.FC<LayerVisualizationProps> = ({
   // Initial computation
   useEffect(() => {
     computeLayer();
-  }, [layerType, config]);
+  }, [computeLayer]);
 
   const handlePlayPause = () => {
     if (currentStepIndex >= steps.length - 1) {
@@ -196,57 +218,38 @@ export const LayerVisualization: React.FC<LayerVisualizationProps> = ({
       case 'input':
         return <InputStep data={computationResult.input} config={computationResult.config} />;
       case 'norm': {
-        // Get the correct sublayer based on step index
         const sublayerIndex = currentStep.sublayer ?? 0;
-        const sublayerKey = `sublayer${sublayerIndex + 1}` as 'sublayer1' | 'sublayer2' | 'sublayer3';
-        const sublayerData = sublayerKey in computationResult
-          ? (computationResult as any)[sublayerKey]
-          : computationResult.sublayer1;
+        const sublayerData = getSublayerData(computationResult, sublayerIndex);
 
-        // Debug logging
-        console.log('=== LayerNorm Debug ===');
-        console.log('Step:', currentStep.title, 'sublayer:', currentStep.sublayer);
-        console.log('sublayerIndex:', sublayerIndex);
-        console.log('sublayerKey:', sublayerKey);
-        console.log('sublayerData exists:', !!sublayerData);
-        console.log('sublayerData keys:', sublayerData ? Object.keys(sublayerData) : 'N/A');
-        console.log('Has normInput:', 'normInput' in (sublayerData || {}));
-        console.log('Has normOutput:', 'normOutput' in (sublayerData || {}));
-        console.log('normInput value:', sublayerData?.normInput);
-        console.log('normOutput value:', sublayerData?.normOutput);
-        console.log('=====================');
-
-        return <LayerNormStep
-          normInput={sublayerData?.normInput}
-          normOutput={sublayerData?.normOutput}
-          config={computationResult.config}
-        />;
+        return (
+          <LayerNormStep
+            normInput={sublayerData.norm_input}
+            normOutput={sublayerData.norm_output}
+            config={computationResult.config}
+          />
+        );
       }
       case 'attention': {
-        // Get the correct sublayer based on step index
         const sublayerIndex = currentStep.sublayer ?? 0;
-        const sublayerKey = `sublayer${sublayerIndex + 1}` as 'sublayer1' | 'sublayer2';
-        const sublayerData = sublayerKey in computationResult
-          ? (computationResult as any)[sublayerKey]
-          : computationResult.sublayer1;
+        const sublayerData = getSublayerData(computationResult, sublayerIndex);
 
-        return <AttentionStep
-          attentionData={sublayerData.attention}
-          config={computationResult.config}
-        />;
+        return (
+          <AttentionStep
+            attentionData={sublayerData.attention}
+            config={computationResult.config}
+          />
+        );
       }
       case 'residual': {
-        // Get the correct sublayer based on step index
         const sublayerIndex = currentStep.sublayer ?? 0;
-        const sublayerKey = `sublayer${sublayerIndex + 1}` as 'sublayer1' | 'sublayer2' | 'sublayer3';
-        const sublayerData = sublayerKey in computationResult
-          ? (computationResult as any)[sublayerKey]
-          : computationResult.sublayer1;
+        const sublayerData = getSublayerData(computationResult, sublayerIndex);
 
-        return <ResidualStep
-          residualData={sublayerData}
-          stepIndex={sublayerIndex}
-        />;
+        return (
+          <ResidualStep
+            residualData={sublayerData}
+            stepIndex={sublayerIndex}
+          />
+        );
       }
       case 'feedforward':
         return (

@@ -9,15 +9,32 @@ import api from './api';
 import type {
   EncoderLayerResult,
   DecoderLayerResult,
+  LayerConfig,
   LayerStatistics,
-  LayerStatisticsResponse,
   LayerTypeInfo,
 } from '../types/layer';
+
+type SerializableValue =
+  | boolean
+  | number
+  | string
+  | null
+  | undefined
+  | SerializableValue[]
+  | { [key: string]: SerializableValue };
+
+type NestedNumberArray = number | NestedNumberArray[];
+
+const isRecord = (value: SerializableValue): value is { [key: string]: SerializableValue } =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const hasOwn = (obj: object, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(obj, key);
 
 /**
  * Convert camelCase to snake_case for backend requests.
  */
-function toSnakeCase(obj: any): any {
+function toSnakeCase(obj: SerializableValue): SerializableValue {
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
@@ -26,9 +43,9 @@ function toSnakeCase(obj: any): any {
     return obj.map(toSnakeCase);
   }
 
-  const result: any = {};
+  const result: { [key: string]: SerializableValue } = {};
   for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
+    if (hasOwn(obj, key)) {
       const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
       result[snakeKey] = toSnakeCase(obj[key]);
     }
@@ -39,7 +56,7 @@ function toSnakeCase(obj: any): any {
 /**
  * Convert snake_case to camelCase for backend responses.
  */
-function toCamelCase(obj: any): any {
+function toCamelCase(obj: SerializableValue): SerializableValue {
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
@@ -48,9 +65,9 @@ function toCamelCase(obj: any): any {
     return obj.map(toCamelCase);
   }
 
-  const result: any = {};
+  const result: { [key: string]: SerializableValue } = {};
   for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
+    if (hasOwn(obj, key)) {
       // Handle special case for is_special -> isSpecial
       if (key === 'is_special') {
         result.isSpecial = toCamelCase(obj[key]);
@@ -86,7 +103,7 @@ export const layerApi = {
    * @returns Encoder layer computation results
    */
   computeEncoderLayer: async (
-    config: any,
+    config: LayerConfig,
     inputData: number[][],
     options?: {
       srcMask?: number[][];
@@ -94,7 +111,7 @@ export const layerApi = {
     }
   ): Promise<EncoderLayerResult> => {
     const requestBody = {
-      config: toSnakeCase(config),
+      config: toSnakeCase(config as unknown as SerializableValue),
       input_data: {
         data: inputData,
         shape: [inputData.length, inputData[0]?.length || 0],
@@ -105,7 +122,7 @@ export const layerApi = {
     };
 
     const response = await api.post('/api/v1/layer/encoder/compute', requestBody);
-    return toCamelCase(response.data) as EncoderLayerResult;
+    return toCamelCase(response.data as SerializableValue) as unknown as EncoderLayerResult;
   },
 
   /**
@@ -118,7 +135,7 @@ export const layerApi = {
    * @returns Decoder layer computation results
    */
   computeDecoderLayer: async (
-    config: any,
+    config: LayerConfig,
     inputData: number[][],
     encoderOutput: number[][],
     options?: {
@@ -127,7 +144,7 @@ export const layerApi = {
     }
   ): Promise<DecoderLayerResult> => {
     const requestBody = {
-      config: toSnakeCase(config),
+      config: toSnakeCase(config as unknown as SerializableValue),
       input_data: {
         data: inputData,
         shape: [inputData.length, inputData[0]?.length || 0],
@@ -143,7 +160,7 @@ export const layerApi = {
     };
 
     const response = await api.post('/api/v1/layer/decoder/compute', requestBody);
-    return toCamelCase(response.data) as DecoderLayerResult;
+    return toCamelCase(response.data as SerializableValue) as unknown as DecoderLayerResult;
   },
 
   /**
@@ -152,9 +169,9 @@ export const layerApi = {
    * @param config - Transformer configuration
    * @returns Layer statistics
    */
-  getEncoderStatistics: async (config: any): Promise<LayerStatistics> => {
-    const response = await api.post('/api/v1/layer/encoder/statistics', toSnakeCase(config));
-    return toCamelCase(response.data) as LayerStatisticsResponse;
+  getEncoderStatistics: async (config: LayerConfig): Promise<LayerStatistics> => {
+    const response = await api.post('/api/v1/layer/encoder/statistics', toSnakeCase(config as unknown as SerializableValue));
+    return toCamelCase(response.data as SerializableValue) as unknown as LayerStatistics;
   },
 
   /**
@@ -163,9 +180,9 @@ export const layerApi = {
    * @param config - Transformer configuration
    * @returns Layer statistics
    */
-  getDecoderStatistics: async (config: any): Promise<LayerStatistics> => {
-    const response = await api.post('/api/v1/layer/decoder/statistics', toSnakeCase(config));
-    return toCamelCase(response.data) as LayerStatisticsResponse;
+  getDecoderStatistics: async (config: LayerConfig): Promise<LayerStatistics> => {
+    const response = await api.post('/api/v1/layer/decoder/statistics', toSnakeCase(config as unknown as SerializableValue));
+    return toCamelCase(response.data as SerializableValue) as unknown as LayerStatistics;
   },
 
   /**
@@ -175,7 +192,11 @@ export const layerApi = {
    */
   getLayerTypes: async (): Promise<LayerTypeInfo[]> => {
     const response = await api.get('/api/v1/layer/types');
-    return response.data.layer_types || [];
+    const responseData = response.data as SerializableValue;
+    const layerTypes = isRecord(responseData)
+      ? responseData.layer_types
+      : null;
+    return Array.isArray(layerTypes) ? (layerTypes as unknown as LayerTypeInfo[]) : [];
   },
 
   /**
@@ -230,7 +251,7 @@ export const layerApi = {
    * @param data - Nested tensor data
    * @returns Flattened array
    */
-  flattenTensorData: (data: any): number[] => {
+  flattenTensorData: (data: NestedNumberArray): number[] => {
     if (Array.isArray(data)) {
       if (data.length === 0) return [];
       if (typeof data[0] === 'number') {

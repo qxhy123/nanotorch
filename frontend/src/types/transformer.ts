@@ -4,7 +4,7 @@
 
 export interface TensorData {
   shape: number[];
-  data: number[] | number[][];
+  data: number[] | number[][] | number[][][] | number[][][][];
   dtype: string;
   name?: string;
 }
@@ -61,9 +61,13 @@ export interface TransformerOutput {
   success: boolean;
   data?: {
     finalOutput: TensorData;
+    final_output?: TensorData;
     steps?: LayerOutputData[];
     attentionWeights?: AttentionData[];
+    attention_weights?: AttentionData[];
     layerOutputs?: LayerOutputData[];
+    layer_outputs?: LayerOutputData[];
+    metadata?: Record<string, unknown>;
     embeddings?: {
       tokenEmbeddings: TensorData;
       positionalEncodings: TensorData;
@@ -221,6 +225,7 @@ export interface TutorialStep {
   title: string;
   content: string;
   target?: string; // CSS selector for target element
+  requiredDisclosureLevel?: DisclosureLevel;
   position?: 'top' | 'bottom' | 'left' | 'right' | 'center';
   action?: {
     type: 'click' | 'hover' | 'input' | 'wait';
@@ -247,7 +252,22 @@ export interface TutorialState {
 export interface SankeyNode {
   id: string;
   name: string;
-  type: 'input' | 'operation' | 'output' | 'layer' | 'embedding' | 'positional' | 'attention' | 'ffn' | 'normalization';
+  type:
+    | 'input'
+    | 'operation'
+    | 'output'
+    | 'layer'
+    | 'embedding'
+    | 'positional'
+    | 'attention'
+    | 'ffn'
+    | 'normalization'
+    | 'query'
+    | 'key'
+    | 'value'
+    | 'dot_product'
+    | 'scaled'
+    | 'attention_weights';
   depth: number;
   value?: number;
   color?: string;
@@ -255,6 +275,9 @@ export interface SankeyNode {
     shape?: number[];
     parameters?: number;
     computationCost?: number;
+    description?: string;
+    formula?: string;
+    layerNum?: number;
   };
 }
 
@@ -339,10 +362,18 @@ export interface MathExplanation {
   examples?: MathExample[];
 }
 
+export type MathExampleValue =
+  | boolean
+  | number
+  | string
+  | null
+  | MathExampleValue[]
+  | { [key: string]: MathExampleValue };
+
 export interface MathExample {
   description: string;
-  input: any;
-  output: any;
+  input: MathExampleValue;
+  output: MathExampleValue;
   steps?: string[];
 }
 

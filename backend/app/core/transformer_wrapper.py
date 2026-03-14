@@ -1,9 +1,12 @@
 """Wrapper class for nanotorch Transformer model."""
 
-import sys
+import json
+import hashlib
 import os
+import sys
+from contextlib import contextmanager
 import numpy as np
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 
 # Add parent directory to path to import nanotorch
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,15 +16,84 @@ sys.path.insert(0, _project_root)
 try:
     from nanotorch.nn.transformer import Transformer
     from nanotorch.nn.embedding import Embedding
-    from nanotorch.nn.attention import MultiheadAttention
-    from nanotorch.nn.module import Module
     NANOTORCH_AVAILABLE = True
 except ImportError:
     NANOTORCH_AVAILABLE = False
     Transformer = None
     Embedding = None
-    MultiheadAttention = None
-    Module = None
+
+
+MODEL_CONFIG_KEYS = (
+    "d_model",
+    "nhead",
+    "num_encoder_layers",
+    "num_decoder_layers",
+    "dim_feedforward",
+    "dropout",
+    "activation",
+    "layer_norm_eps",
+    "batch_first",
+    "norm_first",
+    "vocab_size",
+)
+
+MODEL_CONFIG_DEFAULTS = {
+    "d_model": 512,
+    "nhead": 8,
+    "num_encoder_layers": 6,
+    "num_decoder_layers": 6,
+    "dim_feedforward": 2048,
+    "dropout": 0.1,
+    "activation": "relu",
+    "layer_norm_eps": 1e-5,
+    "batch_first": True,
+    "norm_first": False,
+    "vocab_size": 10000,
+}
+
+TRANSFORMER_CACHE: Dict[str, "TransformerWrapper"] = {}
+
+
+def _normalize_model_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize model config for stable hashing and wrapper construction."""
+    normalized: Dict[str, Any] = {}
+
+    for key in MODEL_CONFIG_KEYS:
+        value = config.get(key, MODEL_CONFIG_DEFAULTS[key])
+        if value is None:
+            value = MODEL_CONFIG_DEFAULTS[key]
+        if key == "activation" and hasattr(value, "value"):
+            value = value.value
+        normalized[key] = value
+
+    return normalized
+
+
+def _stable_seed(*parts: Any) -> int:
+    """Create a deterministic 32-bit seed from JSON-serializable inputs."""
+    payload = json.dumps(parts, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    digest = hashlib.sha256(payload.encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], byteorder="little", signed=False)
+
+
+@contextmanager
+def _temporary_numpy_seed(seed: int):
+    """Temporarily seed NumPy without affecting the global RNG afterwards."""
+    state = np.random.get_state()
+    np.random.seed(seed)
+    try:
+        yield
+    finally:
+        np.random.set_state(state)
+
+
+def _tensor_payload(array: np.ndarray) -> Dict[str, Any]:
+    """Serialize a NumPy array for the API response."""
+    return {
+        "shape": list(array.shape),
+        "data": array.tolist(),
+        "dtype": str(array.dtype),
+    }
 
 
 class TransformerWrapper:
@@ -59,6 +131,9 @@ class TransformerWrapper:
         if not NANOTORCH_AVAILABLE:
             raise RuntimeError("nanotorch is not available. Please ensure it is installed.")
 
+        if hasattr(activation, "value"):
+            activation = activation.value
+
         self.config = {
             "d_model": d_model,
             "nhead": nhead,
@@ -72,23 +147,22 @@ class TransformerWrapper:
             "norm_first": norm_first,
             "vocab_size": vocab_size,
         }
+        self._model_seed = _stable_seed("transformer_model", self.config)
 
-        # Create embedding layer
-        self.embedding = Embedding(vocab_size, d_model)
-
-        # Create transformer
-        self.transformer = Transformer(
-            d_model=d_model,
-            nhead=nhead,
-            num_encoder_layers=num_encoder_layers,
-            num_decoder_layers=num_decoder_layers,
-            dim_feedforward=dim_feedforward,
-            dropout=dropout,
-            activation=activation,
-            layer_norm_eps=layer_norm_eps,
-            batch_first=batch_first,
-            norm_first=norm_first,
-        )
+        with _temporary_numpy_seed(self._model_seed):
+            self.embedding = Embedding(vocab_size, d_model)
+            self.transformer = Transformer(
+                d_model=d_model,
+                nhead=nhead,
+                num_encoder_layers=num_encoder_layers,
+                num_decoder_layers=num_decoder_layers,
+                dim_feedforward=dim_feedforward,
+                dropout=dropout,
+                activation=activation,
+                layer_norm_eps=layer_norm_eps,
+                batch_first=batch_first,
+                norm_first=norm_first,
+            )
 
         # Set to evaluation mode
         self.transformer.eval()
@@ -114,6 +188,45 @@ class TransformerWrapper:
         pe[:, 1::2] = np.cos(position * div_term)
 
         return pe
+
+    def _simulate_attention_data(
+        self,
+        tokens: np.ndarray,
+        layer_index: int,
+    ) -> Dict[str, Any]:
+        """Build deterministic simulated attention tensors for visualization."""
+        batch_size, seq_len = tokens.shape
+        nhead = self.config["nhead"]
+        d_model = self.config["d_model"]
+        head_dim = d_model // nhead
+        scale = np.float32(1.0 / np.sqrt(head_dim))
+        rng = np.random.default_rng(
+            _stable_seed(
+                "attention_visualization",
+                self.config,
+                layer_index,
+                tokens.astype(np.int64).tolist(),
+            )
+        )
+
+        q = (rng.normal(0.0, 0.1, size=(batch_size, nhead, seq_len, head_dim))).astype(np.float32)
+        k = (rng.normal(0.0, 0.1, size=(batch_size, nhead, seq_len, head_dim))).astype(np.float32)
+        v = (rng.normal(0.0, 0.1, size=(batch_size, nhead, seq_len, head_dim))).astype(np.float32)
+
+        scores = np.matmul(q, np.swapaxes(k, -1, -2)).astype(np.float32)
+        scores *= scale
+        scores -= np.max(scores, axis=-1, keepdims=True)
+
+        attn_weights = np.exp(scores).astype(np.float32)
+        attn_weights /= attn_weights.sum(axis=-1, keepdims=True)
+
+        return {
+            "weights": _tensor_payload(attn_weights.astype(np.float32)),
+            "queries": _tensor_payload(q),
+            "keys": _tensor_payload(k),
+            "values": _tensor_payload(v),
+            "scale": float(scale),
+        }
 
     def forward(
         self,
@@ -157,21 +270,9 @@ class TransformerWrapper:
 
         if return_embeddings:
             results["embeddings"] = {
-                "token_embeddings": {
-                    "shape": list(token_emb_data.shape),
-                    "data": token_emb_data.tolist(),
-                    "dtype": "float32",
-                },
-                "positional_encodings": {
-                    "shape": list(pos_enc.shape),
-                    "data": pos_enc.tolist(),
-                    "dtype": "float32",
-                },
-                "combined": {
-                    "shape": list(src_embeddings.shape),
-                    "data": src_embeddings.tolist(),
-                    "dtype": "float32",
-                },
+                "token_embeddings": _tensor_payload(token_emb_data),
+                "positional_encodings": _tensor_payload(pos_enc),
+                "combined": _tensor_payload(src_embeddings),
             }
 
         # Run transformer
@@ -199,21 +300,9 @@ class TransformerWrapper:
                 # Store target embeddings in results
                 if return_embeddings:
                     results["target_embeddings"] = {
-                        "token_embeddings": {
-                            "shape": list(tgt_token_emb_data.shape),
-                            "data": tgt_token_emb_data.tolist(),
-                            "dtype": "float32",
-                        },
-                        "positional_encodings": {
-                            "shape": list(tgt_pos_enc.shape),
-                            "data": tgt_pos_enc.tolist(),
-                            "dtype": "float32",
-                        },
-                        "combined": {
-                            "shape": list(tgt_embeddings.shape),
-                            "data": tgt_embeddings.tolist(),
-                            "dtype": "float32",
-                        },
+                        "token_embeddings": _tensor_payload(tgt_token_emb_data),
+                        "positional_encodings": _tensor_payload(tgt_pos_enc),
+                        "combined": _tensor_payload(tgt_embeddings),
                     }
             else:
                 # No target provided, use source as target (autoencoder-like behavior)
@@ -224,77 +313,29 @@ class TransformerWrapper:
             # Encoder only
             output = self.transformer.encoder(src)
 
-        results["final_output"] = {
-            "shape": list(output.data.shape),
-            "data": output.data.tolist(),
-            "dtype": "float32",
-        }
+        results["final_output"] = _tensor_payload(output.data)
 
         # Note: In a full implementation, we would hook into the layers
         # to collect intermediate outputs and attention weights.
         # For now, we return a placeholder structure.
 
         if return_all_layers:
-            results["layer_outputs"] = []
-            # Add placeholder layer outputs
-            num_layers = self.config["num_encoder_layers"] + self.config["num_decoder_layers"]
-            for i in range(num_layers):
-                layer_type = "encoder" if i < self.config["num_encoder_layers"] else "decoder"
-                results["layer_outputs"].append({
-                    "layer_name": f"{layer_type}_layer_{i}",
-                    "layer_type": layer_type,
-                    "input_shape": list(src_embeddings.shape),
-                    "output_shape": list(src_embeddings.shape),
-                    "output": {
-                        "shape": list(src_embeddings.shape),
-                        "data": src_embeddings.tolist(),
-                        "dtype": "float32",
-                    },
-                })
+            results["metadata"] = {
+                **results.get("metadata", {}),
+                "layer_outputs_available": False,
+                "layer_outputs_note": (
+                    "Per-layer capture is not implemented yet; placeholder layer_outputs "
+                    "have been removed to avoid misleading consumers."
+                ),
+            }
 
         if return_attention:
             # Create attention data with Q, K, V projections
             results["attention_weights"] = []
             num_layers = self.config["num_encoder_layers"]
-            nhead = self.config["nhead"]
-            head_dim = d_model // nhead
 
             for i in range(num_layers):
-                # Simulate Q, K, V projections (for visualization)
-                # In a real implementation, these would come from the actual attention layers
-                q = np.random.randn(batch_size, nhead, seq_len, head_dim).astype(np.float32) * 0.1
-                k = np.random.randn(batch_size, nhead, seq_len, head_dim).astype(np.float32) * 0.1
-                v = np.random.randn(batch_size, nhead, seq_len, head_dim).astype(np.float32) * 0.1
-
-                # Compute attention weights from Q and K
-                scores = np.matmul(q, k.transpose(0, 1, 3, 2))  # (batch, heads, seq_len, seq_len)
-                scores = scores / np.sqrt(head_dim)  # Scale
-                attn_weights = np.exp(scores - np.max(scores, axis=-1, keepdims=True))
-                attn_weights = attn_weights / attn_weights.sum(axis=-1, keepdims=True)  # Normalize
-
-                results["attention_weights"].append({
-                    "weights": {
-                        "shape": list(attn_weights.shape),
-                        "data": attn_weights.tolist(),
-                        "dtype": "float32",
-                    },
-                    "queries": {
-                        "shape": list(q.shape),
-                        "data": q.tolist(),
-                        "dtype": "float32",
-                    },
-                    "keys": {
-                        "shape": list(k.shape),
-                        "data": k.tolist(),
-                        "dtype": "float32",
-                    },
-                    "values": {
-                        "shape": list(v.shape),
-                        "data": v.tolist(),
-                        "dtype": "float32",
-                    },
-                    "scale": 1.0 / np.sqrt(head_dim),
-                })
+                results["attention_weights"].append(self._simulate_attention_data(tokens, i))
 
         return results
 
@@ -312,52 +353,7 @@ class TransformerWrapper:
         Returns:
             Attention weights and related data
         """
-        from nanotorch.tensor import Tensor
-
-        batch_size, seq_len = tokens.shape
-        nhead = self.config["nhead"]
-        d_model = self.config["d_model"]
-        head_dim = d_model // nhead
-
-        # Get embeddings
-        token_emb = self.embedding(Tensor(tokens))
-        pos_enc = self.generate_positional_encoding(seq_len, d_model)
-        pos_enc = pos_enc.reshape(1, seq_len, d_model)
-        pos_enc = np.repeat(pos_enc, batch_size, axis=0)
-        embeddings = token_emb.data + pos_enc
-
-        # Create attention weights (simplified)
-        attn_weights = np.random.rand(batch_size, nhead, seq_len, seq_len).astype(np.float32)
-        attn_weights = attn_weights / attn_weights.sum(axis=-1, keepdims=True)
-
-        # Create Q, K, V projections (simplified)
-        q = np.random.rand(batch_size, nhead, seq_len, head_dim).astype(np.float32)
-        k = np.random.rand(batch_size, nhead, seq_len, head_dim).astype(np.float32)
-        v = np.random.rand(batch_size, nhead, seq_len, head_dim).astype(np.float32)
-
-        return {
-            "weights": {
-                "shape": list(attn_weights.shape),
-                "data": attn_weights.tolist(),
-                "dtype": "float32",
-            },
-            "queries": {
-                "shape": list(q.shape),
-                "data": q.tolist(),
-                "dtype": "float32",
-            },
-            "keys": {
-                "shape": list(k.shape),
-                "data": k.tolist(),
-                "dtype": "float32",
-            },
-            "values": {
-                "shape": list(v.shape),
-                "data": v.tolist(),
-                "dtype": "float32",
-            },
-            "scale": 1.0 / np.sqrt(head_dim),
-        }
+        return self._simulate_attention_data(tokens, layer_index)
 
     def get_embeddings(self, tokens: np.ndarray) -> Dict[str, Any]:
         """Get embeddings for the input tokens.
@@ -385,21 +381,9 @@ class TransformerWrapper:
         combined = token_emb.data + pos_enc
 
         return {
-            "token_embeddings": {
-                "shape": list(token_emb.data.shape),
-                "data": token_emb.data.tolist(),
-                "dtype": "float32",
-            },
-            "positional_encodings": {
-                "shape": list(pos_enc.shape),
-                "data": pos_enc.tolist(),
-                "dtype": "float32",
-            },
-            "combined": {
-                "shape": list(combined.shape),
-                "data": combined.tolist(),
-                "dtype": "float32",
-            },
+            "token_embeddings": _tensor_payload(token_emb.data),
+            "positional_encodings": _tensor_payload(pos_enc),
+            "combined": _tensor_payload(combined),
         }
 
 
@@ -412,16 +396,22 @@ def create_transformer_from_config(config: Dict[str, Any]) -> TransformerWrapper
     Returns:
         TransformerWrapper instance
     """
-    return TransformerWrapper(
-        d_model=config.get("d_model", 512),
-        nhead=config.get("nhead", 8),
-        num_encoder_layers=config.get("num_encoder_layers", 6),
-        num_decoder_layers=config.get("num_decoder_layers", 6),
-        dim_feedforward=config.get("dim_feedforward", 2048),
-        dropout=config.get("dropout", 0.1),
-        activation=config.get("activation", "relu"),
-        layer_norm_eps=config.get("layer_norm_eps", 1e-5),
-        batch_first=config.get("batch_first", True),
-        norm_first=config.get("norm_first", False),
-        vocab_size=config.get("vocab_size", 10000),
-    )
+    normalized_config = _normalize_model_config(config)
+    cache_key = json.dumps(normalized_config, sort_keys=True, separators=(",", ":"))
+
+    if cache_key not in TRANSFORMER_CACHE:
+        TRANSFORMER_CACHE[cache_key] = TransformerWrapper(
+            d_model=normalized_config.get("d_model", 512),
+            nhead=normalized_config.get("nhead", 8),
+            num_encoder_layers=normalized_config.get("num_encoder_layers", 6),
+            num_decoder_layers=normalized_config.get("num_decoder_layers", 6),
+            dim_feedforward=normalized_config.get("dim_feedforward", 2048),
+            dropout=normalized_config.get("dropout", 0.1),
+            activation=normalized_config.get("activation", "relu"),
+            layer_norm_eps=normalized_config.get("layer_norm_eps", 1e-5),
+            batch_first=normalized_config.get("batch_first", True),
+            norm_first=normalized_config.get("norm_first", False),
+            vocab_size=normalized_config.get("vocab_size", 10000),
+        )
+
+    return TRANSFORMER_CACHE[cache_key]

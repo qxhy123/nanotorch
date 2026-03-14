@@ -10,6 +10,11 @@ interface LayerNormalizationProps {
   className?: string;
 }
 
+const pseudoRandom = (seed: number): number => {
+  const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return value - Math.floor(value);
+};
+
 export const LayerNormalization: React.FC<LayerNormalizationProps> = ({ className }) => {
   const { config } = useTransformerStore();
   const [testMean, setTestMean] = useState(0);
@@ -19,9 +24,8 @@ export const LayerNormalization: React.FC<LayerNormalizationProps> = ({ classNam
   const sampleData = useMemo(() => {
     const data: number[] = [];
     for (let i = 0; i < 100; i++) {
-      // Generate data with normal distribution
-      const u1 = Math.random();
-      const u2 = Math.random();
+      const u1 = Math.max(pseudoRandom(i * 2 + 1), Number.EPSILON);
+      const u2 = pseudoRandom(i * 2 + 2);
       const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
       data.push(z * testStd + testMean);
     }

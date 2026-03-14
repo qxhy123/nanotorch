@@ -2,23 +2,44 @@
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, status
-from typing import Dict, Any
+from typing import List, Optional
 
 from app.models.schemas import (
     TransformerConfig,
     TransformerInput,
     TransformerForwardOptions,
     TransformerForwardResponse,
-    EmbeddingData,
     ValidationResponse,
 )
 from app.core.transformer_wrapper import (
-    TransformerWrapper,
     create_transformer_from_config,
     NANOTORCH_AVAILABLE,
 )
 
 router = APIRouter(prefix="/api/v1/transformer", tags=["transformer"])
+
+
+def _prepare_tokens(
+    text: str,
+    explicit_tokens: Optional[List[int]],
+    vocab_size: int,
+    max_seq_len: int,
+) -> np.ndarray:
+    """Build a token tensor and enforce max sequence length."""
+    if explicit_tokens:
+        tokens = np.array(explicit_tokens, dtype=np.int64)
+    else:
+        tokens = np.array(
+            [ord(char) % vocab_size for char in text[:max_seq_len]],
+            dtype=np.int64,
+        )
+
+    if tokens.ndim == 1:
+        tokens = tokens[:max_seq_len].reshape(1, -1)
+    else:
+        tokens = tokens[:, :max_seq_len]
+
+    return tokens
 
 
 @router.post("/forward", response_model=TransformerForwardResponse)
@@ -54,37 +75,24 @@ async def forward_pass(
         # Create model
         model = create_transformer_from_config(config.dict())
 
-        # Tokenize input
         text = input_data.text
-        if input_data.tokens:
-            tokens = np.array(input_data.tokens, dtype=np.int64)
-        else:
-            # Simple character-level tokenization
-            tokens = np.array(
-                [[ord(c) % config.vocab_size for c in text[: config.max_seq_len]]],
-                dtype=np.int64,
-            )
-
-        # Add batch dimension if needed
-        if tokens.ndim == 1:
-            tokens = tokens.reshape(1, -1)
+        tokens = _prepare_tokens(
+            text=text,
+            explicit_tokens=input_data.tokens,
+            vocab_size=config.vocab_size,
+            max_seq_len=config.max_seq_len,
+        )
 
         # Process target sequence if provided and decoder exists
         target_tokens = None
         if config.num_decoder_layers > 0 and (input_data.target_text or input_data.target_tokens):
             target_text = input_data.target_text or text
-            if input_data.target_tokens:
-                target_tokens = np.array(input_data.target_tokens, dtype=np.int64)
-            else:
-                # Simple character-level tokenization for target
-                target_tokens = np.array(
-                    [[ord(c) % config.vocab_size for c in target_text[: config.max_seq_len]]],
-                    dtype=np.int64,
-                )
-
-            # Add batch dimension if needed
-            if target_tokens.ndim == 1:
-                target_tokens = target_tokens.reshape(1, -1)
+            target_tokens = _prepare_tokens(
+                text=target_text,
+                explicit_tokens=input_data.target_tokens,
+                vocab_size=config.vocab_size,
+                max_seq_len=config.max_seq_len,
+            )
 
         # Run forward pass
         result = model.forward(
@@ -129,18 +137,12 @@ async def get_attention(
     try:
         model = create_transformer_from_config(config.dict())
 
-        # Tokenize
-        text = input_data.text
-        if input_data.tokens:
-            tokens = np.array(input_data.tokens, dtype=np.int64)
-        else:
-            tokens = np.array(
-                [[ord(c) % config.vocab_size for c in text[: config.max_seq_len]]],
-                dtype=np.int64,
-            )
-
-        if tokens.ndim == 1:
-            tokens = tokens.reshape(1, -1)
+        tokens = _prepare_tokens(
+            text=input_data.text,
+            explicit_tokens=input_data.tokens,
+            vocab_size=config.vocab_size,
+            max_seq_len=config.max_seq_len,
+        )
 
         # Get attention
         result = model.get_attention_weights(tokens, layer_index)
@@ -176,18 +178,12 @@ async def get_embeddings(
     try:
         model = create_transformer_from_config(config.dict())
 
-        # Tokenize
-        text = input_data.text
-        if input_data.tokens:
-            tokens = np.array(input_data.tokens, dtype=np.int64)
-        else:
-            tokens = np.array(
-                [[ord(c) % config.vocab_size for c in text[: config.max_seq_len]]],
-                dtype=np.int64,
-            )
-
-        if tokens.ndim == 1:
-            tokens = tokens.reshape(1, -1)
+        tokens = _prepare_tokens(
+            text=input_data.text,
+            explicit_tokens=input_data.tokens,
+            vocab_size=config.vocab_size,
+            max_seq_len=config.max_seq_len,
+        )
 
         # Get embeddings
         result = model.get_embeddings(tokens)

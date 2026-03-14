@@ -84,6 +84,80 @@ interface DropoutMaskVisualizationProps {
   className?: string;
 }
 
+interface NeuronDisplayProps {
+  neurons: Neuron[];
+  title: string;
+  showMask?: boolean;
+}
+
+const NeuronDisplay: React.FC<NeuronDisplayProps> = ({
+  neurons,
+  title,
+  showMask = true,
+}) => {
+  const maxValue = Math.max(...neurons.map((neuron) => neuron.value));
+  const displayedNeurons = showMask ? neurons : neurons.filter((neuron) => !neuron.isDropped);
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium">{title}</h3>
+      <div className="flex flex-wrap gap-2 justify-center min-h-[100px] p-2 bg-muted/30 rounded-lg">
+        {displayedNeurons.map((neuron) => {
+          const isActive = !neuron.isDropped;
+          const opacity = neuron.value / maxValue;
+          const size = 30 + opacity * 20;
+
+          return (
+            <div
+              key={neuron.id}
+              className="relative flex items-center justify-center rounded-full transition-all duration-300"
+              style={{
+                width: `${size}px`,
+                height: `${size}px`,
+                backgroundColor: isActive
+                  ? `rgba(59, 130, 246, ${opacity})`
+                  : 'rgba(239, 68, 68, 0.3)',
+                border: neuron.isDropped ? '2px dashed #ef4444' : '2px solid #3b82f6',
+                opacity: neuron.isDropped ? 0.5 : 1,
+              }}
+              title={`Neuron ${neuron.id}: ${neuron.isDropped ? 'DROPPED' : 'Active'} (${neuron.value.toFixed(3)})`}
+            >
+              {neuron.isDropped && showMask && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-full h-px bg-red-500 rotate-45" />
+                  <div className="w-full h-px bg-red-500 -rotate-45" />
+                </div>
+              )}
+              {!neuron.isDropped && (
+                <span className="text-xs font-medium text-white">
+                  {neuron.value.toFixed(2)}
+                </span>
+              )}
+            </div>
+          );
+        })}
+        {!showMask && neurons.filter((neuron) => neuron.isDropped).length > 0 && (
+          <div className="w-full text-center text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <EyeOff className="h-3 w-3" />
+              {neurons.filter((neuron) => neuron.isDropped).length} dropped neurons hidden
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="text-xs text-center text-muted-foreground">
+        {showMask ? (
+          <>
+            Showing all {neurons.length} neurons ({neurons.filter((neuron) => !neuron.isDropped).length} active, {neurons.filter((neuron) => neuron.isDropped).length} dropped)
+          </>
+        ) : (
+          <>Showing {displayedNeurons.length} active neurons only</>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const DropoutMaskVisualization: React.FC<DropoutMaskVisualizationProps> = ({
   className = '',
 }) => {
@@ -134,75 +208,6 @@ export const DropoutMaskVisualization: React.FC<DropoutMaskVisualizationProps> =
   const reset = () => {
     setIsAnimating(false);
     setAnimationStep(0);
-  };
-
-  // Neuron display component
-  const NeuronDisplay: React.FC<{
-    neurons: Neuron[];
-    title: string;
-    showMask?: boolean;
-  }> = ({ neurons, title, showMask = true }) => {
-    const maxValue = Math.max(...neurons.map(n => n.value));
-
-    // Filter neurons based on showMask
-    const displayedNeurons = showMask ? neurons : neurons.filter(n => !n.isDropped);
-
-    return (
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium">{title}</h3>
-        <div className="flex flex-wrap gap-2 justify-center min-h-[100px] p-2 bg-muted/30 rounded-lg">
-          {displayedNeurons.map((neuron) => {
-            const isActive = !neuron.isDropped;
-            const opacity = neuron.value / maxValue;
-            const size = 30 + opacity * 20;
-
-            return (
-              <div
-                key={neuron.id}
-                className="relative flex items-center justify-center rounded-full transition-all duration-300"
-                style={{
-                  width: `${size}px`,
-                  height: `${size}px`,
-                  backgroundColor: isActive
-                    ? `rgba(59, 130, 246, ${opacity})`
-                    : 'rgba(239, 68, 68, 0.3)',
-                  border: neuron.isDropped ? '2px dashed #ef4444' : '2px solid #3b82f6',
-                  opacity: neuron.isDropped ? 0.5 : 1,
-                }}
-                title={`Neuron ${neuron.id}: ${neuron.isDropped ? 'DROPPED' : 'Active'} (${neuron.value.toFixed(3)})`}
-              >
-                {neuron.isDropped && showMask && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-full h-px bg-red-500 rotate-45" />
-                    <div className="w-full h-px bg-red-500 -rotate-45" />
-                  </div>
-                )}
-                {!neuron.isDropped && (
-                  <span className="text-xs font-medium text-white">
-                    {neuron.value.toFixed(2)}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-          {!showMask && neurons.filter(n => n.isDropped).length > 0 && (
-            <div className="w-full text-center text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <EyeOff className="h-3 w-3" />
-                {neurons.filter(n => n.isDropped).length} dropped neurons hidden
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="text-xs text-center text-muted-foreground">
-          {showMask ? (
-            <>Showing all {neurons.length} neurons ({neurons.filter(n => !n.isDropped).length} active, {neurons.filter(n => n.isDropped).length} dropped)</>
-          ) : (
-            <>Showing {displayedNeurons.length} active neurons only</>
-          )}
-        </div>
-      </div>
-    );
   };
 
   return (

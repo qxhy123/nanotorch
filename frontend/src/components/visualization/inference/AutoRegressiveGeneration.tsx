@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { inferenceDemoApi } from '../../../services/inferenceDemoApi';
 import type {
   GenerationStep,
   SamplingOptions,
@@ -35,116 +36,6 @@ interface AutoRegressiveGenerationProps {
   prompt?: string;
   maxLength?: number;
   className?: string;
-}
-
-// Mock generation step generator
-function generateMockSteps(prompt: string, maxLength: number = 10): GenerationStep[] {
-  const promptTokens = prompt.split(' ');
-  const steps: GenerationStep[] = [];
-
-  const continuations = [
-    'is',
-    'will be',
-    'has become',
-    'represents',
-    'brings',
-    'offers',
-    'creates',
-    'transforms',
-  ];
-
-  const nextWords = [
-    'a new era of',
-    'incredible opportunities for',
-    'groundbreaking advances in',
-    'unprecedented possibilities in',
-    'remarkable solutions for',
-  ];
-
-  let currentSequence = [...promptTokens];
-  let generatedText = prompt;
-
-  // Initial step (just prompt)
-  steps.push({
-    stepIndex: 0,
-    position: promptTokens.length - 1,
-    generatedToken: {
-      tokenId: -1,
-      token: '<START>',
-      probability: 1.0,
-      chosenStrategy: 'greedy',
-      alternatives: [],
-    },
-    distribution: {
-      position: promptTokens.length - 1,
-      tokens: [],
-      entropy: 0,
-      topToken: {
-        tokenId: -1,
-        token: '<START>',
-        probability: 1.0,
-        logProbability: 0,
-        rank: 1,
-      },
-      topKTokens: [],
-      cumulativeProbability: 1.0,
-    },
-    context: prompt,
-    timeTaken: 0,
-  });
-
-  // Generate tokens one by one
-  for (let i = 0; i < maxLength; i++) {
-    const continuation = continuations[Math.floor(Math.random() * continuations.length)];
-    const nextWord = nextWords[Math.floor(Math.random() * nextWords.length)];
-    const newToken = i < 3 ? continuation : `${continuation} ${nextWord}`;
-
-    // Generate mock distribution
-    const mockTokens = [
-      { tokenId: i * 10, token: newToken, probability: 0.3 + Math.random() * 0.2, logProbability: -1.2, rank: 1 },
-      { tokenId: i * 10 + 1, token: 'might be', probability: 0.15, logProbability: -1.9, rank: 2 },
-      { tokenId: i * 10 + 2, token: 'could be', probability: 0.12, logProbability: -2.1, rank: 3 },
-      { tokenId: i * 10 + 3, token: 'should be', probability: 0.08, logProbability: -2.5, rank: 4 },
-      { tokenId: i * 10 + 4, token: 'would be', probability: 0.06, logProbability: -2.8, rank: 5 },
-      { tokenId: i * 10 + 5, token: 'can be', probability: 0.05, logProbability: -3.0, rank: 6 },
-      { tokenId: i * 10 + 6, token: 'shall be', probability: 0.04, logProbability: -3.2, rank: 7 },
-      { tokenId: i * 10 + 7, token: 'must be', probability: 0.03, logProbability: -3.5, rank: 8 },
-      { tokenId: i * 10 + 8, token: 'may be', probability: 0.02, logProbability: -3.9, rank: 9 },
-      { tokenId: i * 10 + 9, token: 'is truly', probability: 0.01, logProbability: -4.6, rank: 10 },
-    ];
-
-    const entropy = 2.5 + Math.random() * 1.5;
-
-    currentSequence = [...currentSequence, ...newToken.split(' ')];
-    generatedText = currentSequence.join(' ');
-
-    steps.push({
-      stepIndex: i + 1,
-      position: currentSequence.length - 1,
-      generatedToken: {
-        tokenId: i * 10,
-        token: newToken,
-        probability: mockTokens[0].probability,
-        chosenStrategy: 'greedy',
-        alternatives: mockTokens.slice(0, 5),
-      },
-      distribution: {
-        position: i + promptTokens.length,
-        tokens: mockTokens,
-        entropy,
-        topToken: mockTokens[0],
-        topKTokens: mockTokens.slice(0, 10),
-        cumulativeProbability: mockTokens.slice(0, 10).reduce((sum, t) => sum + t.probability, 0),
-      },
-      context: generatedText,
-      timeTaken: 50 + Math.random() * 150,
-    });
-
-    // Stop at certain length
-    if (currentSequence.length > 20) break;
-  }
-
-  return steps;
 }
 
 export const AutoRegressiveGeneration: React.FC<AutoRegressiveGenerationProps> = ({
@@ -173,7 +64,11 @@ export const AutoRegressiveGeneration: React.FC<AutoRegressiveGenerationProps> =
     try {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 500));
-      const mockSteps = generateMockSteps(prompt, maxLength);
+      const mockSteps = inferenceDemoApi.generateAutoregressiveSteps(
+        prompt,
+        maxLength,
+        samplingOptions.strategy || 'greedy'
+      );
       setSteps(mockSteps);
       setCurrentStep(0);
     } catch (error) {
@@ -181,7 +76,7 @@ export const AutoRegressiveGeneration: React.FC<AutoRegressiveGenerationProps> =
     } finally {
       setLoading(false);
     }
-  }, [prompt, maxLength]);
+  }, [prompt, maxLength, samplingOptions.strategy]);
 
   // Initial load
   useEffect(() => {

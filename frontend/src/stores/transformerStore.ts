@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   TransformerConfig,
+  TransformerOutput,
   LayerOutputData,
   AttentionData,
   ComponentVisualizationState,
@@ -70,7 +71,7 @@ interface TransformerState {
   targetTokens: number[];
 
   // Computation results
-  output: any; // TransformerOutput | null
+  output: TransformerOutput | null;
   embeddings: LayerOutputData | null;
   attentionWeights: AttentionData[] | null;
   layerOutputs: LayerOutputData[] | null;
@@ -102,7 +103,7 @@ interface TransformerState {
   setTargetText: (text: string) => void;
   setTokens: (tokens: number[]) => void;
   setTargetTokens: (tokens: number[]) => void;
-  setOutput: (output: any) => void;
+  setOutput: (output: TransformerOutput | null) => void;
   setSelectedLayer: (layer: number) => void;
   setSelectedHead: (head: number) => void;
   setSelectedComponent: (component: string) => void;
@@ -208,19 +209,24 @@ export const useTransformerStore = create<TransformerState>((set) => ({
     set({ targetTokens: tokens }),
 
   setOutput: (output) => {
+    const data = output?.data as (
+      TransformerOutput['data'] & {
+        attention_weights?: AttentionData[];
+        layer_outputs?: LayerOutputData[];
+      }
+    ) | undefined;
+
     set({
       output,
-      embeddings: output.data?.embeddings ? {
+      embeddings: data?.embeddings ? {
         layerName: 'embeddings',
         layerType: 'embedding',
         inputShape: [],
-        outputShape: output.data.embeddings.combined.shape,
-        output: output.data.embeddings.combined,
+        outputShape: data.embeddings.combined.shape,
+        output: data.embeddings.combined,
       } : null,
-      // Backend returns snake_case, so we need to check for attention_weights
-      attentionWeights: output.data?.attention_weights || output.data?.attentionWeights || null,
-      // Backend returns snake_case
-      layerOutputs: output.data?.layer_outputs || output.data?.layerOutputs || null,
+      attentionWeights: data?.attentionWeights || data?.attention_weights || null,
+      layerOutputs: data?.layerOutputs || data?.layer_outputs || null,
     });
   },
 

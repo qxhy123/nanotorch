@@ -51,6 +51,23 @@ interface ComparisonRun {
   color: string;
 }
 
+interface LossTooltipEntry {
+  color?: string;
+  name?: string;
+  value?: number | string;
+}
+
+interface LossTooltipProps {
+  active?: boolean;
+  payload?: LossTooltipEntry[];
+  label?: number | string;
+}
+
+interface BrushRange {
+  startIndex?: number;
+  endIndex?: number;
+}
+
 // Generate mock comparison runs
 function generateMockComparisonRuns(): ComparisonRun[] {
   return [
@@ -146,6 +163,30 @@ function calculateStats(data: Array<{ epoch: number; value: number }>) {
   return { min, max, mean, std, convergenceEpoch };
 }
 
+const LossTooltip: React.FC<LossTooltipProps> = ({ active, payload, label }) => {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="bg-background border rounded-lg p-3 shadow-lg">
+      <p className="text-sm font-medium mb-2">Epoch {label}</p>
+      {payload.map((entry, index) => (
+        <div key={index} className="flex items-center gap-2 text-xs">
+          <div
+            className="w-3 h-3 rounded-sm"
+            style={{ backgroundColor: entry.color }}
+          />
+          <span className="font-medium">{entry.name}:</span>
+          <span>
+            {typeof entry.value === 'number' ? entry.value.toFixed(4) : entry.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export const LossCurve: React.FC<LossCurveProps> = ({
   trainLoss,
   validationLoss,
@@ -199,27 +240,6 @@ export const LossCurve: React.FC<LossCurveProps> = ({
     if (current < previous * 0.99) return <TrendingDown className="h-3 w-3 text-green-500" />;
     if (current > previous * 1.01) return <TrendingUp className="h-3 w-3 text-red-500" />;
     return <Minus className="h-3 w-3 text-gray-500" />;
-  };
-
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload || !payload.length) return null;
-
-    return (
-      <div className="bg-background border rounded-lg p-3 shadow-lg">
-        <p className="text-sm font-medium mb-2">Epoch {label}</p>
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 text-xs">
-            <div
-              className="w-3 h-3 rounded-sm"
-              style={{ backgroundColor: entry.color }}
-            />
-            <span className="font-medium">{entry.name}:</span>
-            <span>{entry.value.toFixed(4)}</span>
-          </div>
-        ))}
-      </div>
-    );
   };
 
   return (
@@ -406,7 +426,7 @@ export const LossCurve: React.FC<LossCurveProps> = ({
                 className="text-xs"
                 scale={useLogScale ? 'log' : 'auto'}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<LossTooltip />} />
               <Legend />
 
               <Area
@@ -478,9 +498,9 @@ export const LossCurve: React.FC<LossCurveProps> = ({
                 />
               )}
               <Brush
-                onChange={(e: any) => {
-                  if (e?.startIndex !== undefined && e?.endIndex !== undefined) {
-                    handleZoom({ startIndex: e.startIndex, endIndex: e.endIndex });
+                onChange={(range: BrushRange | null) => {
+                  if (range?.startIndex !== undefined && range?.endIndex !== undefined) {
+                    handleZoom({ startIndex: range.startIndex, endIndex: range.endIndex });
                   }
                 }}
                 stroke="#3b82f6"

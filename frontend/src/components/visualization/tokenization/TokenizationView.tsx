@@ -15,9 +15,13 @@ import { Label } from '../../ui/label';
 import { Select } from '../../ui/select';
 import { Slider } from '../../ui/slider';
 import { useTransformerStore } from '../../../stores/transformerStore';
-import { tokenizerApi } from '../../../services/tokenizerApi';
-import type { TokenType } from '../../../types/tokenizer';
+import type { TokenInfo, TokenType } from '../../../types/tokenizer';
 import { Loader2, Hash, Settings, RefreshCw } from 'lucide-react';
+import {
+  buildTokenizerTrainingTexts,
+  getEffectiveTokenizerVocabSize,
+  tokenizeForTransformer,
+} from '../../../services/transformerTokenizer';
 
 interface TokenizationViewProps {
   className?: string;
@@ -32,6 +36,8 @@ const TOKENIZER_TYPES: Array<{ value: TokenType; label: string; description: str
 export const TokenizationView: React.FC<TokenizationViewProps> = ({ className = '' }) => {
   const {
     inputText,
+    targetText,
+    config,
     tokenizerType,
     tokenizerVocabSize,
     tokenizerNumMerges,
@@ -48,6 +54,14 @@ export const TokenizationView: React.FC<TokenizationViewProps> = ({ className = 
 
   const [showSettings, setShowSettings] = React.useState(false);
   const [selectedTokenIndex, setSelectedTokenIndex] = React.useState<number | null>(null);
+  const trainingTexts = React.useMemo(
+    () => buildTokenizerTrainingTexts(inputText, targetText),
+    [inputText, targetText]
+  );
+  const effectiveTokenizerVocabSize = React.useMemo(
+    () => getEffectiveTokenizerVocabSize(tokenizerVocabSize, config.vocab_size),
+    [tokenizerVocabSize, config.vocab_size]
+  );
 
   // Perform tokenization
   const performTokenization = useCallback(async () => {
@@ -60,32 +74,33 @@ export const TokenizationView: React.FC<TokenizationViewProps> = ({ className = 
     setTokenizationError(null);
 
     try {
-      const response = await tokenizerApi.tokenize({
+      const response = await tokenizeForTransformer({
         text: inputText,
         tokenizerType,
-        vocabSize: tokenizerVocabSize,
-        numMerges: tokenizerNumMerges,
+        tokenizerVocabSize,
+        tokenizerNumMerges,
+        modelVocabSize: config.vocab_size,
+        trainingTexts,
       });
 
-      if (response.success) {
-        setTokenizationResult({
-          tokenIds: response.tokenIds,
-          tokens: response.tokens,
-          tokenDetails: response.tokenDetails,
-          vocabularySummary: response.vocabularySummary,
-          tokenizerType: response.tokenizerType,
-        });
-      } else {
-        setTokenizationError(response.error || 'Tokenization failed');
-        setTokenizationResult(null);
-      }
+      setTokenizationResult(response.tokenization);
     } catch (error) {
       setTokenizationError(error instanceof Error ? error.message : 'Unknown error');
       setTokenizationResult(null);
     } finally {
       setIsTokenizing(false);
     }
-  }, [inputText, tokenizerType, tokenizerVocabSize, tokenizerNumMerges, setIsTokenizing, setTokenizationResult, setTokenizationError]);
+  }, [
+    inputText,
+    tokenizerType,
+    tokenizerVocabSize,
+    tokenizerNumMerges,
+    config.vocab_size,
+    trainingTexts,
+    setIsTokenizing,
+    setTokenizationResult,
+    setTokenizationError,
+  ]);
 
   // Auto-tokenize when input or settings change
   useEffect(() => {
@@ -102,7 +117,7 @@ export const TokenizationView: React.FC<TokenizationViewProps> = ({ className = 
   };
 
   // Get background color for a token based on its properties
-  const getTokenColor = (token: any, index: number) => {
+  const getTokenColor = (token: TokenInfo, index: number) => {
     if (token.isSpecial) {
       return 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200';
     }
@@ -116,7 +131,7 @@ export const TokenizationView: React.FC<TokenizationViewProps> = ({ className = 
   };
 
   // Render a single token
-  const renderToken = (token: any, index: number) => {
+  const renderToken = (token: TokenInfo, index: number) => {
     const colorClass = getTokenColor(token, index);
     const displayText = token.text || '<unk>';
 
@@ -250,7 +265,12 @@ export const TokenizationView: React.FC<TokenizationViewProps> = ({ className = 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Vocabulary Size</Label>
-                <Badge variant="outline">{tokenizerVocabSize}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{tokenizerVocabSize}</Badge>
+                  <Badge variant="secondary">
+                    Runtime cap {effectiveTokenizerVocabSize}
+                  </Badge>
+                </div>
               </div>
               <Slider
                 value={[tokenizerVocabSize]}
@@ -260,6 +280,11 @@ export const TokenizationView: React.FC<TokenizationViewProps> = ({ className = 
                 step={100}
                 className="w-full"
               />
+              {tokenizerVocabSize > config.vocab_size && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Live transformer runs cap tokenizer vocab to the model limit of {config.vocab_size}.
+                </p>
+              )}
             </div>
 
             {/* Number of Merges (only for BPE) */}
@@ -318,7 +343,7 @@ export const TokenizationView: React.FC<TokenizationViewProps> = ({ className = 
               </div>
               <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                 <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                  {tokenizationResult.tokenDetails.filter((t: any) => t.isSpecial).length}
+                  {tokenizationResult.tokenDetails.filter((token) => token.isSpecial).length}
                 </div>
                 <div className="text-xs text-gray-600 dark:text-gray-400">Special Tokens</div>
               </div>

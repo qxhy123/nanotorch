@@ -6,10 +6,65 @@ import { useTransformerStore } from '../../../stores/transformerStore';
 import { useSemanticColors } from '../../../hooks/useSemanticColors';
 import { Brain, Play, Pause, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { Latex } from '../../ui/Latex';
+import type { AttentionData } from '../../../types/transformer';
 
 interface MultiHeadAttentionProps {
   className?: string;
 }
+
+interface HeadMatrixData {
+  queries: number[][];
+  keys: number[][];
+  values: number[][];
+  headDim: number;
+}
+
+type AttentionDataWithHead = AttentionData & {
+  headData?: HeadMatrixData;
+};
+
+const isNumberMatrix = (value: unknown): value is number[][] =>
+  Array.isArray(value) &&
+  value.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === 'number'));
+
+const isFourDimensionalTensor = (value: unknown): value is number[][][][] =>
+  Array.isArray(value) &&
+  value.every((batch) =>
+    Array.isArray(batch) &&
+    batch.every((head) =>
+      Array.isArray(head) &&
+      head.every((row) => Array.isArray(row) && row.every((cell) => typeof cell === 'number'))
+    )
+  );
+
+const getHeadMatrices = (
+  attentionData: AttentionData,
+  selectedHead: number,
+  headDim: number
+): HeadMatrixData | null => {
+  if (
+    !isFourDimensionalTensor(attentionData.queries.data) ||
+    !isFourDimensionalTensor(attentionData.keys.data) ||
+    !isFourDimensionalTensor(attentionData.values.data)
+  ) {
+    return null;
+  }
+
+  const headQueries = attentionData.queries.data[0]?.[selectedHead];
+  const headKeys = attentionData.keys.data[0]?.[selectedHead];
+  const headValues = attentionData.values.data[0]?.[selectedHead];
+
+  if (!isNumberMatrix(headQueries) || !isNumberMatrix(headKeys) || !isNumberMatrix(headValues)) {
+    return null;
+  }
+
+  return {
+    queries: headQueries,
+    keys: headKeys,
+    values: headValues,
+    headDim,
+  };
+};
 
 export const MultiHeadAttention: React.FC<MultiHeadAttentionProps> = ({ className }) => {
   const {
@@ -23,42 +78,16 @@ export const MultiHeadAttention: React.FC<MultiHeadAttentionProps> = ({ classNam
   const [showComputationDetails, setShowComputationDetails] = useState(true);
   const { query, key, value, attention } = useSemanticColors();
 
-  const attentionData = useMemo(() => {
+  const attentionData = useMemo<AttentionDataWithHead | null>(() => {
     if (!attentionWeights || attentionWeights.length === 0) return null;
     const data = attentionWeights[Math.min(selectedLayer, attentionWeights.length - 1)];
 
-    if (data?.queries?.data && data?.keys?.data && data?.values?.data) {
-      const headDim = Math.floor(config.d_model / config.nhead);
-      const queries = data.queries.data as any;
-      const keys = data.keys.data as any;
-      const values = data.values.data as any;
-
-      if (Array.isArray(queries) && queries.length > 0) {
-        const batch = queries[0];
-        if (Array.isArray(batch) && batch.length > selectedHead) {
-          const headQ = batch[selectedHead];
-          const headK = keys[0][selectedHead];
-          const headV = values[0][selectedHead];
-
-          if (Array.isArray(headQ) && Array.isArray(headQ[0])) {
-            return {
-              ...data,
-              headData: {
-                queries: headQ as number[][],
-                keys: headK as number[][],
-                values: headV as number[][],
-                headDim,
-              },
-            };
-          }
-        }
-      }
-    }
-
-    return data;
+    const headData = getHeadMatrices(data, selectedHead, Math.floor(config.d_model / config.nhead));
+    return headData ? { ...data, headData } : data;
   }, [attentionWeights, selectedLayer, selectedHead, config]);
 
   const headDim = Math.floor(config.d_model / config.nhead);
+  const headData = attentionData?.headData;
   const tokens = useMemo(() => inputText.split('').slice(0, 16), [inputText]);
 
   if (!attentionData) {
@@ -179,13 +208,13 @@ export const MultiHeadAttention: React.FC<MultiHeadAttentionProps> = ({ classNam
           </div>
         )}
 
-        {(attentionData as any)?.headData && (
+        {headData && (
           <InteractiveQKVVisualization
-            queries={(attentionData as any).headData.queries}
-            keys={(attentionData as any).headData.keys}
-            values={(attentionData as any).headData.values}
-            headDim={(attentionData as any).headData.headDim}
-            seqLen={(attentionData as any).headData.queries.length}
+            queries={headData.queries}
+            keys={headData.keys}
+            values={headData.values}
+            headDim={headData.headDim}
+            seqLen={headData.queries.length}
             tokens={tokens}
             scale={1 / Math.sqrt(headDim)}
           />

@@ -165,7 +165,7 @@ export const EmbeddingArithmetic: React.FC<EmbeddingArithmeticProps> = ({
       let currentOp = '+';
 
       for (const token of tokens) {
-        const word = VOCABULARY.find((v) => v.word === token.replace(/[+\-]/g, ''));
+        const word = VOCABULARY.find((v) => v.word === token.replace(/[+-]/g, ''));
         if (!word) continue;
 
         // Check for operator prefix
@@ -189,7 +189,7 @@ export const EmbeddingArithmetic: React.FC<EmbeddingArithmeticProps> = ({
         excludeWords,
         valid: true,
       };
-    } catch (e) {
+    } catch {
       return {
         vector: null,
         excludeWords: [],
@@ -339,9 +339,9 @@ export const EmbeddingArithmetic: React.FC<EmbeddingArithmeticProps> = ({
           {operation && (
             <div className="flex items-center gap-2 flex-wrap text-sm">
               {operation.split(/\s+/).map((token, idx) => {
-                const word = token.replace(/[+\-]/g, '');
+                const word = token.replace(/[+-]/g, '');
                 const vocabItem = VOCABULARY.find((v) => v.word === word);
-                const operator = token.match(/[+\-]/)?.[0];
+                const operator = token.match(/[+-]/)?.[0];
 
                 return (
                   <React.Fragment key={idx}>
@@ -428,7 +428,7 @@ export const EmbeddingArithmetic: React.FC<EmbeddingArithmeticProps> = ({
         )}
 
         {/* 2D Visualization */}
-        {true && (
+        {(
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium flex items-center gap-2">

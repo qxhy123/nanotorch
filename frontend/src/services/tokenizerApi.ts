@@ -19,10 +19,25 @@ import type {
   TokenizerTypeInfo,
 } from '../types/tokenizer';
 
+type SerializableValue =
+  | boolean
+  | number
+  | string
+  | null
+  | undefined
+  | SerializableValue[]
+  | { [key: string]: SerializableValue };
+
+const isRecord = (value: SerializableValue): value is { [key: string]: SerializableValue } =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const hasOwn = (obj: object, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(obj, key);
+
 /**
  * Convert camelCase to snake_case for backend requests.
  */
-function toSnakeCase(obj: any): any {
+function toSnakeCase(obj: SerializableValue): SerializableValue {
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
@@ -31,9 +46,9 @@ function toSnakeCase(obj: any): any {
     return obj.map(toSnakeCase);
   }
 
-  const result: any = {};
+  const result: { [key: string]: SerializableValue } = {};
   for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
+    if (hasOwn(obj, key)) {
       const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
       result[snakeKey] = toSnakeCase(obj[key]);
     }
@@ -44,7 +59,7 @@ function toSnakeCase(obj: any): any {
 /**
  * Convert snake_case to camelCase for backend responses.
  */
-function toCamelCase(obj: any): any {
+function toCamelCase(obj: SerializableValue): SerializableValue {
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
@@ -53,9 +68,9 @@ function toCamelCase(obj: any): any {
     return obj.map(toCamelCase);
   }
 
-  const result: any = {};
+  const result: { [key: string]: SerializableValue } = {};
   for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
+    if (hasOwn(obj, key)) {
       // Handle special case for is_special -> isSpecial
       if (key === 'is_special') {
         result.isSpecial = toCamelCase(obj[key]);
@@ -127,7 +142,10 @@ export const tokenizerApi = {
    */
   getTokenizerTypes: async (): Promise<{ success: boolean; tokenizerTypes: TokenizerTypeInfo[] }> => {
     const response = await api.get('/api/v1/tokenizer/types');
-    return response.data;
+    return toCamelCase(response.data as SerializableValue) as unknown as {
+      success: boolean;
+      tokenizerTypes: TokenizerTypeInfo[];
+    };
   },
 
   /**
@@ -137,9 +155,9 @@ export const tokenizerApi = {
    * @returns Tokenization response with token IDs, tokens, and metadata
    */
   tokenize: async (request: TokenizeRequest): Promise<TokenizeResponse> => {
-    const snakeCaseRequest = toSnakeCase(request);
+    const snakeCaseRequest = toSnakeCase(request as unknown as SerializableValue);
     const response = await api.post('/api/v1/tokenizer/tokenize', snakeCaseRequest);
-    return toCamelCase(response.data) as TokenizeResponse;
+    return toCamelCase(response.data as SerializableValue) as unknown as TokenizeResponse;
   },
 
   /**
@@ -149,9 +167,9 @@ export const tokenizerApi = {
    * @returns Vocabulary response with all tokens and their information
    */
   getVocabulary: async (request: VocabularyRequest): Promise<VocabularyResponse> => {
-    const snakeCaseRequest = toSnakeCase(request);
+    const snakeCaseRequest = toSnakeCase(request as unknown as SerializableValue);
     const response = await api.post('/api/v1/tokenizer/vocabulary', snakeCaseRequest);
-    return toCamelCase(response.data) as VocabularyResponse;
+    return toCamelCase(response.data as SerializableValue) as unknown as VocabularyResponse;
   },
 
   /**
@@ -168,14 +186,34 @@ export const tokenizerApi = {
     tokenizerType: TokenType,
     vocabSize: number = 10000,
     trainingTexts?: string[]
-  ): Promise<{ success: boolean; tokenInfo: any; tokenizerType: TokenType; error?: string }> => {
+  ): Promise<{
+    success: boolean;
+    tokenInfo: Record<string, SerializableValue> | null;
+    tokenizerType: TokenType;
+    error?: string;
+  }> => {
     const response = await api.post('/api/v1/tokenizer/token-detail', {
       token_id: tokenId,
       tokenizer_type: tokenizerType,
       vocab_size: vocabSize,
       training_texts: trainingTexts,
     });
-    return response.data;
+    const data = toCamelCase(response.data as SerializableValue) as unknown as {
+      success: boolean;
+      tokenInfo?: SerializableValue;
+      tokenizerType: TokenType;
+      error?: string;
+    };
+    const tokenInfo = data.tokenInfo;
+
+    return {
+      success: data.success,
+      tokenInfo: isRecord(tokenInfo ?? null)
+        ? (tokenInfo as Record<string, SerializableValue>)
+        : null,
+      tokenizerType: data.tokenizerType,
+      error: data.error,
+    };
   },
 
   /**
@@ -185,9 +223,9 @@ export const tokenizerApi = {
    * @returns Decoded text
    */
   decode: async (request: DecodeRequest): Promise<DecodeResponse> => {
-    const snakeCaseRequest = toSnakeCase(request);
+    const snakeCaseRequest = toSnakeCase(request as unknown as SerializableValue);
     const response = await api.post('/api/v1/tokenizer/decode', snakeCaseRequest);
-    return toCamelCase(response.data) as DecodeResponse;
+    return toCamelCase(response.data as SerializableValue) as unknown as DecodeResponse;
   },
 
   /**
@@ -197,9 +235,9 @@ export const tokenizerApi = {
    * @returns Comparison results for each tokenizer type
    */
   compare: async (request: CompareRequest): Promise<CompareResponse> => {
-    const snakeCaseRequest = toSnakeCase(request);
+    const snakeCaseRequest = toSnakeCase(request as unknown as SerializableValue);
     const response = await api.post('/api/v1/tokenizer/compare', snakeCaseRequest);
-    return toCamelCase(response.data) as CompareResponse;
+    return toCamelCase(response.data as SerializableValue) as unknown as CompareResponse;
   },
 };
 

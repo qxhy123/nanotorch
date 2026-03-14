@@ -1,7 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, ChevronLeft, SkipForward } from 'lucide-react';
 import { useTutorial } from './TutorialProvider';
+import { TutorialRichContent } from './TutorialRichContent';
+import {
+  DISCLOSURE_LEVEL_DESCRIPTIONS,
+  useDisclosureLevel,
+} from '../providers';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -27,48 +32,80 @@ export const TutorialOverlay: React.FC = () => {
     skipTutorial,
     endTutorial,
   } = useTutorial();
+  const { level } = useDisclosureLevel();
 
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0, height: 0 });
-  const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
+  const [layoutVersion, setLayoutVersion] = useState(0);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const emptyPosition = useMemo(() => ({ top: 0, left: 0, width: 0, height: 0 }), []);
 
-  // Find and position relative to target element
   useEffect(() => {
     if (!state.isTutorialActive || !currentStepData?.target) {
-      setTargetElement(null);
       return;
     }
 
-    const findTarget = () => {
-      try {
-        const element = document.querySelector(currentStepData.target!) as HTMLElement;
-        setTargetElement(element);
-
-        if (element) {
-          const rect = element.getBoundingClientRect();
-          const scrollX = window.scrollX || window.pageXOffset;
-          const scrollY = window.scrollY || window.pageYOffset;
-
-          setPosition({
-            top: rect.top + scrollY,
-            left: rect.left + scrollX,
-            width: rect.width,
-            height: rect.height,
-          });
-        }
-      } catch (error) {
-        console.warn('Could not find tutorial target:', currentStepData.target);
-        setTargetElement(null);
-      }
+    const handleLayoutChange = () => {
+      setLayoutVersion((version) => version + 1);
     };
 
-    findTarget();
-
-    // Recalculate on resize
-    const handleResize = () => findTarget();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('resize', handleLayoutChange);
+    window.addEventListener('scroll', handleLayoutChange, true);
+    return () => {
+      window.removeEventListener('resize', handleLayoutChange);
+      window.removeEventListener('scroll', handleLayoutChange, true);
+    };
   }, [state.isTutorialActive, currentStepData?.target]);
+
+  useEffect(() => {
+    const targetSelector = currentStepData?.target;
+    if (!state.isTutorialActive || !targetSelector) {
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      const element = document.querySelector(targetSelector);
+      if (element instanceof HTMLElement) {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest',
+        });
+      }
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [state.isTutorialActive, currentStepData?.target, state.currentStep]);
+
+  const targetSnapshot = useMemo(() => {
+    if (!state.isTutorialActive || !currentStepData?.target) {
+      return null;
+    }
+    void layoutVersion;
+    void level;
+
+    try {
+      const element = document.querySelector(currentStepData.target);
+      if (!(element instanceof HTMLElement)) {
+        return null;
+      }
+
+      const rect = element.getBoundingClientRect();
+      const scrollX = window.scrollX || window.pageXOffset;
+      const scrollY = window.scrollY || window.pageYOffset;
+
+      return {
+        element,
+        position: {
+          top: rect.top + scrollY,
+          left: rect.left + scrollX,
+          width: rect.width,
+          height: rect.height,
+        },
+      };
+    } catch {
+      console.warn('Could not find tutorial target:', currentStepData.target);
+      return null;
+    }
+  }, [state.isTutorialActive, currentStepData?.target, layoutVersion, level]);
 
   // Handle escape key
   useEffect(() => {
@@ -89,6 +126,12 @@ export const TutorialOverlay: React.FC = () => {
   const currentStep = state.currentStep;
   const totalSteps = activeTutorial.steps.length;
   const progress = ((currentStep + 1) / totalSteps) * 100;
+  const targetElement = targetSnapshot?.element ?? null;
+  const position = targetSnapshot?.position ?? emptyPosition;
+  const requiredDisclosureLevel = currentStepData.requiredDisclosureLevel;
+  const disclosureDescriptor = requiredDisclosureLevel
+    ? DISCLOSURE_LEVEL_DESCRIPTIONS[requiredDisclosureLevel]
+    : null;
 
   // Position for the tutorial card
   const getCardPosition = () => {
@@ -235,9 +278,22 @@ export const TutorialOverlay: React.FC = () => {
               {currentStepData.title}
             </h3>
 
+            {disclosureDescriptor && (
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge variant="secondary">
+                  Focus level: {disclosureDescriptor.title}
+                </Badge>
+                <span className="text-gray-500">
+                  {level === requiredDisclosureLevel
+                    ? 'The tutorial set the detail level for this step.'
+                    : 'This step is best viewed at a higher disclosure level.'}
+                </span>
+              </div>
+            )}
+
             <div className="text-gray-600 prose prose-sm max-w-none">
               {typeof currentStepData.content === 'string' ? (
-                <p>{currentStepData.content}</p>
+                <TutorialRichContent content={currentStepData.content} />
               ) : (
                 currentStepData.content
               )}
@@ -339,7 +395,7 @@ export const TutorialTooltip: React.FC<{
   position?: 'top' | 'bottom' | 'left' | 'right';
 }> = ({ content, target, position = 'bottom' }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const [layoutVersion, setLayoutVersion] = useState(0);
 
   useEffect(() => {
     const element = document.querySelector(target) as HTMLElement;
@@ -347,19 +403,27 @@ export const TutorialTooltip: React.FC<{
 
     const handleMouseEnter = () => setIsVisible(true);
     const handleMouseLeave = () => setIsVisible(false);
+    const handleLayoutChange = () => setLayoutVersion((version) => version + 1);
 
     element.addEventListener('mouseenter', handleMouseEnter);
     element.addEventListener('mouseleave', handleMouseLeave);
+    window.addEventListener('resize', handleLayoutChange);
+    window.addEventListener('scroll', handleLayoutChange, true);
 
     return () => {
       element.removeEventListener('mouseenter', handleMouseEnter);
       element.removeEventListener('mouseleave', handleMouseLeave);
+      window.removeEventListener('resize', handleLayoutChange);
+      window.removeEventListener('scroll', handleLayoutChange, true);
     };
   }, [target]);
 
-  useEffect(() => {
+  const coords = useMemo(() => {
+    void layoutVersion;
     const element = document.querySelector(target) as HTMLElement;
-    if (!element) return;
+    if (!element) {
+      return { top: 0, left: 0 };
+    }
 
     const rect = element.getBoundingClientRect();
     const scrollX = window.scrollX || window.pageXOffset;
@@ -374,8 +438,8 @@ export const TutorialTooltip: React.FC<{
               rect.left + scrollX + rect.width / 2 - 75,
     };
 
-    setCoords(tooltipCoords);
-  }, [target, position]);
+    return tooltipCoords;
+  }, [target, position, layoutVersion]);
 
   return (
     <AnimatePresence>

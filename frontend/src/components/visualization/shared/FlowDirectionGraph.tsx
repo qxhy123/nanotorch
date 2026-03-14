@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import katex from 'katex';
@@ -5,6 +6,7 @@ import { Card } from '../../ui/card';
 import { Badge } from '../../ui/badge';
 import { Info } from 'lucide-react';
 import { Latex } from '../../ui/Latex';
+import type { AttentionData } from '../../../types/transformer';
 
 interface FlowNode {
   id: string;
@@ -15,7 +17,9 @@ interface FlowNode {
   width: number;
   height: number;
   color: string;
-  data?: any;
+  data?: {
+    shape?: Array<number | string>;
+  };
   description?: string;
   formula?: string;
 }
@@ -85,10 +89,10 @@ export const FlowDirectionGraph: React.FC<FlowDirectionGraphProps> = ({
 
     // Create node map for link resolution
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
-    const resolvedLinks = links.map(link => ({
+    const resolvedLinks = links.map((link) => ({
       ...link,
-      source: nodeMap.get(link.source as string) || link.source,
-      target: nodeMap.get(link.target as string) || link.target,
+      source: typeof link.source === 'string' ? nodeMap.get(link.source) || link.source : link.source,
+      target: typeof link.target === 'string' ? nodeMap.get(link.target) || link.target : link.target,
     }));
 
     // Create simple arrow marker
@@ -111,8 +115,12 @@ export const FlowDirectionGraph: React.FC<FlowDirectionGraphProps> = ({
     const linkGroup = g.append('g').attr('class', 'links').style('opacity', 0);
 
     resolvedLinks.forEach((link) => {
-      const sourceNode = link.source as FlowNode;
-      const targetNode = link.target as FlowNode;
+      if (typeof link.source === 'string' || typeof link.target === 'string') {
+        return;
+      }
+
+      const sourceNode = link.source;
+      const targetNode = link.target;
 
       // Simple connection points
       const sourceX = sourceNode.x + sourceNode.width;
@@ -162,7 +170,7 @@ export const FlowDirectionGraph: React.FC<FlowDirectionGraphProps> = ({
             trust: true,
           });
           div.html(html);
-        } catch (e) {
+        } catch {
           div.text(link.label);
         }
       }
@@ -376,13 +384,17 @@ export const FlowDirectionGraph: React.FC<FlowDirectionGraphProps> = ({
 /**
  * Hook to generate QKV flow data
  */
-export const useQKVFlowData = (attentionData: any, tokens: string[] = []) => {
+export const useQKVFlowData = (
+  attentionData: AttentionData | null | undefined,
+  tokens: string[] = []
+) => {
   if (!attentionData || !attentionData.queries) {
     return { nodes: [], links: [] };
   }
 
   const { queries, keys, values } = attentionData;
-  const getShape = (tensor: any) => (tensor?.shape ? tensor.shape : ['seq_len', 'd_model']);
+  const getShape = (tensor?: { shape?: number[] } | null): Array<number | string> =>
+    Array.isArray(tensor?.shape) ? tensor.shape : ['seq_len', 'd_model'];
 
   const qShape = getShape(queries);
   const kShape = getShape(keys);

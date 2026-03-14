@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
 import type { Tutorial, TutorialStep, TutorialState } from '../../types/transformer';
 import { useTransformerStore } from '../../stores/transformerStore';
 
@@ -62,48 +63,16 @@ export const TutorialProvider: React.FC<TutorialProviderProps> = ({
     skipTutorial: storeSkipTutorial,
   } = useTransformerStore();
 
-  const [tutorialsMap] = useState<Record<string, Tutorial>>(
-    Object.fromEntries(tutorials.map((t) => [t.id, t]))
+  const tutorialsMap = useMemo<Record<string, Tutorial>>(
+    () => Object.fromEntries(tutorials.map((tutorial) => [tutorial.id, tutorial])),
+    [tutorials]
   );
-
-  // Auto-start tutorial if requested
-  useEffect(() => {
-    if (autoStart && autoStartTutorialId && !tutorialState.activeTutorial) {
-      const canStart = !tutorialState.completedTutorials.includes(autoStartTutorialId) ||
-                       !tutorialState.skippedTutorials.includes(autoStartTutorialId);
-      if (canStart) {
-        startTutorial(autoStartTutorialId);
-      }
-    }
-  }, []);
-
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!tutorialState.isTutorialActive) return;
-
-      switch (e.key) {
-        case 'Escape':
-          endTutorial(false);
-          break;
-        case 'ArrowRight':
-          nextStep();
-          break;
-        case 'ArrowLeft':
-          previousStep();
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tutorialState.isTutorialActive, tutorialState.activeTutorial, tutorialState.currentStep]);
 
   const activeTutorial = tutorialState.activeTutorial
     ? tutorialsMap[tutorialState.activeTutorial]
     : null;
 
-  const currentStepData = activeTutorial?.steps[tutorialState.currentStep] || null;
+  const currentStepData = activeTutorial?.steps[tutorialState.currentStep] ?? null;
 
   const startTutorial = useCallback((tutorialId: string) => {
     const tutorial = tutorialsMap[tutorialId];
@@ -139,7 +108,9 @@ export const TutorialProvider: React.FC<TutorialProviderProps> = ({
 
     if (nextIndex < activeTutorial.steps.length) {
       setTutorialStep(nextIndex);
-      onStepChange?.(tutorialState.activeTutorial!, nextIndex);
+      if (tutorialState.activeTutorial) {
+        onStepChange?.(tutorialState.activeTutorial, nextIndex);
+      }
 
       // Execute step action if exists
       const step = activeTutorial.steps[nextIndex];
@@ -155,7 +126,9 @@ export const TutorialProvider: React.FC<TutorialProviderProps> = ({
 
     const prevIndex = tutorialState.currentStep - 1;
     setTutorialStep(prevIndex);
-    onStepChange?.(tutorialState.activeTutorial!, prevIndex);
+    if (tutorialState.activeTutorial) {
+      onStepChange?.(tutorialState.activeTutorial, prevIndex);
+    }
 
     // Execute step action if exists
     const step = activeTutorial.steps[prevIndex];
@@ -167,7 +140,9 @@ export const TutorialProvider: React.FC<TutorialProviderProps> = ({
 
     if (stepIndex >= 0 && stepIndex < activeTutorial.steps.length) {
       setTutorialStep(stepIndex);
-      onStepChange?.(tutorialState.activeTutorial!, stepIndex);
+      if (tutorialState.activeTutorial) {
+        onStepChange?.(tutorialState.activeTutorial, stepIndex);
+      }
     }
   }, [activeTutorial, tutorialState.activeTutorial, setTutorialStep, onStepChange]);
 
@@ -183,7 +158,49 @@ export const TutorialProvider: React.FC<TutorialProviderProps> = ({
     setTutorialStep(0);
   }, [setIsTutorialActive, setActiveTutorial, setTutorialStep]);
 
-  const value: TutorialContextType = {
+  useEffect(() => {
+    if (!autoStart || !autoStartTutorialId || tutorialState.activeTutorial) {
+      return;
+    }
+
+    const hasCompleted = tutorialState.completedTutorials.includes(autoStartTutorialId);
+    const hasSkipped = tutorialState.skippedTutorials.includes(autoStartTutorialId);
+    if (!hasCompleted && !hasSkipped) {
+      startTutorial(autoStartTutorialId);
+    }
+  }, [
+    autoStart,
+    autoStartTutorialId,
+    startTutorial,
+    tutorialState.activeTutorial,
+    tutorialState.completedTutorials,
+    tutorialState.skippedTutorials,
+  ]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!tutorialState.isTutorialActive) {
+        return;
+      }
+
+      switch (event.key) {
+        case 'Escape':
+          endTutorial(false);
+          break;
+        case 'ArrowRight':
+          nextStep();
+          break;
+        case 'ArrowLeft':
+          previousStep();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [tutorialState.isTutorialActive, endTutorial, nextStep, previousStep]);
+
+  const value = useMemo<TutorialContextType>(() => ({
     state: tutorialState,
     tutorials: tutorialsMap,
     activeTutorial,
@@ -195,7 +212,19 @@ export const TutorialProvider: React.FC<TutorialProviderProps> = ({
     goToStep,
     skipTutorial,
     resetProgress,
-  };
+  }), [
+    tutorialState,
+    tutorialsMap,
+    activeTutorial,
+    currentStepData,
+    startTutorial,
+    endTutorial,
+    nextStep,
+    previousStep,
+    goToStep,
+    skipTutorial,
+    resetProgress,
+  ]);
 
   return (
     <TutorialContext.Provider value={value}>
@@ -239,14 +268,24 @@ export const useTutorialTarget = (elementId: string): boolean => {
 export const useTutorialHighlight = () => {
   const { currentStepData, state } = useTutorial();
   const isHighlighted = state.isTutorialActive && currentStepData !== null;
+  const shouldHighlight = useCallback((elementId: string) => {
+    if (!isHighlighted || !currentStepData) {
+      return false;
+    }
+
+    const targetSelector = currentStepData.target;
+    const matchesTarget = targetSelector === `#${elementId}` || targetSelector === `.${elementId}`;
+    const matchesHighlight = currentStepData.highlightElements?.some((selector) =>
+      selector === `#${elementId}` || selector === `.${elementId}`
+    ) ?? false;
+
+    return matchesTarget || matchesHighlight;
+  }, [currentStepData, isHighlighted]);
 
   return {
     isHighlighted,
     targetSelector: currentStepData?.target,
     highlightSelectors: currentStepData?.highlightElements,
-    shouldHighlight: (elementId: string) => {
-      if (!isHighlighted) return false;
-      return useTutorialTarget(elementId);
-    },
+    shouldHighlight,
   };
 };

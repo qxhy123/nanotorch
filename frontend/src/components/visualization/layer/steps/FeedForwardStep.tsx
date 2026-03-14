@@ -7,7 +7,7 @@
 import React from 'react';
 import { Badge } from '../../../ui/badge';
 import { layerApi } from '../../../../services/layerApi';
-import type { SublayerComputation, LayerConfig } from '../../../../types/layer';
+import type { SublayerComputation, LayerConfig, TensorData } from '../../../../types/layer';
 
 interface FeedForwardStepProps {
   ffnData: SublayerComputation;
@@ -22,7 +22,7 @@ export const FeedForwardStep: React.FC<FeedForwardStepProps> = ({
   const activationOutput = ffnData.activation_output;
   const linear2Output = ffnData.linear2_output;
 
-  const getStats = (data: any) => {
+  const getStats = (data?: TensorData) => {
     if (!data) return null;
     const flat = layerApi.flattenTensorData(data.data);
     if (!flat || flat.length === 0) return null;

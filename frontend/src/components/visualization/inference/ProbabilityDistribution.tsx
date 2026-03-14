@@ -21,7 +21,7 @@ import {
   ChevronUp,
   RefreshCw,
 } from 'lucide-react';
-import { inferenceApi } from '../../../services/inferenceApi';
+import { inferenceDemoApi } from '../../../services/inferenceDemoApi';
 import type {
   ProbabilityDistributionData,
   ProbabilityVizState,
@@ -55,8 +55,7 @@ export const ProbabilityDistribution: React.FC<ProbabilityDistributionProps> = (
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Use mock data for now - replace with real API call when backend is ready
-      const mockData = inferenceApi.generateMockProbabilityDistribution(sequence);
+      const mockData = inferenceDemoApi.generateProbabilityDistribution(sequence);
       setData(mockData);
       if (mockData.distributions.length > 0) {
         setSelectedPosition(0);

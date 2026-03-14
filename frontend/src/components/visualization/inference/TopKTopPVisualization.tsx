@@ -453,14 +453,16 @@ export const TopKTopPVisualization: React.FC<TopKTopPVisualizationProps> = ({
                   <Tooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
+                        const token = payload[0].payload.token;
+                        const cumulative = baseProbs.find((item) => item.token === token)?.cumulative ?? 0;
                         return (
                           <div className="bg-background border rounded-lg p-2 shadow-lg">
-                            <p className="text-xs font-medium">{payload[0].payload.token}</p>
+                            <p className="text-xs font-medium">{token}</p>
                             <p className="text-xs">
                               Probability: {payload[0].payload.probability}%
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Cumulative: {(baseProbs.find((b) => b.token === payload[0].payload.token)?.cumulative! * 100).toFixed(1)}%
+                              Cumulative: {(cumulative * 100).toFixed(1)}%
                             </p>
                           </div>
                         );

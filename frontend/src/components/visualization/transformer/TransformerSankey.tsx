@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components, @typescript-eslint/no-explicit-any */
 import React, { useEffect, useRef, useState } from 'react';
 import { sankey, sankeyLinkHorizontal } from 'd3-sankey';
 import * as d3 from 'd3';
@@ -150,7 +151,8 @@ export const TransformerSankey: React.FC<TransformerSankeyProps> = ({
       .attr('fill', 'none')
       .attr('opacity', 0.5)
       .style('cursor', interactive ? 'pointer' : 'default')
-      .on('mouseenter', function(_event: any, d: any) {
+      .on('mouseenter', function(event: any, d: any) {
+        void event;
         if (interactive) {
           // Calculate tooltip position based on link coordinates
           const linkX = (d.source.x1 + d.target.x0) / 2;
@@ -177,7 +179,8 @@ export const TransformerSankey: React.FC<TransformerSankeyProps> = ({
           d3.select(this).attr('opacity', 0.8);
         }
       })
-      .on('mouseleave', function(_event: any) {
+      .on('mouseleave', function(event: any) {
+        void event;
         if (interactive) {
           setTooltip(null);
           d3.select(this).attr('opacity', 0.5);
@@ -198,7 +201,8 @@ export const TransformerSankey: React.FC<TransformerSankeyProps> = ({
       .attr('stroke-width', 2)
       .attr('rx', 3)
       .style('cursor', interactive ? 'pointer' : 'default')
-      .on('mouseenter', function(_event: any, d: any) {
+      .on('mouseenter', function(event: any, d: any) {
+        void event;
         if (interactive) {
           // Calculate tooltip position based on node coordinates
           const nodeX = (d.x0 + d.x1) / 2;
@@ -253,7 +257,8 @@ export const TransformerSankey: React.FC<TransformerSankeyProps> = ({
           d3.select(this).attr('opacity', 0.8);
         }
       })
-      .on('mouseleave', function(_event: any) {
+      .on('mouseleave', function(event: any) {
+        void event;
         if (interactive) {
           setTooltip(null);
           d3.select(this).attr('opacity', 1);

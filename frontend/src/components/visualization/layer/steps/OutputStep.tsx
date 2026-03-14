@@ -14,9 +14,23 @@ interface OutputStepProps {
   config: LayerConfig;
 }
 
+const getPreviewRows = (tensor: TensorData): number[][] => {
+  if (tensor.shape.length === 3 && Array.isArray(tensor.data) && Array.isArray(tensor.data[0])) {
+    const batch = tensor.data as number[][][];
+    return Array.isArray(batch[0]) ? batch[0] : [];
+  }
+
+  if (tensor.shape.length === 2 && Array.isArray(tensor.data)) {
+    return tensor.data as number[][];
+  }
+
+  return [];
+};
+
 export const OutputStep: React.FC<OutputStepProps> = ({ data, config }) => {
   const flatData = layerApi.flattenTensorData(data.data);
   const stats = layerApi.calculateTensorStats(flatData);
+  const displayData = getPreviewRows(data);
 
   // Safe formatting function
   const safeToFixed = (val: number, digits: number = 4) => {
@@ -109,25 +123,10 @@ export const OutputStep: React.FC<OutputStepProps> = ({ data, config }) => {
               </thead>
               <tbody>
                 {(() => {
-                  // Handle different data structures
-                  let displayData: any[][] = [];
-
-                  if (data.shape.length === 3) {
-                    // 3D tensor [batch, seq, d_model]
-                    const batchData = data.data as any[][];
-                    if (Array.isArray(batchData) && batchData.length > 0) {
-                      displayData = batchData[0] as any[][];
-                    }
-                  } else if (data.shape.length === 2) {
-                    // 2D tensor [seq, d_model]
-                    displayData = data.data as any[][];
-                  }
-
-                  return displayData.slice(0, 3).map((row: any[], i: number) => (
+                  return displayData.slice(0, 3).map((row, i) => (
                     <tr key={i} className="border-b">
-                      {row.slice(0, 8).map((val: any, j: number) => {
-                        const numVal = typeof val === 'number' ? val : parseFloat(val);
-                        const displayVal = isNaN(numVal) ? 'N/A' : numVal.toFixed(4);
+                      {row.slice(0, 8).map((val, j) => {
+                        const displayVal = Number.isFinite(val) ? val.toFixed(4) : 'N/A';
                         return (
                           <td key={j} className="px-2 py-1 font-mono text-xs">
                             {displayVal}

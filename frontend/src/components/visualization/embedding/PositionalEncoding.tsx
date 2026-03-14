@@ -48,12 +48,14 @@ export const PositionalEncoding: React.FC<PositionalEncodingProps> = ({ classNam
     const normalized = (value + 1) / 2; // Normalize from [-1, 1] to [0, 1]
 
     switch (colorScheme) {
-      case 'blues':
+      case 'blues': {
         const blue = Math.round(255 * (1 - normalized));
         return `rgb(${Math.round(200 * normalized)}, ${Math.round(200 * normalized)}, ${255 - blue})`;
-      case 'reds':
+      }
+      case 'reds': {
         const red = Math.round(255 * (1 - normalized));
         return `rgb(${255 - red}, ${Math.round(200 * normalized)}, ${Math.round(200 * normalized)})`;
+      }
       case 'viridis':
         if (normalized < 0.25) {
           return `rgb(68, 1, ${Math.round(84 + normalized * 4 * 100)})`;
